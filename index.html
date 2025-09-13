@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Suite di Analisi per Laboratorio</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Librerie per calcoli statistici e esportazione -->
+    <script src="https://unpkg.com/simple-statistics@7.8.3/dist/simple-statistics.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- LIBRERIA PER IL RENDERING DELLE FORMULE MATEMATICHE -->
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="p-4 sm:p-6 md:p-8">
+    <div class="max-w-7xl mx-auto">
+        <!-- Intestazione -->
+        <header class="mb-8">
+            <h1 class="text-3xl font-bold text-gray-800">Suite di Analisi per Laboratorio</h1>
+            <p class="text-lg text-gray-600 mt-1">Strumenti per l'analisi statistica e il calcolo dell'incertezza.</p>
+        </header>
+
+        <main>
+            <!-- Navigazione a Schede (Tab) -->
+            <div class="mb-6 border-b border-gray-300">
+                <nav class="-mb-px flex space-x-6" aria-label="Tabs">
+                    <button onclick="switchTab('frontespizio')" id="tab-frontespizio" class="tab-btn active whitespace-nowrap py-4 px-1 border-b-2 font-medium text-lg text-gray-500 hover:text-blue-600 hover:border-blue-300">
+                        Frontespizio
+                    </button>
+                    <button onclick="switchTab('statistica')" id="tab-statistica" class="tab-btn whitespace-nowrap py-4 px-1 border-b-2 font-medium text-lg text-gray-500 hover:text-blue-600 hover:border-blue-300">
+                        Analisi Statistica
+                    </button>
+                    <button onclick="switchTab('taratura')" id="tab-taratura" class="tab-btn whitespace-nowrap py-4 px-1 border-b-2 font-medium text-lg text-gray-500 hover:text-blue-600 hover:border-blue-300">
+                        Incertezza di Taratura
+                    </button>
+                    <button onclick="switchTab('preparazione')" id="tab-preparazione" class="tab-btn whitespace-nowrap py-4 px-1 border-b-2 font-medium text-lg text-gray-500 hover:text-blue-600 hover:border-blue-300">
+                        Incertezza di Preparazione
+                    </button>
+                    <button onclick="switchTab('librerie')" id="tab-librerie" class="tab-btn whitespace-nowrap py-4 px-1 border-b-2 font-medium text-lg text-gray-500 hover:text-blue-600 hover:border-blue-300">
+                        Gestione Librerie
+                    </button>
+                     <button onclick="switchTab('validazione')" id="tab-validazione" class="tab-btn whitespace-nowrap py-4 px-1 border-b-2 font-medium text-lg text-gray-500 hover:text-blue-600 hover:border-blue-300">
+                        Verifica Validazione
+                    </button>
+                </nav>
+            </div>
+
+            <!-- Contenuto della Scheda: Frontespizio -->
+            <div id="content-frontespizio" class="">
+                <div class="bg-white p-6 rounded-lg shadow-md border border-gray-200">
+                    <h2 class="text-2xl font-bold text-gray-700 mb-4">Informazioni Generali del Progetto</h2>
+                    <div class="space-y-4">
+                        <div>
+                            <label for="project-objective" class="block text-sm font-medium text-gray-700">Obiettivo</label>
+                            <textarea id="project-objective" rows="3" class="mt-1 w-full p-2 border border-gray-300 rounded-md" placeholder="Descrivi lo scopo dell'analisi..."></textarea>
+                        </div>
+                        <div>
+                            <label for="project-method" class="block text-sm font-medium text-gray-700">Metodo</label>
+                            <input type="text" id="project-method" class="mt-1 w-full p-2 border border-gray-300 rounded-md" placeholder="Es: EPA 8270D, Metodo Interno...">
+                        </div>
+                        <div>
+                            <label for="project-component" class="block text-sm font-medium text-gray-700">Componente di Interesse</label>
+                            <input type="text" id="project-component" class="mt-1 w-full p-2 border border-gray-300 rounded-md" placeholder="Es: Benzene, Glifosato...">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Contenuto della Scheda: Analisi Statistica -->
+            <div id="content-statistica" class="hidden">
+                <div id="samples-container" class="space-y-6"></div>
+                <div class="mt-6 flex items-center space-x-4 flex-wrap gap-y-4">
+                    <button onclick="addSample()" class="bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-blue-700 transition duration-300">Aggiungi Campione</button>
+                    <button id="calculate-btn" onclick="calculateAll()" class="bg-green-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg hover:bg-green-700 transition duration-300 flex items-center">
+                        <svg id="calc-icon" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-6m-3 3h3m-3-6a3 3 0 100-6 3 3 0 000 6zm-5 11a7 7 0 1114 0H4z" /></svg>
+                        <svg id="loading-spinner" class="animate-spin h-5 w-5 mr-3 hidden" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        <span id="calc-btn-text">Elabora e Calcola</span>
+                    </button>
+                    <button onclick="showManual()" class="bg-gray-500 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-gray-600 transition duration-300">Visualizza Manuale</button>
+                </div>
+                <section id="results-section" class="mt-10">
+                    <div class="flex justify-between items-center border-b-2 border-gray-300 pb-2 mb-6">
+                        <h2 class="text-2xl font-bold text-gray-700">Report Finale</h2>
+                        <div id="export-buttons" class="hidden space-x-2">
+                            <button onclick="exportToPDF()" title="Esporta in PDF" class="text-gray-500 hover:text-red-600 p-2 rounded-full hover:bg-gray-200 transition"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg></button>
+                            <button onclick="exportToExcel()" title="Esporta in Excel" class="text-gray-500 hover:text-green-600 p-2 rounded-full hover:bg-gray-200 transition"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg></button>
+                            <button onclick="exportToWord()" title="Esporta in Word" class="text-gray-500 hover:text-blue-600 p-2 rounded-full hover:bg-gray-200 transition"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg></button>
+                        </div>
+                    </div>
+                    <div id="results-container" class="space-y-6"></div>
+                </section>
+            </div>
+
+            <!-- Contenuto della Scheda: Incertezza di Taratura -->
+            <div id="content-taratura" class="hidden">
+                 <div id="calibration-choice">
+                     <h2 class="text-2xl font-bold text-gray-700 mb-4">Calcolo Incertezza di Taratura</h2>
+                     <p class="text-gray-600 mb-6">Scegli il modello di calibrazione da utilizzare per la stima dell'incertezza.</p>
+                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                         <div onclick="selectCalibrationMethod('regression')" class="bg-white p-6 rounded-lg shadow-md border border-gray-200 hover:border-blue-500 hover:shadow-lg transition cursor-pointer">
+                             <h3 class="text-xl font-semibold text-gray-800">Retta dei Minimi Quadrati</h3>
+                             <p class="text-gray-600 mt-2">Calcola l'incertezza associata a una retta di taratura costruita con più punti.</p>
+                         </div>
+                          <div onclick="selectCalibrationMethod('responseFactor')" class="bg-white p-6 rounded-lg shadow-md border border-gray-200 hover:border-blue-500 hover:shadow-lg transition cursor-pointer">
+                             <h3 class="text-xl font-semibold text-gray-800">Fattore di Risposta</h3>
+                             <p class="text-gray-600 mt-2">Calcola l'incertezza per una calibrazione a singolo punto, basata su un fattore di risposta.</p>
+                         </div>
+                     </div>
+                 </div>
+
+                 <!-- Calcolatore: Retta di regressione -->
+                 <div id="regression-calculator" class="hidden mt-8">
+                     <div class="flex justify-between items-center mb-4"><h2 class="text-2xl font-bold text-gray-700">Incertezza da Retta di Taratura</h2><div><button onclick="backToCalibrationChoice()" class="text-sm text-blue-600 hover:underline">‹ Cambia Metodo</button><button onclick="resetRegressionCalculator()" class="ml-4 text-sm bg-red-100 text-red-800 font-semibold py-1 px-3 rounded-md hover:bg-red-200">Reset</button></div></div>
+                      <div class="bg-white p-6 rounded-lg shadow-md border border-gray-200 space-y-6">
+                          <div><h3 class="text-lg font-semibold text-gray-800">1. Dati della Retta di Taratura</h3><p class="text-sm text-gray-500">Incolla una colonna di dati da Excel in una delle caselle per compilare rapidamente.</p><div id="regression-table-container" class="mt-2 space-y-2"></div><button onclick="addRegressionRow()" class="mt-2 text-sm bg-blue-100 text-blue-800 font-semibold py-1 px-3 rounded-md hover:bg-blue-200">+ Aggiungi Punto</button></div>
+                          <div class="space-y-4 pt-4 border-t"><h3 class="text-lg font-semibold text-gray-800">2. Calcolo Incertezza</h3><p class="text-sm text-gray-600 mb-2">Seleziona i livelli di concentrazione (Valori Attesi) dall'analisi statistica per calcolare l'incertezza, oppure inserisci manualmente i dati di un singolo campione.</p><div class="grid grid-cols-1 md:grid-cols-2 gap-6"><div class="space-y-3"><h4 class="font-semibold text-gray-700">Usa Risultati da Analisi Statistica</h4><div id="analysis-sample-checklist" class="space-y-2 max-h-40 overflow-y-auto border p-2 rounded-md"></div><div class="flex space-x-2"><button onclick="toggleRegressionCheckboxes(true)" class="text-xs bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded">Seleziona tutti</button><button onclick="toggleRegressionCheckboxes(false)" class="text-xs bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded">Deseleziona tutti</button></div></div><div class="space-y-3"><h4 class="font-semibold text-gray-700">Inserimento Manuale (singolo campione)</h4><div><label class="block text-sm font-medium text-gray-700">Risposta Strumentale (y_k)</label><input type="number" id="regression-y-k" class="w-full p-2 border border-gray-300 rounded-md" placeholder="Es: 54321"></div><div><label class="block text-sm font-medium text-gray-700">N. Repliche (p)</label><input type="number" id="regression-p" value="1" class="w-full p-2 border border-gray-300 rounded-md"></div></div></div></div>
+                          <button onclick="calculateRegressionUncertainty()" class="bg-green-600 text-white font-bold py-2 px-5 rounded-lg shadow-lg hover:bg-green-700 transition">Calcola Incertezza di Taratura</button>
+                          <div id="regression-results" class="hidden pt-4 border-t"></div>
+                      </div>
+                 </div>
+
+                 <!-- Calcolatore: Fattore di risposta -->
+                 <div id="responseFactor-calculator" class="hidden mt-8">
+                      <div class="flex justify-between items-center mb-4"><h2 class="text-2xl font-bold text-gray-700">Incertezza da Fattore di Risposta</h2><div><button onclick="backToCalibrationChoice()" class="text-sm text-blue-600 hover:underline">‹ Cambia Metodo</button><button onclick="resetResponseFactorCalculator()" class="ml-4 text-sm bg-red-100 text-red-800 font-semibold py-1 px-3 rounded-md hover:bg-red-200">Reset</button></div></div>
+                      <div class="bg-white p-6 rounded-lg shadow-md border border-gray-200 space-y-6">
+                          <div><h3 class="text-lg font-semibold text-gray-800">1. Incertezza Relativa del Metodo</h3><label for="rf-uncertainty-percent" class="block text-sm font-medium text-gray-700 mt-2">Incertezza Relativa % del Fattore di Risposta (u_rel%)</label><input type="number" id="rf-uncertainty-percent" class="w-full sm:w-1/2 p-2 border border-gray-300 rounded-md" placeholder="Es: 1.5"></div>
+                          <div class="space-y-3 pt-4 border-t"><h3 class="text-lg font-semibold text-gray-800">2. Seleziona Livelli di Concentrazione</h3><p class="text-sm text-gray-600 mb-2">Seleziona i campioni (con Valore Atteso) dall'analisi statistica per cui calcolare l'incertezza.</p><div id="rf-sample-checklist" class="space-y-2 max-h-40 overflow-y-auto border p-2 rounded-md"></div><div class="flex space-x-2"><button onclick="toggleRfCheckboxes(true)" class="text-xs bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded">Seleziona tutti</button><button onclick="toggleRfCheckboxes(false)" class="text-xs bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded">Deseleziona tutti</button></div></div>
+                          <button onclick="calculateResponseFactorUncertainty()" class="bg-green-600 text-white font-bold py-2 px-5 rounded-lg shadow-lg hover:bg-green-700 transition">Calcola Incertezza di Taratura</button>
+                          <div id="rf-results" class="hidden pt-4 border-t"></div>
+                      </div>
+                 </div>
+            </div>
+
+             <!-- Contenuto della Scheda: Incertezza di Preparazione -->
+            <div id="content-preparazione" class="hidden">
+                <h2 class="text-2xl font-bold text-gray-700 mb-4">Calcolo Incertezza di Preparazione</h2>
+                <p class="text-gray-600 mb-6">Selezionare una o più sezioni per calcolare i contributi di incertezza derivanti dalla preparazione.</p>
+                <div class="space-y-4">
+                    <!-- Accordion 1: Soluzioni di Taratura -->
+                    <div>
+                        <button onclick="toggleAccordion(this)" class="w-full flex justify-between items-center text-left p-4 bg-gray-100 hover:bg-gray-200 rounded-lg transition">
+                            <span class="font-semibold text-lg text-gray-800">Incertezza nella preparazione delle soluzioni di taratura</span>
+                            <svg class="w-6 h-6 transform transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                        </button>
+                        <div class="accordion-content p-4 bg-white border rounded-b-lg">
+                            <p class="text-gray-500 italic">Questa sezione è in fase di sviluppo.</p>
+                        </div>
+                    </div>
+                    <!-- Accordion 2: Matrix Spike -->
+                    <div>
+                        <button onclick="toggleAccordion(this)" class="w-full flex justify-between items-center text-left p-4 bg-gray-100 hover:bg-gray-200 rounded-lg transition">
+                            <span class="font-semibold text-lg text-gray-800">Incertezza nella preparazione dei matrix spike</span>
+                             <svg class="w-6 h-6 transform transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                        </button>
+                        <div class="accordion-content p-6 bg-white border rounded-b-lg">
+                            <div id="spike-calculators-container" class="space-y-8">
+                                <!-- Le schede di preparazione verranno generate qui dinamicamente -->
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Accordion 3: Diluizione -->
+                    <div>
+                        <button onclick="toggleAccordion(this)" class="w-full flex justify-between items-center text-left p-4 bg-gray-100 hover:bg-gray-200 rounded-lg transition">
+                            <span class="font-semibold text-lg text-gray-800">Incertezza nella diluizione di campioni o estratti</span>
+                             <svg class="w-6 h-6 transform transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                        </button>
+                        <div class="accordion-content p-4 bg-white border rounded-b-lg">
+                            <p class="text-gray-500 italic">Questa sezione è in fase di sviluppo.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- NUOVA SCHEDA: Gestione Librerie -->
+            <div id="content-librerie" class="hidden">
+                <div class="bg-white p-6 rounded-lg shadow-md border border-gray-200">
+                    <h2 class="text-2xl font-bold text-gray-700 mb-2">Gestione Librerie</h2>
+                    <p class="text-gray-600 mb-6">Gestisci, importa o esporta le librerie di Vetreria e Pipette. Le modifiche vengono salvate automaticamente.</p>
+
+                    <!-- Pulsanti Import/Export -->
+                    <div class="flex items-center space-x-4 mb-6">
+                        <button onclick="importLibraries()" class="bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-blue-700 transition">Importa Libreria (.json)</button>
+                        <button onclick="exportLibraries()" class="bg-green-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-green-700 transition">Esporta Libreria (.json)</button>
+                        <input type="file" id="import-file-input" class="hidden" accept=".json" onchange="handleFileSelect(event)">
+                    </div>
+
+                    <!-- Navigazione Sottoschede -->
+                    <div class="border-b border-gray-200 mb-6">
+                        <nav class="-mb-px flex space-x-6" aria-label="Sub-tabs">
+                            <button onclick="switchLibrarySubTab('vetreria')" id="subtab-vetreria" class="subtab-btn active whitespace-nowrap pb-2 px-1 border-b-2 font-medium text-md text-gray-500 hover:text-blue-600 hover:border-blue-300">
+                                Vetreria
+                            </button>
+                            <button onclick="switchLibrarySubTab('pipette')" id="subtab-pipette" class="subtab-btn whitespace-nowrap pb-2 px-1 border-b-2 font-medium text-md text-gray-500 hover:text-blue-600 hover:border-blue-300">
+                                Pipette
+                            </button>
+                        </nav>
+                    </div>
+
+                    <!-- Contenuto Sottoschede -->
+                    <div id="subcontent-vetreria">
+                        <!-- Sezione Vetreria -->
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-xl font-semibold text-gray-800">Libreria Vetreria</h3>
+                            <button onclick="addGlasswareItem()" class="text-sm bg-blue-100 text-blue-800 font-semibold py-1 px-3 rounded-md hover:bg-blue-200">+ Aggiungi Vetreria</button>
+                        </div>
+                        <div class="overflow-x-auto border rounded-lg">
+                            <table class="w-full text-sm library-table">
+                                <thead class="bg-gray-100">
+                                    <tr>
+                                        <th>Nome</th>
+                                        <th>Volume (mL)</th>
+                                        <th>Tolleranza (± mL)</th>
+                                        <th>Azioni</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="glassware-library-table">
+                                    <!-- Righe generate da JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div id="subcontent-pipette" class="hidden">
+                        <!-- Sezione Pipette -->
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-xl font-semibold text-gray-800">Libreria Pipette</h3>
+                            <button onclick="addPipetteItem()" class="text-sm bg-blue-100 text-blue-800 font-semibold py-1 px-3 rounded-md hover:bg-blue-200">+ Aggiungi Pipetta</button>
+                        </div>
+                        <div class="overflow-x-auto border rounded-lg">
+                            <table class="w-full text-sm library-table">
+                                <thead class="bg-gray-100">
+                                    <tr>
+                                        <th>ID Pipetta</th>
+                                        <th>Punti di Taratura</th>
+                                        <th>Azioni</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="pipette-library-table">
+                                    <!-- Righe generate da JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- NUOVA SCHEDA: Verifica Validazione -->
+            <div id="content-validazione" class="hidden">
+                 <div class="bg-white p-6 rounded-lg shadow-md border border-gray-200">
+                    <h2 class="text-2xl font-bold text-gray-700 mb-2">Verifica della Validazione del Software</h2>
+                    <p class="text-gray-600 mb-6">Questa sezione esegue calcoli su set di dati di riferimento (da norme o letteratura) e confronta i risultati ottenuti con quelli attesi per verificare la correttezza degli algoritmi. Per garantire un confronto fedele, i calcoli in questa modalità replicano anche gli arrotondamenti intermedi previsti dalle norme di riferimento, a differenza delle sezioni di analisi principali dove i calcoli vengono eseguiti con la massima precisione possibile.</p>
+
+                    <div class="mb-6">
+                        <label for="validation-test-select" class="block text-sm font-medium text-gray-700">Seleziona un caso di test di validazione</label>
+                        <select id="validation-test-select" onchange="displaySelectedTestInfo()" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                            <!-- Opzioni generate da JS -->
+                        </select>
+                    </div>
+
+                    <div id="test-details-container" class="space-y-4 mb-6 p-4 border rounded-md bg-gray-50 hidden">
+                        <!-- Dettagli del test selezionato -->
+                    </div>
+
+                    <button id="run-validation-btn" onclick="runValidationTest()" class="bg-indigo-600 text-white font-bold py-2 px-5 rounded-lg shadow-lg hover:bg-indigo-700 transition disabled:bg-gray-400" disabled>
+                        Esegui Test di Verifica
+                    </button>
+
+                    <div id="validation-results-container" class="mt-8 hidden">
+                        <!-- Risultati del test -->
+                    </div>
+
+                 </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Modali -->
+    <div id="choice-modal-backdrop" class="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center p-4 z-50 hidden opacity-0 modal-backdrop">
+        <div id="choice-modal-content" class="bg-white rounded-lg shadow-2xl w-full max-w-md p-6 transform scale-95 modal-content"><h3 id="choice-modal-title" class="text-xl font-bold text-gray-800"></h3><div id="choice-modal-body" class="mt-4 text-gray-600"></div><div id="choice-modal-footer" class="mt-6 flex justify-end space-x-3"></div></div>
+    </div>
+    <div id="manual-modal-backdrop" class="fixed inset-0 bg-gray-900 bg-opacity-70 flex items-center justify-center p-4 z-50 hidden opacity-0 modal-backdrop">
+        <div class="bg-white rounded-lg shadow-2xl w-full max-w-4xl transform scale-95 modal-content flex flex-col"><header class="p-4 border-b flex justify-between items-center"><h3 class="text-xl font-bold text-gray-800">Manuale Utente</h3><button onclick="hideManual()" class="text-gray-500 hover:text-gray-800">&times;</button></header><div id="manual-modal-body" class="p-6 prose max-w-none manual-modal-content"></div><footer class="p-4 border-t flex justify-end"><button onclick="hideManual()" class="bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300">Chiudi</button></footer></div>
+    </div>
+    <!-- NUOVO MODALE PER I FORM -->
+    <div id="form-modal-backdrop" class="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center p-4 z-50 hidden opacity-0 modal-backdrop">
+        <div id="form-modal-content" class="bg-white rounded-lg shadow-2xl w-full max-w-lg p-6 transform scale-95 modal-content">
+            <h3 id="form-modal-title" class="text-xl font-bold text-gray-800"></h3>
+            <div id="form-modal-body" class="mt-4 text-gray-600 space-y-4"></div>
+            <div id="form-modal-footer" class="mt-6 flex justify-end space-x-3"></div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

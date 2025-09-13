@@ -1,0 +1,26 @@
+body { font-family: 'Inter', sans-serif; background-color: #f0f4f8; }
+.modal-backdrop { transition: opacity 0.3s ease; }
+.modal-content { transition: all 0.3s ease; }
+.manual-modal-content { max-height: 80vh; overflow-y: auto; }
+.analysis-log li { padding-left: 1.5rem; position: relative; }
+.analysis-log li::before { content: '✓'; position: absolute; left: 0; color: #10B981; }
+.analysis-log li.decision::before { content: '»'; color: #3B82F6; }
+.analysis-log li.warning::before { content: '!'; font-weight: bold; color: #F59E0B; }
+.analysis-log li.error::before { content: '✗'; color: #EF4444; }
+.gemini-output h5 { font-weight: 600; color: #1e40af; margin-top: 1rem; }
+.gemini-output p { margin-top: 0.5rem; }
+.gemini-output ul { list-style-type: disc; margin-left: 1.5rem; margin-top: 0.5rem; }
+.tab-btn.active { border-color: #3b82f6; color: #3b82f6; background-color: #eff6ff; }
+.subtab-btn.active { border-color: #3b82f6; color: #3b82f6; }
+.accordion-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.5s ease-in-out;
+}
+.accordion-content.open {
+    max-height: 75vh; /* Altezza massima prima di mostrare lo scroll */
+    overflow-y: auto; /* Mostra la barra di scorrimento solo se necessario */
+}
+/* Stili per la tabella di gestione */
+.library-table th, .library-table td { padding: 8px 12px; text-align: left; }
+.library-table tbody tr:nth-child(odd) { background-color: #f9fafb; }
