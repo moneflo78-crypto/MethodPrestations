@@ -434,6 +434,18 @@ function main() {
     document.getElementById('load-data-input').addEventListener('change', actionLoadData);
     document.getElementById('btn-save-data').addEventListener('click', actionSaveData);
 
+    // Attach the robust error-handling event listener for the calculate button
+    document.getElementById('calculate-btn').addEventListener('click', () => {
+        actionCalculateAll().catch(err => {
+            console.error("Caught error from actionCalculateAll promise:", err);
+            const resultsContainer = document.getElementById('results-container');
+            if (resultsContainer) {
+                resultsContainer.innerHTML = `<div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4" role="alert"><p class="font-bold">Errore Critico Inatteso</p><p>${err.message}</p></div>`;
+            }
+            document.getElementById('calculate-btn').disabled = false;
+        });
+    });
+
     const samplesContainer = document.getElementById('samples-container');
     samplesContainer.addEventListener('click', e => { if (e.target.closest('.btn-remove-sample')) actionRemoveSample(parseInt(e.target.closest('.btn-remove-sample').dataset.sampleId, 10)); });
     samplesContainer.addEventListener('input', e => { if (e.target.dataset.sampleId) actionUpdateSample(parseInt(e.target.dataset.sampleId, 10), e.target.dataset.field, e.target.value); });
