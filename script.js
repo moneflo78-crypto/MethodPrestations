@@ -163,7 +163,7 @@ let appState = getInitialAppState();
 function render() {
     renderTabs();
     renderProjectInfo();
-    renderSamplesAndResults();
+    renderSamplesAndResults(); // This now renders both samples and results
 }
 function renderTabs() {
     document.querySelectorAll('[data-tab-name]').forEach(tab => tab.classList.toggle('active', tab.dataset.tabName === appState.ui.activeTab));
@@ -174,11 +174,25 @@ function renderProjectInfo() {
     document.getElementById('project-method').value = appState.project.method;
     document.getElementById('project-component').value = appState.project.component;
 }
+function renderResultsOnly() {
+    const resultsContainer = document.getElementById('results-container');
+    if (!resultsContainer) return;
+    resultsContainer.innerHTML = ''; // Clear only the results
+
+    appState.samples.forEach(sample => {
+        const result = appState.results[sample.id];
+        if (result && result.log && result.log.length > 0) {
+            const resultCard = document.createElement('div');
+            resultCard.className = `bg-white p-5 rounded-lg shadow-md border-l-4 ${result.error ? 'border-red-500' : 'border-blue-500'}`;
+            const logHTML = result.log.map(item => `<li class="analysis-log ${item.type}">${item.message}</li>`).join('');
+            resultCard.innerHTML = `<h4 class="text-lg font-bold text-gray-900">${sample.name} - Log di Analisi</h4><ul class="space-y-1 mt-2 text-sm">${logHTML}</ul>`;
+            resultsContainer.appendChild(resultCard);
+        }
+    });
+}
 function renderSamplesAndResults() {
     const container = document.getElementById('samples-container');
-    const resultsContainer = document.getElementById('results-container');
     container.innerHTML = '';
-    resultsContainer.innerHTML = '';
 
     appState.samples.forEach(sample => {
         const card = document.createElement('div');
@@ -193,16 +207,9 @@ function renderSamplesAndResults() {
                 <div><label class="block text-sm font-medium text-gray-700 mb-1">Nome</label><input data-sample-id="${sample.id}" data-field="name" type="text" class="w-full p-2 border border-gray-300 rounded-md" value="${sample.name || ''}"><label class="block text-sm font-medium text-gray-700 mt-2 mb-1">Valore Atteso</label><input data-sample-id="${sample.id}" data-field="expectedValue" type="number" class="w-full p-2 border border-gray-300 rounded-md" value="${sample.expectedValue || ''}"></div>
             </div>`;
         container.appendChild(card);
-
-        const result = appState.results[sample.id];
-        if (result && result.log && result.log.length > 0) {
-            const resultCard = document.createElement('div');
-            resultCard.className = `bg-white p-5 rounded-lg shadow-md border-l-4 ${result.error ? 'border-red-500' : 'border-blue-500'}`;
-            const logHTML = result.log.map(item => `<li class="analysis-log ${item.type}">${item.message}</li>`).join('');
-            resultCard.innerHTML = `<h4 class="text-lg font-bold text-gray-900">${sample.name} - Log di Analisi</h4><ul class="space-y-1 mt-2 text-sm">${logHTML}</ul>`;
-            resultsContainer.appendChild(resultCard);
-        }
     });
+
+    renderResultsOnly();
 }
 
 // --- ACTIONS ---
@@ -257,7 +264,7 @@ async function processSample(sample) {
 
         function addLog(type, message) {
             appState.results[sample.id].log.push({ type, message });
-            render();
+            // Rendering is now handled by a single call in actionCalculateAll
         }
 
         addLog('info', 'Inizio analisi...');
