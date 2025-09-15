@@ -59,6 +59,47 @@ function grubbsTest(data) {
     return [];
 }
 
+/**
+ * Calcola le statistiche descrittive su un set di dati.
+ * @param {number[]} data L'array di dati numerici.
+ * @param {number|null} expectedValue Il valore nominale/atteso per il calcolo del recupero.
+ * @returns {object} Un oggetto contenente i parametri statistici.
+ */
+function calculateDescriptiveStatistics(data, expectedValue = null) {
+    const n = data.length;
+    if (n < 2) {
+        return { error: "Sono necessari almeno 2 punti dati per i calcoli statistici.", n: n };
+    }
+
+    const mean = ss.mean(data);
+    const stdDev = ss.sampleStandardDeviation(data);
+    const min = ss.min(data);
+    const max = ss.max(data);
+
+    // Gestisce il caso di media zero per evitare divisioni per zero.
+    const cvPercent = (mean === 0) ? null : (stdDev / mean) * 100;
+    const repeatabilityLimit = stdDev * 2.8; // r = 2.8 * s_r
+    const relativeRepeatabilityLimit = (mean === 0) ? null : (repeatabilityLimit / mean) * 100;
+
+    let recoveryPercent = null;
+    if (expectedValue !== null && typeof expectedValue === 'number' && expectedValue !== 0) {
+        recoveryPercent = (mean / expectedValue) * 100;
+    }
+
+    return {
+        n,
+        min,
+        max,
+        mean,
+        stdDev,
+        cvPercent,
+        repeatabilityLimit,
+        relativeRepeatabilityLimit,
+        recoveryPercent,
+        error: null
+    };
+}
+
 const DEFAULT_GLASSWARE_LIBRARY = { 'Matraccio 5 mL': { volume: 5, uncertainty: 0.04 }, 'Matraccio 10 mL': { volume: 10, uncertainty: 0.04 }, 'Matraccio 20 mL': { volume: 20, uncertainty: 0.04 }, 'Matraccio 25 mL': { volume: 25, uncertainty: 0.04 }, 'Matraccio 50 mL': { volume: 50, uncertainty: 0.08 }, 'Matraccio 100 mL': { volume: 100, uncertainty: 0.1 } };
 const DEFAULT_PIPETTE_LIBRARY = { "041CHR": { "calibrationPoints": [ { "volume": 0.002, "U_rel_percent": 3.9 }, { "volume": 0.01, "U_rel_percent": 0.95 }, { "volume": 0.02, "U_rel_percent": 0.49 } ] }, "042CHR": { "calibrationPoints": [ { "volume": 0.05, "U_rel_percent": 0.74 }, { "volume": 0.1, "U_rel_percent": 0.52 }, { "volume": 0.2, "U_rel_percent": 0.32 } ] } };
 const primaryBtnClass = "bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-blue-700";
@@ -66,6 +107,31 @@ const secondaryBtnClass = "bg-gray-200 text-gray-800 font-semibold py-2 px-4 rou
 
 // --- UTILITY & CONSTANTS ---
 function deepCopy(obj) { return JSON.parse(JSON.stringify(obj)); }
+
+function formatStat(value, precision = 3) {
+    if (value === null || value === undefined || !isFinite(value)) return 'N/A';
+    return value.toFixed(precision);
+}
+
+function generateStatsHTML(stats) {
+    if (!stats) return `<p class="text-gray-500 text-sm">Statistiche in attesa di calcolo.</p>`;
+    if (stats.error) return `<p class="text-red-600 text-sm">${stats.error}</p>`;
+    return `
+        <table class="w-full text-left text-sm">
+            <tbody>
+                <tr class="border-b border-gray-200"><td class="py-1.5 pr-2 text-gray-600">Numero di dati (n)</td><td class="font-medium text-right">${stats.n}</td></tr>
+                <tr class="border-b border-gray-200"><td class="py-1.5 pr-2 text-gray-600">Minimo</td><td class="font-medium text-right">${formatStat(stats.min, 4)}</td></tr>
+                <tr class="border-b border-gray-200"><td class="py-1.5 pr-2 text-gray-600">Massimo</td><td class="font-medium text-right">${formatStat(stats.max, 4)}</td></tr>
+                <tr class="border-b border-gray-200"><td class="py-1.5 pr-2 text-gray-600">Media</td><td class="font-medium text-right">${formatStat(stats.mean, 4)}</td></tr>
+                <tr class="border-b border-gray-200"><td class="py-1.5 pr-2 text-gray-600">Dev. Standard (s_r)</td><td class="font-medium text-right">${formatStat(stats.stdDev, 4)}</td></tr>
+                <tr class="border-b border-gray-200"><td class="py-1.5 pr-2 text-gray-600">CV%</td><td class="font-medium text-right">${formatStat(stats.cvPercent, 2)}</td></tr>
+                <tr class="border-b border-gray-200"><td class="py-1.5 pr-2 text-gray-600">Limite Ripetibilità (r)</td><td class="font-medium text-right">${formatStat(stats.repeatabilityLimit, 4)}</td></tr>
+                <tr class="border-b border-gray-200"><td class="py-1.5 pr-2 text-gray-600">Limite Ripetibilità Relativo %</td><td class="font-medium text-right">${formatStat(stats.relativeRepeatabilityLimit, 2)}</td></tr>
+                ${stats.recoveryPercent !== null ? `<tr class="border-b-0"><td class="py-1.5 pr-2 text-gray-600">Recupero %</td><td class="font-medium text-right">${formatStat(stats.recoveryPercent, 1)}</td></tr>` : ''}
+            </tbody>
+        </table>
+    `;
+}
 
 
 // --- MODAL MANAGERS ---
@@ -205,7 +271,22 @@ function renderResultsOnly() {
             const resultCard = document.createElement('div');
             resultCard.className = `bg-white p-5 rounded-lg shadow-md border-l-4 ${result.error ? 'border-red-500' : 'border-blue-500'}`;
             const logHTML = result.log.map(item => `<li class="analysis-log ${item.type}">${item.message}</li>`).join('');
-            resultCard.innerHTML = `<h4 class="text-lg font-bold text-gray-900">${sample.name} - Log di Analisi</h4><ul class="space-y-1 mt-2 text-sm">${logHTML}</ul>`;
+
+            // La nuova struttura usa una griglia per separare il log dalle future statistiche descrittive.
+            resultCard.innerHTML = `
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8">
+                    <div>
+                        <h4 class="text-lg font-semibold text-gray-800">${sample.name} - Log di Analisi</h4>
+                        <ul class="space-y-1 mt-2 text-sm h-48 overflow-y-auto border rounded-md p-2 bg-gray-50">${logHTML}</ul>
+                    </div>
+                    <div class="stats-section">
+                        <h4 class="text-lg font-semibold text-gray-800">Statistica Descrittiva</h4>
+                        <div class="stats-content mt-2">
+                            ${generateStatsHTML(result.stats)}
+                        </div>
+                    </div>
+                </div>
+            `;
             resultsContainer.appendChild(resultCard);
         }
     });
@@ -431,6 +512,16 @@ async function processSample(sample) {
            } else {
                addLog('info', 'Nessun dato anomalo trovato con i test selezionati.');
            }
+        }
+
+        // Calcolo finale delle statistiche descrittive sui dati correnti (potenzialmente puliti).
+        const stats = calculateDescriptiveStatistics(currentData, sample.expectedValue);
+        appState.results[sample.id].stats = stats;
+
+        if (stats.error) {
+            addLog('error', `Errore nel calcolo statistico: ${stats.error}`);
+        } else {
+            addLog('info', 'Calcolo delle statistiche descrittive completato.');
         }
     } catch (e) {
         console.error(`Error in processSample for sample ${sample.id}:`, e);
