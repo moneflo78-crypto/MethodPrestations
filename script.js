@@ -59,6 +59,74 @@ function grubbsTest(data) {
     return [];
 }
 
+/**
+ * Calcola la retta di taratura con i minimi quadrati e l'incertezza di un campione incognito.
+ * @param {number[]} cal_x - Array delle concentrazioni (asse x) della retta di taratura.
+ * @param {number[]} cal_y - Array dei segnali (asse y) della retta di taratura.
+ * @param {number} y_k - Segnale del campione incognito.
+ * @param {number} [p=1] - Numero di repliche per la misurazione del campione incognito.
+ * @returns {object} Un oggetto contenente i risultati del calcolo.
+ */
+function calculateLeastSquaresUncertainty(cal_x, cal_y, y_k, p = 1) {
+    if (cal_x.length !== cal_y.length) {
+        throw new Error("Le liste dei dati di taratura x e y devono avere la stessa dimensione.");
+    }
+    if (cal_x.length < 3) {
+        throw new Error("Sono necessari almeno 3 punti per la retta di taratura.");
+    }
+
+    const n = cal_x.length;
+    const calibrationData = cal_x.map((val, i) => [val, cal_y[i]]);
+
+    // 1. Calcolo retta dei minimi quadrati (y = slope*x + intercept)
+    const regression = ss.linearRegression(calibrationData);
+    const slope = regression.m;
+    const intercept = regression.b;
+
+    if (Math.abs(slope) < 1e-12) {
+        throw new Error("La pendenza della retta è zero. Impossibile procedere con il calcolo.");
+    }
+
+    // 2. Calcolo deviazione standard residua (s_yx)
+    const y_calcolato = cal_x.map(xi => slope * xi + intercept);
+    const sum_sq_err = cal_y.reduce((acc, yi, i) => acc + Math.pow(yi - y_calcolato[i], 2), 0);
+    const s_yx = Math.sqrt(sum_sq_err / (n - 2));
+
+    // 3. Calcolo termini per la formula dell'incertezza
+    const y_medio = ss.mean(cal_y);
+    const x_medio = ss.mean(cal_x);
+    const sum_sq_diff_x = cal_x.reduce((acc, xi) => acc + Math.pow(xi - x_medio, 2), 0);
+
+    if (sum_sq_diff_x < 1e-12) {
+         throw new Error("La deviazione dei punti x di taratura è zero. Impossibile procedere.");
+    }
+
+    // 4. Calcolo della concentrazione incognita (x_k)
+    const x_k = (y_k - intercept) / slope;
+
+    // 5. Calcolo dell'incertezza sulla concentrazione incognita (u_xk)
+    // Formula: u(x_k) = (s_yx / |slope|) * sqrt(1/p + 1/n + (y_k - y_mean)^2 / (slope^2 * sum((x_i - x_mean)^2)))
+    const term1 = 1 / p;
+    const term2 = 1 / n;
+    const term3 = Math.pow(y_k - y_medio, 2) / (Math.pow(slope, 2) * sum_sq_diff_x);
+    const rootTerm = Math.sqrt(term1 + term2 + term3);
+    const ux = (s_yx / Math.abs(slope)) * rootTerm;
+
+    // 6. Calcolo incertezza relativa percentuale
+    const ux_rel_perc = (x_k !== 0) ? (ux / Math.abs(x_k)) * 100 : 0;
+
+    return {
+        a: intercept,
+        b: slope,
+        s_yx: s_yx,
+        r2: ss.rSquared(calibrationData, (x) => slope * x + intercept),
+        x_k: x_k,
+        ux: ux,
+        ux_rel_perc: ux_rel_perc
+    };
+}
+
+
 const DEFAULT_GLASSWARE_LIBRARY = { 'Matraccio 5 mL': { volume: 5, uncertainty: 0.04 }, 'Matraccio 10 mL': { volume: 10, uncertainty: 0.04 }, 'Matraccio 20 mL': { volume: 20, uncertainty: 0.04 }, 'Matraccio 25 mL': { volume: 25, uncertainty: 0.04 }, 'Matraccio 50 mL': { volume: 50, uncertainty: 0.08 }, 'Matraccio 100 mL': { volume: 100, uncertainty: 0.1 } };
 const DEFAULT_PIPETTE_LIBRARY = { "041CHR": { "calibrationPoints": [ { "volume": 0.002, "U_rel_percent": 3.9 }, { "volume": 0.01, "U_rel_percent": 0.95 }, { "volume": 0.02, "U_rel_percent": 0.49 } ] }, "042CHR": { "calibrationPoints": [ { "volume": 0.05, "U_rel_percent": 0.74 }, { "volume": 0.1, "U_rel_percent": 0.52 }, { "volume": 0.2, "U_rel_percent": 0.32 } ] } };
 const primaryBtnClass = "bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-blue-700";
@@ -166,6 +234,18 @@ function getInitialAppState() {
         libraries: {
             glassware: deepCopy(DEFAULT_GLASSWARE_LIBRARY),
             pipettes: deepCopy(DEFAULT_PIPETTE_LIBRARY),
+        },
+        calibration: {
+            points: [
+                { x: 0.0, y: 0.05 },
+                { x: 0.1, y: 0.18 },
+                { x: 0.5, y: 0.80 },
+                { x: 1.0, y: 1.55 },
+                { x: 1.5, y: 2.28 },
+                { x: 2.0, y: 3.01 },
+            ],
+            manualSample: { yk: null, p: 1 },
+            results: null
         }
     };
 }
@@ -177,8 +257,79 @@ function render() {
     renderTabs();
     renderProjectInfo();
     renderSamplesAndResults();
+    renderCalibrationTab();
     renderDebugInfo();
 }
+
+function renderCalibrationTab() {
+    const container = document.getElementById('regression-table-container');
+    if (!container) return;
+    container.innerHTML = '';
+
+    (appState.calibration.points || []).forEach((point, index) => {
+        const row = document.createElement('div');
+        row.className = 'flex items-center space-x-2 mb-2';
+        row.innerHTML = `
+            <input type="number" data-index="${index}" data-field="x" placeholder="Valore X (Conc.)" class="w-full p-2 border border-gray-300 rounded-md regression-input" value="${point.x ?? ''}">
+            <input type="number" data-index="${index}" data-field="y" placeholder="Valore Y (Segnale)" class="w-full p-2 border border-gray-300 rounded-md regression-input" value="${point.y ?? ''}">
+            <button data-index="${index}" class="btn-remove-regression-row text-red-500 hover:text-red-700 font-bold px-2" title="Rimuovi riga">&times;</button>
+        `;
+        container.appendChild(row);
+    });
+
+    const ykInput = document.getElementById('regression-y-k');
+    if (ykInput) ykInput.value = appState.calibration.manualSample.yk ?? '';
+
+    const pInput = document.getElementById('regression-p');
+    if (pInput) pInput.value = appState.calibration.manualSample.p ?? 1;
+
+    // Render dei risultati
+    const resultsContainer = document.getElementById('regression-results');
+    const results = appState.calibration.results;
+    if (results) {
+        if (results.error) {
+            resultsContainer.innerHTML = `<div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mt-4" role="alert"><p class="font-bold">Errore</p><p>${results.error}</p></div>`;
+        } else {
+            const resultsHTML = `
+                <h3 class="text-lg font-semibold text-gray-800 my-4 pt-4 border-t">Risultati del Calcolo</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    <div class="bg-gray-50 p-3 rounded-md border">
+                        <p class="font-semibold">Equazione della retta:</p>
+                        <p class="font-mono text-center my-1">y = ${results.b.toPrecision(6)}x + ${results.a.toPrecision(6)}</p>
+                    </div>
+                    <div class="bg-gray-50 p-3 rounded-md border">
+                        <p><span class="font-semibold">Coefficiente di determinazione (R²):</span> ${results.r2.toPrecision(7)}</p>
+                        <p><span class="font-semibold">Dev. Std. Residua (s_yx):</span> ${results.s_yx.toPrecision(6)}</p>
+                    </div>
+                </div>
+                <div class="mt-4 overflow-x-auto">
+                    <table class="w-full text-sm text-left">
+                        <thead class="bg-gray-100">
+                            <tr>
+                                <th class="p-2 rounded-tl-lg">Concentrazione Calcolata (x_k)</th>
+                                <th class="p-2">Incertezza Tipo (u_x)</th>
+                                <th class="p-2 rounded-tr-lg">Incertezza Relativa (%)</th>
+                            </tr>
+                        </thead>
+                        <tbody class="border">
+                            <tr class="border-b">
+                                <td class="p-2 font-medium">${results.x_k.toPrecision(6)}</td>
+                                <td class="p-2">${results.ux.toPrecision(6)}</td>
+                                <td class="p-2">${results.ux_rel_perc.toFixed(2)} %</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            resultsContainer.innerHTML = resultsHTML;
+        }
+        resultsContainer.classList.remove('hidden');
+    } else {
+        resultsContainer.innerHTML = '';
+        resultsContainer.classList.add('hidden');
+    }
+}
+
 function renderTabs() {
     document.querySelectorAll('[data-tab-name]').forEach(tab => tab.classList.toggle('active', tab.dataset.tabName === appState.ui.activeTab));
     document.querySelectorAll('[id^="content-"]').forEach(content => content.classList.toggle('hidden', content.id !== `content-${appState.ui.activeTab}`));
@@ -456,6 +607,61 @@ function actionSaveData() {
     document.body.removeChild(link);
     URL.revokeObjectURL(link.href);
 }
+
+// --- AZIONI PER LA SEZIONE TARATURA ---
+function actionAddRegressionRow() {
+    appState.calibration.points.push({ x: null, y: null });
+    renderCalibrationTab();
+    renderDebugInfo();
+}
+
+function actionRemoveRegressionRow(index) {
+    appState.calibration.points.splice(index, 1);
+    renderCalibrationTab();
+    renderDebugInfo();
+}
+
+function actionUpdateRegressionPoint(index, field, value) {
+    const numValue = value === '' ? null : parseFloat(value);
+    appState.calibration.points[index][field] = numValue;
+    renderDebugInfo(); // Aggiorna la vista di debug
+}
+
+function actionUpdateManualSample(field, value) {
+    const numValue = value === '' ? null : parseFloat(value);
+    appState.calibration.manualSample[field] = numValue;
+    renderDebugInfo();
+}
+
+function actionCalculateRegression() {
+    try {
+        appState.calibration.results = null; // Resetta i risultati nello stato
+
+        const validPoints = appState.calibration.points.filter(p => p.x !== null && p.y !== null && !isNaN(p.x) && !isNaN(p.y));
+        if (validPoints.length < 3) {
+            throw new Error("Sono necessari almeno 3 punti di taratura completi.");
+        }
+
+        const cal_x = validPoints.map(p => p.x);
+        const cal_y = validPoints.map(p => p.y);
+
+        const { yk, p } = appState.calibration.manualSample;
+        if (yk === null || isNaN(yk)) {
+            throw new Error("Inserire un valore valido per la Risposta Strumentale (y_k).");
+        }
+
+        const results = calculateLeastSquaresUncertainty(cal_x, cal_y, yk, p || 1);
+        appState.calibration.results = results;
+
+    } catch (error) {
+        console.error("Errore nel calcolo della regressione:", error);
+        appState.calibration.results = { error: error.message };
+    }
+    // Ridisegna l'interfaccia per mostrare i nuovi risultati (o l'errore)
+    render();
+}
+
+
 function actionLoadData(event) {
     const file = event.target.files[0];
     if (!file) return;
@@ -475,6 +681,7 @@ function actionLoadData(event) {
 
 // --- MAIN APP SETUP ---
 function main() {
+    // --- Event Listeners Scheda Analisi Statistica ---
     document.getElementById('btn-add-sample').addEventListener('click', actionAddSample);
     document.getElementById('btn-load-data').addEventListener('click', () => document.getElementById('load-data-input').click());
     document.getElementById('load-data-input').addEventListener('change', actionLoadData);
@@ -526,7 +733,63 @@ function main() {
     document.getElementById('project-method').addEventListener('input', e => { appState.project.method = e.target.value; });
     document.getElementById('project-component').addEventListener('input', e => { appState.project.component = e.target.value; });
 
+    // --- Event Listeners Scheda Incertezza di Taratura ---
+    document.getElementById('btn-add-regression-row').addEventListener('click', actionAddRegressionRow);
+    document.getElementById('btn-calculate-regression').addEventListener('click', actionCalculateRegression);
+
+    const regressionContainer = document.getElementById('regression-table-container');
+    regressionContainer.addEventListener('input', e => {
+        const target = e.target;
+        if (target.classList.contains('regression-input') && target.dataset.index) {
+            actionUpdateRegressionPoint(parseInt(target.dataset.index), target.dataset.field, target.value);
+        }
+    });
+    regressionContainer.addEventListener('click', e => {
+        if (e.target.classList.contains('btn-remove-regression-row')) {
+            actionRemoveRegressionRow(parseInt(e.target.dataset.index));
+        }
+    });
+
+    document.getElementById('regression-y-k').addEventListener('input', e => actionUpdateManualSample('yk', e.target.value));
+    document.getElementById('regression-p').addEventListener('input', e => actionUpdateManualSample('p', e.target.value));
+
+    // --- Event Listeners per la scelta del metodo di taratura ---
+    const btnSelectRegression = document.getElementById('btn-select-regression');
+    const btnSelectResponseFactor = document.getElementById('btn-select-response-factor');
+    const regressionCalculator = document.getElementById('regression-calculator');
+    const responseFactorCalculator = document.getElementById('responseFactor-calculator');
+    const calibrationChoice = document.getElementById('calibration-choice');
+
+    if (btnSelectRegression) {
+        btnSelectRegression.addEventListener('click', () => {
+            calibrationChoice.classList.add('hidden');
+            regressionCalculator.classList.remove('hidden');
+        });
+    }
+
+    if(btnSelectResponseFactor) {
+        btnSelectResponseFactor.addEventListener('click', () => {
+            alert("Questa funzionalità non è ancora implementata.");
+        });
+    }
+
+    const btnBack1 = document.getElementById('btn-back-to-calibration-choice-1');
+    if (btnBack1) {
+        btnBack1.addEventListener('click', () => {
+            calibrationChoice.classList.remove('hidden');
+            regressionCalculator.classList.add('hidden');
+        });
+    }
+    const btnBack2 = document.getElementById('btn-back-to-calibration-choice-2');
+     if (btnBack2) {
+        btnBack2.addEventListener('click', () => {
+            calibrationChoice.classList.remove('hidden');
+            responseFactorCalculator.classList.add('hidden');
+        });
+    }
+
     actionAddSample();
+    render(); // Chiamata iniziale per renderizzare tutto
 }
 
 document.addEventListener('DOMContentLoaded', main);
