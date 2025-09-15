@@ -78,7 +78,10 @@ const choiceModal = {
     show({ title, bodyContent, buttons }) {
         return new Promise(resolve => {
             this.title.textContent = title; this.body.innerHTML = bodyContent; this.footer.innerHTML = '';
-            const clickHandler = value => { this.hide(); resolve(value); };
+            const clickHandler = async (value) => {
+                await this.hide();
+                resolve(value);
+            };
             buttons.forEach(btn => {
                 const buttonEl = document.createElement('button');
                 buttonEl.textContent = btn.text; buttonEl.className = btn.class;
@@ -90,8 +93,13 @@ const choiceModal = {
         });
     },
     hide() {
-        this.backdrop.classList.add('opacity-0');
-        setTimeout(() => this.backdrop.classList.add('hidden'), 300);
+        return new Promise(resolve => {
+            this.backdrop.classList.add('opacity-0');
+            setTimeout(() => {
+                this.backdrop.classList.add('hidden');
+                resolve();
+            }, 300);
+        });
     }
 };
 
@@ -115,14 +123,14 @@ const multiChoiceModal = {
             choicesHTML += `</div>`;
             this.body.innerHTML = choicesHTML;
             this.footer.innerHTML = '';
-            const clickHandler = (isConfirm) => {
+            const clickHandler = async (isConfirm) => {
                 let selectedChoices = [];
                 if (isConfirm) {
                     this.body.querySelectorAll('input[name="modal-choice"]:checked').forEach(checkbox => {
                         selectedChoices.push(checkbox.value);
                     });
                 }
-                this.hide();
+                await this.hide();
                 resolve(selectedChoices);
             };
             buttons.forEach(btn => {
@@ -137,8 +145,13 @@ const multiChoiceModal = {
         });
     },
     hide() {
-        this.backdrop.classList.add('opacity-0');
-        setTimeout(() => this.backdrop.classList.add('hidden'), 300);
+        return new Promise(resolve => {
+            this.backdrop.classList.add('opacity-0');
+            setTimeout(() => {
+                this.backdrop.classList.add('hidden');
+                resolve();
+            }, 300);
+        });
     }
 };
 
