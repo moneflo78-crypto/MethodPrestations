@@ -67,59 +67,60 @@ function grubbsTest(data) {
  * @param {number} [p=1] - Numero di repliche per la misurazione del campione incognito.
  * @returns {object} Un oggetto contenente i risultati del calcolo.
  */
-function calculateLeastSquaresUncertainty(cal_x, cal_y, y_k, p = 1) {
-    if (cal_x.length !== cal_y.length) {
-        throw new Error("Le liste dei dati di taratura x e y devono avere la stessa dimensione.");
+function calculateRegressionLine(cal_x, cal_y) {
+    if (cal_x.length !== cal_y.length || cal_x.length < 3) {
+        throw new Error("Sono necessari almeno 3 punti di taratura con valori x e y validi.");
     }
-    if (cal_x.length < 3) {
-        throw new Error("Sono necessari almeno 3 punti per la retta di taratura.");
-    }
-
     const n = cal_x.length;
     const calibrationData = cal_x.map((val, i) => [val, cal_y[i]]);
 
-    // 1. Calcolo retta dei minimi quadrati (y = slope*x + intercept)
     const regression = ss.linearRegression(calibrationData);
     const slope = regression.m;
     const intercept = regression.b;
 
     if (Math.abs(slope) < 1e-12) {
-        throw new Error("La pendenza della retta è zero. Impossibile procedere con il calcolo.");
+        throw new Error("La pendenza della retta è zero. Impossibile procedere.");
     }
 
-    // 2. Calcolo deviazione standard residua (s_yx)
     const y_calcolato = cal_x.map(xi => slope * xi + intercept);
     const sum_sq_err = cal_y.reduce((acc, yi, i) => acc + Math.pow(yi - y_calcolato[i], 2), 0);
     const s_yx = Math.sqrt(sum_sq_err / (n - 2));
-
-    // 3. Calcolo termini per la formula dell'incertezza
     const y_medio = ss.mean(cal_y);
     const x_medio = ss.mean(cal_x);
     const sum_sq_diff_x = cal_x.reduce((acc, xi) => acc + Math.pow(xi - x_medio, 2), 0);
 
     if (sum_sq_diff_x < 1e-12) {
-         throw new Error("La deviazione dei punti x di taratura è zero. Impossibile procedere.");
+         throw new Error("La deviazione dei punti x di taratura è zero (tutti i punti x sono uguali). Impossibile procedere.");
     }
-
-    // 4. Calcolo della concentrazione incognita (x_k)
-    const x_k = (y_k - intercept) / slope;
-
-    // 5. Calcolo dell'incertezza sulla concentrazione incognita (u_xk)
-    // Formula: u(x_k) = (s_yx / |slope|) * sqrt(1/p + 1/n + (y_k - y_mean)^2 / (slope^2 * sum((x_i - x_mean)^2)))
-    const term1 = 1 / p;
-    const term2 = 1 / n;
-    const term3 = Math.pow(y_k - y_medio, 2) / (Math.pow(slope, 2) * sum_sq_diff_x);
-    const rootTerm = Math.sqrt(term1 + term2 + term3);
-    const ux = (s_yx / Math.abs(slope)) * rootTerm;
-
-    // 6. Calcolo incertezza relativa percentuale
-    const ux_rel_perc = (x_k !== 0) ? (ux / Math.abs(x_k)) * 100 : 0;
 
     return {
         a: intercept,
         b: slope,
         s_yx: s_yx,
         r2: ss.rSquared(calibrationData, (x) => slope * x + intercept),
+        n_cal: n,
+        y_medio_cal: y_medio,
+        sum_sq_diff_x_cal: sum_sq_diff_x
+    };
+}
+
+function calculateUncertaintyForSample(lineParams, y_k, p = 1) {
+    const { a, b, s_yx, n_cal, y_medio_cal, sum_sq_diff_x_cal } = lineParams;
+
+    if (b === 0) { // Should be caught by calculateRegressionLine, but as a safeguard
+        throw new Error("La pendenza della retta è zero.");
+    }
+    const x_k = (y_k - a) / b;
+
+    const term1 = 1 / p;
+    const term2 = 1 / n_cal;
+    const term3 = Math.pow(y_k - y_medio_cal, 2) / (Math.pow(b, 2) * sum_sq_diff_x_cal);
+    const rootTerm = Math.sqrt(term1 + term2 + term3);
+    const ux = (s_yx / Math.abs(b)) * rootTerm;
+
+    const ux_rel_perc = (x_k !== 0) ? (ux / Math.abs(x_k)) * 100 : 0;
+
+    return {
         x_k: x_k,
         ux: ux,
         ux_rel_perc: ux_rel_perc
@@ -261,7 +262,67 @@ function render() {
     renderDebugInfo();
 }
 
+function renderAnalysisChecklists() {
+    const regressionChecklist = document.getElementById('analysis-sample-checklist');
+    const rfChecklist = document.getElementById('rf-sample-checklist');
+    if (!regressionChecklist || !rfChecklist) return;
+
+    // Preserve checked state
+    const currentlyCheckedReg = new Set();
+    regressionChecklist.querySelectorAll('input:checked').forEach(input => currentlyCheckedReg.add(input.value));
+    const currentlyCheckedRf = new Set();
+    rfChecklist.querySelectorAll('input:checked').forEach(input => currentlyCheckedRf.add(input.value));
+
+
+    regressionChecklist.innerHTML = '';
+    rfChecklist.innerHTML = '';
+
+    const eligibleSamples = appState.samples.filter(sample => {
+        const result = appState.results[sample.id];
+        return result && result.statistics && !result.error && (sample.expectedValue !== null && sample.expectedValue !== '');
+    });
+
+    if (eligibleSamples.length === 0) {
+        const placeholder = `<p class="text-sm text-gray-500 italic px-2">Nessun campione con "Valore Atteso" è stato analizzato con successo.</p>`;
+        regressionChecklist.innerHTML = placeholder;
+        rfChecklist.innerHTML = placeholder;
+        return;
+    }
+
+    let regChecklistHTML = '';
+    eligibleSamples.forEach(sample => {
+        const result = appState.results[sample.id];
+        const isChecked = currentlyCheckedReg.has(String(sample.id)) ? 'checked' : '';
+        regChecklistHTML += `
+            <div class="flex items-center p-1 rounded-md hover:bg-gray-100">
+                <input id="cal-sample-reg-${sample.id}" name="calibration_sample_reg" type="checkbox" value="${sample.id}" ${isChecked} class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                <label for="cal-sample-reg-${sample.id}" class="ml-3 block text-sm font-medium text-gray-700 cursor-pointer">
+                    ${sample.name} <span class="text-xs text-gray-500 font-mono">(y&#772;=${result.statistics.mean.toPrecision(4)})</span>
+                </label>
+            </div>
+        `;
+    });
+     let rfChecklistHTML = '';
+      eligibleSamples.forEach(sample => {
+        const result = appState.results[sample.id];
+        const isChecked = currentlyCheckedRf.has(String(sample.id)) ? 'checked' : '';
+        rfChecklistHTML += `
+            <div class="flex items-center p-1 rounded-md hover:bg-gray-100">
+                <input id="cal-sample-rf-${sample.id}" name="calibration_sample_rf" type="checkbox" value="${sample.id}" ${isChecked} class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                <label for="cal-sample-rf-${sample.id}" class="ml-3 block text-sm font-medium text-gray-700 cursor-pointer">
+                    ${sample.name} <span class="text-xs text-gray-500 font-mono">(C=${sample.expectedValue})</span>
+                </label>
+            </div>
+        `;
+    });
+
+
+    regressionChecklist.innerHTML = regChecklistHTML;
+    rfChecklist.innerHTML = rfChecklistHTML;
+}
+
 function renderCalibrationTab() {
+    renderAnalysisChecklists(); // Chiamata la funzione qui
     const container = document.getElementById('regression-table-container');
     if (!container) return;
     container.innerHTML = '';
@@ -288,35 +349,46 @@ function renderCalibrationTab() {
     const results = appState.calibration.results;
     if (results) {
         if (results.error) {
-            resultsContainer.innerHTML = `<div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mt-4" role="alert"><p class="font-bold">Errore</p><p>${results.error}</p></div>`;
-        } else {
+            resultsContainer.innerHTML = `<div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mt-4" role="alert"><p class="font-bold">Errore di Calcolo</p><p>${results.error}</p></div>`;
+        } else if (results.line && results.samples) {
+            const line = results.line;
+            const samples = results.samples;
+
+            const samplesHTML = samples.map(s => `
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="p-2 font-medium">${s.sampleName}</td>
+                    <td class="p-2 font-mono">${s.x_k.toPrecision(6)}</td>
+                    <td class="p-2 font-mono">${s.ux.toPrecision(6)}</td>
+                    <td class="p-2 font-mono">${s.ux_rel_perc.toFixed(2)} %</td>
+                </tr>
+            `).join('');
+
             const resultsHTML = `
                 <h3 class="text-lg font-semibold text-gray-800 my-4 pt-4 border-t">Risultati del Calcolo</h3>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                     <div class="bg-gray-50 p-3 rounded-md border">
                         <p class="font-semibold">Equazione della retta:</p>
-                        <p class="font-mono text-center my-1">y = ${results.b.toPrecision(6)}x + ${results.a.toPrecision(6)}</p>
+                        <p class="font-mono text-center my-1">y = ${line.b.toPrecision(6)}x + ${line.a.toPrecision(6)}</p>
                     </div>
                     <div class="bg-gray-50 p-3 rounded-md border">
-                        <p><span class="font-semibold">Coefficiente di determinazione (R²):</span> ${results.r2.toPrecision(7)}</p>
-                        <p><span class="font-semibold">Dev. Std. Residua (s_yx):</span> ${results.s_yx.toPrecision(6)}</p>
+                        <p><span class="font-semibold">Coefficiente di determinazione (R²):</span> ${line.r2.toPrecision(7)}</p>
+                        <p><span class="font-semibold">Dev. Std. Residua (s_yx):</span> ${line.s_yx.toPrecision(6)}</p>
                     </div>
                 </div>
-                <div class="mt-4 overflow-x-auto">
+
+                <h4 class="font-semibold text-gray-700 mt-6 mb-2">Incertezza per Campione</h4>
+                <div class="mt-2 overflow-x-auto border rounded-lg">
                     <table class="w-full text-sm text-left">
                         <thead class="bg-gray-100">
                             <tr>
-                                <th class="p-2 rounded-tl-lg">Concentrazione Calcolata (x_k)</th>
-                                <th class="p-2">Incertezza Tipo (u_x)</th>
-                                <th class="p-2 rounded-tr-lg">Incertezza Relativa (%)</th>
+                                <th class="p-2 font-medium text-gray-600 rounded-tl-lg">Nome Campione</th>
+                                <th class="p-2 font-medium text-gray-600">Conc. Calcolata (x_k)</th>
+                                <th class="p-2 font-medium text-gray-600">Incertezza Tipo (u_x)</th>
+                                <th class="p-2 font-medium text-gray-600 rounded-tr-lg">Incertezza Relativa (%)</th>
                             </tr>
                         </thead>
-                        <tbody class="border">
-                            <tr class="border-b">
-                                <td class="p-2 font-medium">${results.x_k.toPrecision(6)}</td>
-                                <td class="p-2">${results.ux.toPrecision(6)}</td>
-                                <td class="p-2">${results.ux_rel_perc.toFixed(2)} %</td>
-                            </tr>
+                        <tbody>
+                            ${samplesHTML}
                         </tbody>
                     </table>
                 </div>
@@ -348,17 +420,67 @@ function renderDebugInfo() {
 function renderResultsOnly() {
     const resultsContainer = document.getElementById('results-container');
     if (!resultsContainer) return;
-    resultsContainer.innerHTML = ''; // Clear only the results
+    resultsContainer.innerHTML = '';
+
+    const hasResults = appState.samples.some(s => appState.results[s.id] && (appState.results[s.id].statistics || appState.results[s.id].error));
+    document.getElementById('export-buttons').classList.toggle('hidden', !hasResults);
+
 
     appState.samples.forEach(sample => {
         const result = appState.results[sample.id];
-        if (result && result.log && result.log.length > 0) {
-            const resultCard = document.createElement('div');
-            resultCard.className = `bg-white p-5 rounded-lg shadow-md border-l-4 ${result.error ? 'border-red-500' : 'border-blue-500'}`;
-            const logHTML = result.log.map(item => `<li class="analysis-log ${item.type}">${item.message}</li>`).join('');
-            resultCard.innerHTML = `<h4 class="text-lg font-bold text-gray-900">${sample.name} - Log di Analisi</h4><ul class="space-y-1 mt-2 text-sm">${logHTML}</ul>`;
-            resultsContainer.appendChild(resultCard);
+        if (!result || (!result.statistics && !result.error)) {
+            return; // Non mostrare card se non ci sono risultati o errori
         }
+
+        const resultCard = document.createElement('div');
+        const borderColor = result.error ? 'border-red-500' : 'border-blue-500';
+        resultCard.className = `bg-white p-5 rounded-lg shadow-md border-l-4 ${borderColor} mb-6`;
+
+        let statsHTML = '';
+        if (result.statistics) {
+            const stats = result.statistics;
+            statsHTML = `
+                <div class="mt-4">
+                    <h5 class="font-semibold text-gray-700 text-md">Statistiche Descrittive Finali</h5>
+                    <div class="overflow-x-auto mt-2 rounded-md border">
+                        <table class="w-full text-sm">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="p-2 text-left font-medium text-gray-600">Statistica</th>
+                                    <th class="p-2 text-left font-medium text-gray-600">Valore</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="border-t"><td class="p-2">N. Punti</td><td class="p-2 font-mono">${stats.n}</td></tr>
+                                <tr class="border-t bg-gray-50"><td class="p-2">Media</td><td class="p-2 font-mono">${stats.mean.toPrecision(6)}</td></tr>
+                                <tr class="border-t"><td class="p-2">Deviazione Standard</td><td class="p-2 font-mono">${stats.stdDev.toPrecision(6)}</td></tr>
+                                <tr class="border-t bg-gray-50"><td class="p-2">Varianza</td><td class="p-2 font-mono">${stats.variance.toPrecision(6)}</td></tr>
+                                <tr class="border-t"><td class="p-2">Errore Standard (SEM)</td><td class="p-2 font-mono">${stats.sem.toPrecision(6)}</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+        }
+
+        const logHTML = result.log && result.log.length > 0
+            ? `<div class="mt-4">
+                 <h5 class="font-semibold text-gray-700 text-md">Log di Analisi</h5>
+                 <ul class="space-y-1 mt-2 text-sm text-gray-600 pl-4 max-h-40 overflow-y-auto border rounded-md p-2 bg-gray-50">
+                   ${result.log.map(item => `<li class="analysis-log ${item.type}">${item.message}</li>`).join('')}
+                 </ul>
+               </div>`
+            : '';
+
+        const titleColor = result.error ? 'text-red-700' : 'text-gray-900';
+        resultCard.innerHTML = `
+            <h4 class="text-lg font-bold ${titleColor}">${sample.name} - Report di Analisi</h4>
+            ${result.error ? `<p class="text-red-600 font-semibold mt-2">Analisi terminata con errore: ${result.error}</p>` : ''}
+            ${statsHTML}
+            ${logHTML}
+        `;
+
+        resultsContainer.appendChild(resultCard);
     });
 }
 function renderSamplesAndResults() {
@@ -430,6 +552,7 @@ async function processSample(sample) {
             log: [],
             originalData: [],
             currentData: [],
+            statistics: null,
             error: null,
         };
 
@@ -583,6 +706,39 @@ async function processSample(sample) {
                addLog('info', 'Nessun dato anomalo trovato con i test selezionati.');
            }
         }
+
+        // --- CALCOLO STATISTICHE DESCRITTIVE FINALI ---
+        if (!appState.results[sample.id].error) {
+            const finalData = appState.results[sample.id].currentData;
+            addLog('info', `Calcolo delle statistiche descrittive su ${finalData.length} punti dati finali.`);
+
+            if (finalData.length > 1) {
+                const n = finalData.length;
+                const mean = ss.mean(finalData);
+                const stdDev = ss.standardDeviation(finalData);
+
+                const stats = {
+                    n: n,
+                    mean: mean,
+                    stdDev: stdDev,
+                    variance: ss.variance(finalData),
+                    sum: ss.sum(finalData),
+                    sem: stdDev / Math.sqrt(n)
+                };
+                appState.results[sample.id].statistics = stats;
+
+                addLog('result', `Statistiche Finali: Media = ${stats.mean.toPrecision(6)}, Dev. Std. = ${stats.stdDev.toPrecision(6)}, n = ${stats.n}`);
+
+            } else if (finalData.length === 1) {
+                const stats = { n: 1, mean: finalData[0], stdDev: 0, variance: 0, sum: finalData[0], sem: 0 };
+                appState.results[sample.id].statistics = stats;
+                 addLog('result', `Statistiche Finali: Media = ${stats.mean.toPrecision(6)}, n = 1`);
+            } else {
+                addLog('warning', 'Nessun dato rimasto per il calcolo delle statistiche finali.');
+                 appState.results[sample.id].error = "Nessun dato rimasto per il calcolo.";
+            }
+        }
+
     } catch (e) {
         console.error(`Error in processSample for sample ${sample.id}:`, e);
         if (!appState.results[sample.id]) {
@@ -635,29 +791,52 @@ function actionUpdateManualSample(field, value) {
 
 function actionCalculateRegression() {
     try {
-        appState.calibration.results = null; // Resetta i risultati nello stato
+        appState.calibration.results = null;
 
         const validPoints = appState.calibration.points.filter(p => p.x !== null && p.y !== null && !isNaN(p.x) && !isNaN(p.y));
-        if (validPoints.length < 3) {
-            throw new Error("Sono necessari almeno 3 punti di taratura completi.");
-        }
-
         const cal_x = validPoints.map(p => p.x);
         const cal_y = validPoints.map(p => p.y);
 
+        const lineParams = calculateRegressionLine(cal_x, cal_y);
+
+        const tasks = [];
+        const selectedSampleIds = Array.from(document.querySelectorAll('input[name="calibration_sample_reg"]:checked')).map(cb => cb.value);
+
+        selectedSampleIds.forEach(id => {
+            const sample = appState.samples.find(s => s.id == id);
+            const result = appState.results[id];
+            if (sample && result && result.statistics) {
+                tasks.push({ name: sample.name, yk: result.statistics.mean, p: result.statistics.n });
+            }
+        });
+
         const { yk, p } = appState.calibration.manualSample;
-        if (yk === null || isNaN(yk)) {
-            throw new Error("Inserire un valore valido per la Risposta Strumentale (y_k).");
+        if (yk !== null && yk !== '' && !isNaN(yk)) {
+            tasks.push({ name: "Campione Manuale", yk: parseFloat(yk), p: p || 1 });
         }
 
-        const results = calculateLeastSquaresUncertainty(cal_x, cal_y, yk, p || 1);
-        appState.calibration.results = results;
+        if (tasks.length === 0) {
+            throw new Error("Nessun campione selezionato o dato manuale inserito. Selezionare almeno un campione o compilare i campi per l'inserimento manuale.");
+        }
+
+        const sampleResults = tasks.map(task => {
+            const uncertaintyResult = calculateUncertaintyForSample(lineParams, task.yk, task.p);
+            return {
+                sampleName: task.name,
+                ...uncertaintyResult
+            };
+        });
+
+        appState.calibration.results = {
+            line: lineParams,
+            samples: sampleResults,
+            error: null
+        };
 
     } catch (error) {
         console.error("Errore nel calcolo della regressione:", error);
         appState.calibration.results = { error: error.message };
     }
-    // Ridisegna l'interfaccia per mostrare i nuovi risultati (o l'errore)
     render();
 }
 
