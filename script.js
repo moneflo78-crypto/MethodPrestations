@@ -285,42 +285,58 @@ async function processSample(sample) {
         addLog('test', `Test di Normalità (Shapiro-Wilk): ${normalityResult.isNormal ? 'Passato' : 'Fallito'} (kp=${normalityResult.kp.toFixed(3)})`);
 
         if (!normalityResult.isNormal) {
-            addLog('info', 'Dati non normali. Eseguo test di Huber per dati anomali...');
-            const outliers = hubersTest(currentData);
+            addLog('info', 'Dati non normali. Richiesta di conferma per il test di Huber.');
 
-            if (outliers.length > 0) {
-                const outlierValues = outliers.map(o => o.value).join(', ');
-                addLog('warning', `Dati anomali trovati: ${outlierValues}`);
+            const proceedWithHuber = await choiceModal.show({
+                title: `Dati non Normali`,
+                bodyContent: `<p>I dati del campione <strong>${sample.name}</strong> non seguono una distribuzione normale.</p><p class="mt-2">L'unico test per outlier applicabile in questo caso è il test di Huber (basato sulla MAD). Vuoi procedere?</p>`,
+                buttons: [
+                    { text: "Annulla Analisi", value: false, class: secondaryBtnClass },
+                    { text: "Procedi con Huber", value: true, class: primaryBtnClass }
+                ]
+            });
 
-                const userChoice = await choiceModal.show({
-                    title: `[${sample.name}] - Dati Anomali Rilevati`,
-                    bodyContent: `<p>Sono stati identificati i seguenti dati anomali: <strong>${outlierValues}</strong>.</p><p class="mt-2">Vuoi rimuoverli e rieseguire il test di normalità?</p>`,
-                    buttons: [
-                        { text: "Mantieni i dati", value: 'keep', class: secondaryBtnClass },
-                        { text: "Rimuovi e Riprova", value: 'remove', class: primaryBtnClass }
-                    ]
-                });
+            if (proceedWithHuber) {
+                addLog('decision', 'Utente ha scelto di procedere con il test di Huber.');
+                const outliers = hubersTest(currentData);
 
-                if (userChoice === 'remove') {
-                    addLog('decision', 'Decisione utente: rimozione dati anomali.');
-                    const outlierIndices = outliers.map(o => o.index);
-                    const cleanedData = currentData.filter((_, index) => !outlierIndices.includes(index));
-                    appState.results[sample.id].currentData = cleanedData;
-                    currentData = cleanedData;
+                if (outliers.length > 0) {
+                    const outlierValues = outliers.map(o => o.value).join(', ');
+                    addLog('warning', `Dati anomali trovati: ${outlierValues}`);
 
-                    normalityResult = shapiroWilk(currentData);
-                    addLog('test', `Rieseguito Test di Normalità: ${normalityResult.isNormal ? 'Passato' : 'Fallito'} (kp=${normalityResult.kp.toFixed(3)})`);
-                    if (!normalityResult.isNormal) {
-                        addLog('error', 'I dati non sono normali anche dopo la rimozione degli anomali.');
+                    const userChoice = await choiceModal.show({
+                        title: `[${sample.name}] - Dati Anomali Rilevati`,
+                        bodyContent: `<p>Sono stati identificati i seguenti dati anomali: <strong>${outlierValues}</strong>.</p><p class="mt-2">Vuoi rimuoverli e rieseguire il test di normalità?</p>`,
+                        buttons: [
+                            { text: "Mantieni i dati", value: 'keep', class: secondaryBtnClass },
+                            { text: "Rimuovi e Riprova", value: 'remove', class: primaryBtnClass }
+                        ]
+                    });
+
+                    if (userChoice === 'remove') {
+                        addLog('decision', 'Decisione utente: rimozione dati anomali.');
+                        const outlierIndices = outliers.map(o => o.index);
+                        const cleanedData = currentData.filter((_, index) => !outlierIndices.includes(index));
+                        appState.results[sample.id].currentData = cleanedData;
+                        currentData = cleanedData;
+
+                        normalityResult = shapiroWilk(currentData);
+                        addLog('test', `Rieseguito Test di Normalità: ${normalityResult.isNormal ? 'Passato' : 'Fallito'} (kp=${normalityResult.kp.toFixed(3)})`);
+                        if (!normalityResult.isNormal) {
+                            addLog('error', 'I dati non sono normali anche dopo la rimozione degli anomali.');
+                        } else {
+                            addLog('info', 'I dati ora sono normali. Procedere con la normale analisi degli outlier.');
+                        }
                     } else {
-                        addLog('info', 'I dati ora sono normali. Procedere con la normale analisi degli outlier.');
+                        addLog('decision', 'Decisione utente: mantenimento dati anomali.');
+                        addLog('error', 'I calcoli non possono procedere su dati non normali con anomalie non rimosse.');
                     }
                 } else {
-                    addLog('decision', 'Decisione utente: mantenimento dati anomali.');
-                    addLog('error', 'I calcoli non possono procedere su dati non normali con anomalie non rimosse.');
+                    addLog('info', 'Nessun dato anomalo trovato con il test di Huber.');
                 }
             } else {
-                addLog('info', 'Nessun dato anomalo trovato con il test di Huber.');
+                addLog('decision', 'Utente ha scelto di non procedere. Analisi interrotta.');
+                appState.results[sample.id].error = "Analisi interrotta dall'utente a causa di dati non normali.";
             }
         } else {
             addLog('info', 'I dati sono normali. Scegliere un test per la verifica degli outlier.');
@@ -376,7 +392,7 @@ async function processSample(sample) {
                    const outlierIndices = Array.from(allOutliers.keys());
                    const cleanedData = currentData.filter((_, index) => !outlierIndices.includes(index));
                    appState.results[sample.id].currentData = cleanedData;
-                   currentData = cleanedData; // Update local variable for subsequent steps in this function
+                   currentData = cleanedData;
                    addLog('info', 'Dati anomali rimossi. L\'analisi procederà con i dati puliti.');
                } else {
                    addLog('decision', 'Decisione utente: mantenimento dati anomali.');
