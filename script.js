@@ -163,7 +163,8 @@ let appState = getInitialAppState();
 function render() {
     renderTabs();
     renderProjectInfo();
-    renderSamplesAndResults(); // This now renders both samples and results
+    renderSamplesAndResults();
+    renderDebugInfo();
 }
 function renderTabs() {
     document.querySelectorAll('[data-tab-name]').forEach(tab => tab.classList.toggle('active', tab.dataset.tabName === appState.ui.activeTab));
@@ -173,6 +174,12 @@ function renderProjectInfo() {
     document.getElementById('project-objective').value = appState.project.objective;
     document.getElementById('project-method').value = appState.project.method;
     document.getElementById('project-component').value = appState.project.component;
+}
+function renderDebugInfo() {
+    const debugView = document.getElementById('debug-state-view');
+    if (debugView) {
+        debugView.textContent = JSON.stringify(appState, null, 2);
+    }
 }
 function renderResultsOnly() {
     const resultsContainer = document.getElementById('results-container');
@@ -459,6 +466,7 @@ function main() {
 
     // Attach the robust error-handling event listener for the calculate button
     document.getElementById('calculate-btn').addEventListener('click', () => {
+        console.log("Calculate button clicked!"); // SUPER DEBUG
         actionCalculateAll().catch(err => {
             console.error("Caught error from actionCalculateAll promise:", err);
             const resultsContainer = document.getElementById('results-container');

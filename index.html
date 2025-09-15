@@ -53,6 +53,9 @@
                      <button data-tab-name="validazione" id="tab-validazione" class="tab-btn whitespace-nowrap py-4 px-1 border-b-2 font-medium text-lg text-gray-500 hover:text-blue-600 hover:border-blue-300">
                         Verifica Validazione
                     </button>
+                    <button data-tab-name="debug" id="tab-debug" class="tab-btn whitespace-nowrap py-4 px-1 border-b-2 font-medium text-lg text-red-500 hover:text-red-600 hover:border-red-300">
+                        Debug
+                    </button>
                 </nav>
             </div>
 
@@ -284,6 +287,13 @@
                  </div>
             </div>
 
+            <!-- NUOVA SCHEDA: Debug -->
+            <div id="content-debug" class="hidden">
+                 <div class="bg-gray-800 text-white p-4 rounded-lg shadow-md border border-gray-600">
+                    <h2 class="text-2xl font-bold text-gray-300 mb-4">Stato Interno dell'Applicazione (appState)</h2>
+                    <pre id="debug-state-view" class="text-sm whitespace-pre-wrap break-all"></pre>
+                 </div>
+            </div>
         </main>
     </div>
 
