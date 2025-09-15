@@ -351,15 +351,18 @@ async function processSample(sample) {
                         addLog('test', `Rieseguito Test di Normalità: ${normalityResult.isNormal ? 'Passato' : 'Fallito'} (kp=${normalityResult.kp.toFixed(3)})`);
                         if (!normalityResult.isNormal) {
                             addLog('error', 'I dati non sono normali anche dopo la rimozione degli anomali.');
+                        appState.results[sample.id].error = "I dati non sono normali anche dopo la rimozione degli anomali.";
                         } else {
                             addLog('info', 'I dati ora sono normali. Procedere con la normale analisi degli outlier.');
                         }
                     } else {
                         addLog('decision', 'Decisione utente: mantenimento dati anomali.');
                         addLog('error', 'I calcoli non possono procedere su dati non normali con anomalie non rimosse.');
+                        appState.results[sample.id].error = "I calcoli non possono procedere su dati non normali con anomalie non rimosse.";
                     }
                 } else {
                     addLog('info', 'Nessun dato anomalo trovato con il test di Huber.');
+                    appState.results[sample.id].error = "I dati non sono normali e non sono stati trovati outlier.";
                 }
             } else {
                 addLog('decision', 'Utente ha scelto di non procedere. Analisi interrotta.');
