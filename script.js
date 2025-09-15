@@ -186,7 +186,7 @@ function renderSamplesAndResults() {
         card.innerHTML = `
             <div class="flex justify-between items-start">
                 <h3 class="text-xl font-semibold text-gray-800 mb-4">Campione ${sample.id}</h3>
-                <button data-sample-id="${sample.id}" class="btn-remove-sample text-gray-400 hover:text-red-500"><svg class="pointer-events-none" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+                <button data-sample-id="${sample.id}" class="btn-remove-sample text-red-500 hover:text-red-700 font-bold text-xl px-2" title="Rimuovi campione">&times;</button>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div class="md:col-span-2"><label class="block text-sm font-medium text-gray-700 mb-1">Dati</label><textarea data-sample-id="${sample.id}" data-field="rawData" rows="4" class="data-input w-full p-2 border border-gray-300 rounded-md">${sample.rawData || ''}</textarea></div>
@@ -463,7 +463,30 @@ function main() {
     });
 
     const samplesContainer = document.getElementById('samples-container');
-    samplesContainer.addEventListener('click', e => { if (e.target.closest('.btn-remove-sample')) actionRemoveSample(parseInt(e.target.closest('.btn-remove-sample').dataset.sampleId, 10)); });
+    samplesContainer.addEventListener('click', async (e) => {
+        console.log("samplesContainer clicked!"); // DEBUG
+        const removeButton = e.target.closest('.btn-remove-sample');
+        if (removeButton) {
+            console.log("Remove button was clicked!"); // DEBUG
+            const sampleId = parseInt(removeButton.dataset.sampleId, 10);
+            console.log("Sample ID:", sampleId); // DEBUG
+            const sample = appState.samples.find(s => s.id === sampleId);
+            const sampleName = sample ? sample.name : `Campione ${sampleId}`;
+
+            const confirmDelete = await choiceModal.show({
+                title: 'Conferma Eliminazione',
+                bodyContent: `Sei sicuro di voler eliminare il campione "<strong>${sampleName}</strong>"? L'azione non è reversibile.`,
+                buttons: [
+                    { text: "Annulla", value: false, class: secondaryBtnClass },
+                    { text: "Elimina", value: true, class: primaryBtnClass.replace('bg-blue-600', 'bg-red-600').replace('hover:bg-blue-700', 'hover:bg-red-700') }
+                ]
+            });
+
+            if (confirmDelete) {
+                actionRemoveSample(sampleId);
+            }
+        }
+    });
     samplesContainer.addEventListener('input', e => { if (e.target.dataset.sampleId) actionUpdateSample(parseInt(e.target.dataset.sampleId, 10), e.target.dataset.field, e.target.value); });
 
     document.querySelector('nav[aria-label="Tabs"]').addEventListener('click', e => { if (e.target.closest('button.tab-btn')) actionSwitchTab(e.target.closest('button.tab-btn').dataset.tabName); });
