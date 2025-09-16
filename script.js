@@ -130,8 +130,47 @@ function calculateUncertaintyForSample(lineParams, y_k, p = 1) {
 }
 
 
-const DEFAULT_GLASSWARE_LIBRARY = { 'Matraccio 5 mL': { volume: 5, uncertainty: 0.04 }, 'Matraccio 10 mL': { volume: 10, uncertainty: 0.04 }, 'Matraccio 20 mL': { volume: 20, uncertainty: 0.04 }, 'Matraccio 25 mL': { volume: 25, uncertainty: 0.04 }, 'Matraccio 50 mL': { volume: 50, uncertainty: 0.08 }, 'Matraccio 100 mL': { volume: 100, uncertainty: 0.1 } };
-const DEFAULT_PIPETTE_LIBRARY = { "041CHR": { "calibrationPoints": [ { "volume": 0.002, "U_rel_percent": 3.9 }, { "volume": 0.01, "U_rel_percent": 0.95 }, { "volume": 0.02, "U_rel_percent": 0.49 } ] }, "042CHR": { "calibrationPoints": [ { "volume": 0.05, "U_rel_percent": 0.74 }, { "volume": 0.1, "U_rel_percent": 0.52 }, { "volume": 0.2, "U_rel_percent": 0.32 } ] } };
+const DEFAULT_GLASSWARE_LIBRARY = {
+    "Matraccio 5 mL": { "volume": 5, "uncertainty": 0.04 },
+    "Matraccio 10 mL": { "volume": 10, "uncertainty": 0.04 },
+    "Matraccio 20 mL": { "volume": 20, "uncertainty": 0.04 },
+    "Matraccio 25 mL": { "volume": 25, "uncertainty": 0.04 },
+    "Matraccio 50 mL": { "volume": 50, "uncertainty": 0.08 },
+    "Matraccio 100 mL": { "volume": 100, "uncertainty": 0.1 },
+    "Matraccio 200 mL": { "volume": 200, "uncertainty": 0.15 },
+    "Matraccio 250 mL": { "volume": 250, "uncertainty": 0.15 },
+    "Matraccio 500 mL": { "volume": 500, "uncertainty": 0.25 },
+    "Matraccio 1000 mL": { "volume": 1000, "uncertainty": 0.6 },
+    "Matraccio 2000 mL": { "volume": 2000, "uncertainty": 0.6 },
+    "Matraccio 5000 mL": { "volume": 5000, "uncertainty": 1.2 }
+};
+const DEFAULT_PIPETTE_LIBRARY = {
+    "041CHR": { "calibrationPoints": [ { "volume": 0.002, "U_rel_percent": 3.9 }, { "volume": 0.01, "U_rel_percent": 0.95 }, { "volume": 0.02, "U_rel_percent": 0.49 } ] },
+    "042CHR": { "calibrationPoints": [ { "volume": 0.05, "U_rel_percent": 0.74 }, { "volume": 0.1, "U_rel_percent": 0.52 }, { "volume": 0.2, "U_rel_percent": 0.32 } ] },
+    "043CHR": { "calibrationPoints": [ { "volume": 0.1, "U_rel_percent": 2.1 }, { "volume": 0.5, "U_rel_percent": 0.57 }, { "volume": 1, "U_rel_percent": 0.4 } ] },
+    "045CHR": { "calibrationPoints": [ { "volume": 0.01, "U_rel_percent": 4.6 }, { "volume": 0.05, "U_rel_percent": 0.85 }, { "volume": 0.1, "U_rel_percent": 0.52 } ] },
+    "046CHR": { "calibrationPoints": [ { "volume": 0.1, "U_rel_percent": 2.6 }, { "volume": 0.5, "U_rel_percent": 0.36 }, { "volume": 1, "U_rel_percent": 0.34 } ] },
+    "048CHR": { "calibrationPoints": [ { "volume": 0.1, "U_rel_percent": 2 }, { "volume": 0.5, "U_rel_percent": 0.36 }, { "volume": 1, "U_rel_percent": 0.37 } ] },
+    "051CHR": { "calibrationPoints": [ { "volume": 0.5, "U_rel_percent": 1.8 }, { "volume": 2.5, "U_rel_percent": 0.52 }, { "volume": 5, "U_rel_percent": 0.35 } ] },
+    "052CHR": { "calibrationPoints": [ { "volume": 0.2, "U_rel_percent": 1.3 }, { "volume": 0.5, "U_rel_percent": 0.31 }, { "volume": 1, "U_rel_percent": 0.26 } ] },
+    "054CHR": { "calibrationPoints": [ { "volume": 0.01, "U_rel_percent": 4.1 }, { "volume": 0.05, "U_rel_percent": 0.95 }, { "volume": 0.1, "U_rel_percent": 0.52 } ] },
+    "055CHR": { "calibrationPoints": [ { "volume": 0.02, "U_rel_percent": 2.3 }, { "volume": 0.1, "U_rel_percent": 0.54 }, { "volume": 0.2, "U_rel_percent": 0.34 } ] },
+    "061CHR": { "calibrationPoints": [ { "volume": 0.5, "U_rel_percent": 1.2 }, { "volume": 2.5, "U_rel_percent": 1.1 }, { "volume": 5, "U_rel_percent": 0.46 } ] },
+    "051PRE": { "calibrationPoints": [ { "volume": 0.1, "U_rel_percent": 5.1 }, { "volume": 0.5, "U_rel_percent": 0.53 }, { "volume": 1, "U_rel_percent": 0.21 } ] },
+    "052PRE": { "calibrationPoints": [ { "volume": 0.03, "U_rel_percent": 3 }, { "volume": 0.13, "U_rel_percent": 0.63 }, { "volume": 0.25, "U_rel_percent": 0.32 } ] },
+    "053PRE": { "calibrationPoints": [ { "volume": 0.5, "U_rel_percent": 1.6 }, { "volume": 2.5, "U_rel_percent": 0.39 }, { "volume": 5, "U_rel_percent": 0.28 } ] },
+    "025SPE": { "calibrationPoints": [ { "volume": 0.02, "U_rel_percent": 1.7 }, { "volume": 0.1, "U_rel_percent": 0.52 }, { "volume": 0.2, "U_rel_percent": 0.32 } ] },
+    "063CHR_basso range": { "calibrationPoints": [ { "volume": 0.1, "U_rel_percent": 1.7 }, { "volume": 0.5, "U_rel_percent": 0.31 }, { "volume": 0.1, "U_rel_percent": 0.21 } ] },
+    "063CHR_alto range": { "calibrationPoints": [ { "volume": 0.5, "U_rel_percent": 0.46 }, { "volume": 2.5, "U_rel_percent": 0.21 }, { "volume": 5, "U_rel_percent": 0.21 } ] },
+    "064CHR": { "calibrationPoints": [ { "volume": 0.1, "U_rel_percent": 1.3 }, { "volume": 0.5, "U_rel_percent": 0.38 }, { "volume": 1, "U_rel_percent": 0.38 } ] },
+    "065CHR": { "calibrationPoints": [ { "volume": 0.02, "U_rel_percent": 2.1 }, { "volume": 0.1, "U_rel_percent": 0.65 }, { "volume": 0.2, "U_rel_percent": 0.32 } ] },
+    "066CHR": { "calibrationPoints": [ { "volume": 0.02, "U_rel_percent": 1.7 }, { "volume": 0.1, "U_rel_percent": 0.52 }, { "volume": 0.2, "U_rel_percent": 0.32 } ] },
+    "067CHR": { "calibrationPoints": [ { "volume": 1, "U_rel_percent": 0.3 }, { "volume": 5, "U_rel_percent": 0.21 }, { "volume": 10, "U_rel_percent": 0.25 } ] },
+    "040SPE_basso range": { "calibrationPoints": [ { "volume": 0.1, "U_rel_percent": 1.4 }, { "volume": 0.5, "U_rel_percent": 0.55 }, { "volume": 1, "U_rel_percent": 0.21 } ] },
+    "040SPE_alto range": { "calibrationPoints": [ { "volume": 0.5, "U_rel_percent": 0.9 }, { "volume": 2.5, "U_rel_percent": 0.21 }, { "volume": 5, "U_rel_percent": 0.21 } ] },
+    "084PRE": { "calibrationPoints": [ { "volume": 0.1, "U_rel_percent": 1.5 }, { "volume": 0.5, "U_rel_percent": 0.32 }, { "volume": 1, "U_rel_percent": 0.31 } ] },
+    "085PRE": { "calibrationPoints": [ { "volume": 1, "U_rel_percent": 1.4 }, { "volume": 5, "U_rel_percent": 0.65 }, { "volume": 10, "U_rel_percent": 0.4 } ] }
+};
 const primaryBtnClass = "bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-blue-700";
 const secondaryBtnClass = "bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300";
 
