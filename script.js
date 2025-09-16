@@ -525,19 +525,25 @@ function renderSpikeUncertainty() {
                         }
 
                         withdrawalsHTML += `
-                            <div class="flex items-center space-x-2 bg-gray-100 p-2 rounded-md">
-                                <div class="flex-grow">
+                            <div class="bg-gray-100 p-2 rounded-md space-y-2">
+                                <div class="w-full">
                                     <label class="block text-xs font-medium text-gray-600">Pipetta</label>
                                     <select data-sample-id="${sample.id}" data-step-id="${step.id}" data-withdrawal-id="${withdrawal.id}" class="spike-input-withdrawal-pipette w-full p-1 border border-gray-300 rounded-md text-sm">
                                          <option value="">-- Seleziona --</option>
                                          ${pipetteOptions}
                                     </select>
                                 </div>
-                                <div class="flex-grow">
-                                    <label class="block text-xs font-medium text-gray-600">Volume (mL) <span class="text-gray-400 font-mono">${volHint}</span></label>
-                                    <input type="number" data-sample-id="${sample.id}" data-step-id="${step.id}" data-withdrawal-id="${withdrawal.id}" class="spike-input-withdrawal-volume w-full p-1 border border-gray-300 rounded-md text-sm" value="${withdrawal.volume || ''}" placeholder="Volume">
+                                <div class="flex items-center space-x-2">
+                                    <div class="flex-grow">
+                                        <label class="block text-xs font-medium text-gray-600">Volume (mL) <span class="text-gray-400 font-mono">${volHint}</span></label>
+                                        <input type="number" data-sample-id="${sample.id}" data-step-id="${step.id}" data-withdrawal-id="${withdrawal.id}" class="spike-input-withdrawal-volume w-full p-1 border border-gray-300 rounded-md text-sm" value="${withdrawal.volume || ''}" placeholder="Volume">
+                                    </div>
+                                    <div class="flex-grow">
+                                        <label class="block text-xs font-medium text-gray-600">Incertezza (U %)</label>
+                                        <input type="number" class="w-full p-1 border border-gray-300 rounded-md text-sm bg-gray-200" value="${withdrawal.uncertainty || ''}" disabled>
+                                    </div>
+                                    <button data-sample-id="${sample.id}" data-step-id="${step.id}" data-withdrawal-id="${withdrawal.id}" class="btn-remove-withdrawal text-red-500 hover:text-red-700 self-end mb-1 font-bold text-lg" title="Rimuovi Prelievo">&times;</button>
                                 </div>
-                                <button data-sample-id="${sample.id}" data-step-id="${step.id}" data-withdrawal-id="${withdrawal.id}" class="btn-remove-withdrawal text-red-500 hover:text-red-700 self-end mb-1 font-bold text-lg" title="Rimuovi Prelievo">&times;</button>
                             </div>
                         `;
                     });
@@ -577,19 +583,29 @@ function renderSpikeUncertainty() {
             stepsHTML = `<p class="text-gray-500 italic p-4 text-center">Nessun passaggio di preparazione definito. Aggiungine uno per iniziare.</p>`;
         }
 
+        const u_rel_cert_perc = sampleSpikeState.initialUncertainty ? (sampleSpikeState.initialUncertainty / 2).toFixed(3) : '';
+
         content += `
             <div class="bg-white p-6 rounded-lg shadow-md border border-gray-200 mb-6">
                 <h3 class="text-xl font-semibold text-gray-800 mb-4">Preparazione Spike per Campione: <span class="font-bold">${sample.name}</span></h3>
 
                 <!-- Sezione Materiale di Riferimento -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 border rounded-md bg-gray-50 mb-4">
-                    <div>
-                        <label for="initial-conc-${sample.id}" class="block text-sm font-medium text-gray-700">Concentrazione Materiale di Riferimento (µg/mL)</label>
-                        <input type="number" id="initial-conc-${sample.id}" data-sample-id="${sample.id}" data-field="initialConcentration" class="spike-input mt-1 w-full p-2 border border-gray-300 rounded-md" value="${sampleSpikeState.initialConcentration || ''}" placeholder="Es: 1000">
+                <div class="p-4 border rounded-md bg-gray-50 mb-4 space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="initial-conc-${sample.id}" class="block text-sm font-medium text-gray-700">Concentrazione Materiale di Riferimento (µg/mL)</label>
+                            <input type="number" id="initial-conc-${sample.id}" data-sample-id="${sample.id}" data-field="initialConcentration" class="spike-input mt-1 w-full p-2 border border-gray-300 rounded-md" value="${sampleSpikeState.initialConcentration || ''}" placeholder="Es: 1000">
+                        </div>
+                        <div>
+                            <label for="initial-unc-${sample.id}" class="block text-sm font-medium text-gray-700">Incertezza del certificato (U %)</label>
+                            <input type="number" id="initial-unc-${sample.id}" data-sample-id="${sample.id}" data-field="initialUncertainty" class="spike-input mt-1 w-full p-2 border border-gray-300 rounded-md" value="${sampleSpikeState.initialUncertainty || ''}" placeholder="Es: 0.5">
+                        </div>
                     </div>
-                    <div>
-                        <label for="initial-unc-${sample.id}" class="block text-sm font-medium text-gray-700">Incertezza del certificato (U %)</label>
-                        <input type="number" id="initial-unc-${sample.id}" data-sample-id="${sample.id}" data-field="initialUncertainty" class="spike-input mt-1 w-full p-2 border border-gray-300 rounded-md" value="${sampleSpikeState.initialUncertainty || ''}" placeholder="Es: 0.5">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">u relativa del certificato (%)</label>
+                            <input type="text" class="mt-1 w-full p-2 border border-gray-300 rounded-md bg-gray-200" value="${u_rel_cert_perc}" disabled>
+                        </div>
                     </div>
                 </div>
 
@@ -1161,7 +1177,7 @@ function actionAddSpikeStep(sampleId) {
         id: newStepId,
         dilutionFlask: null,
         withdrawals: [
-            { id: `w-${Date.now()}`, pipette: null, volume: null }
+            { id: `w-${Date.now()}`, pipette: null, volume: null, uncertainty: null }
         ]
     });
     render();
@@ -1179,7 +1195,7 @@ function actionRemoveSpikeStep(sampleId, stepId) {
 function actionAddSpikeWithdrawal(sampleId, stepId) {
     const step = appState.spikeUncertainty[sampleId]?.steps.find(s => s.id === stepId);
     if (!step) return;
-    step.withdrawals.push({ id: `w-${Date.now()}`, pipette: null, volume: null });
+    step.withdrawals.push({ id: `w-${Date.now()}`, pipette: null, volume: null, uncertainty: null });
     render();
     actionCalculateSpikeUncertainty(sampleId);
 }
@@ -1192,14 +1208,48 @@ function actionRemoveSpikeWithdrawal(sampleId, stepId, withdrawalId) {
     actionCalculateSpikeUncertainty(sampleId);
 }
 
+function getBestPipetteUncertainty(pipetteId, volume) {
+    if (!pipetteId || volume === null || volume <= 0) return null;
+
+    const pipette = appState.libraries.pipettes[pipetteId];
+    if (!pipette) return null;
+
+    const points = pipette.calibrationPoints.map(p => p.volume);
+    const minVol = Math.min(...points);
+    const maxVol = Math.max(...points);
+
+    if (volume < minVol || volume > maxVol) return null; // Fuori range
+
+    const sortedPoints = pipette.calibrationPoints.slice().sort((a, b) => a.volume - b.volume);
+
+    // Caso 1: Corrispondenza esatta
+    const exactMatch = sortedPoints.find(p => p.volume === volume);
+    if (exactMatch) return exactMatch.U_rel_percent;
+
+    // Caso 2: Interpolazione o maggiorazione
+    for (let i = 0; i < sortedPoints.length - 1; i++) {
+        if (volume > sortedPoints[i].volume && volume < sortedPoints[i+1].volume) {
+            // Usa l'incertezza maggiore tra i due punti
+            return Math.max(sortedPoints[i].U_rel_percent, sortedPoints[i+1].U_rel_percent);
+        }
+    }
+
+    return null; // Non dovrebbe accadere se il volume è in range
+}
+
 function actionUpdateSpikeState({ sampleId, stepId, withdrawalId, field, value }) {
     const sampleState = appState.spikeUncertainty[sampleId];
     if (!sampleState) return;
 
+    let withdrawalToUpdate = null;
+
     if (stepId && withdrawalId) {
         const step = sampleState.steps.find(s => s.id === stepId);
         const withdrawal = step?.withdrawals.find(w => w.id === withdrawalId);
-        if (withdrawal) { withdrawal[field] = value; }
+        if (withdrawal) {
+            withdrawal[field] = value;
+            withdrawalToUpdate = withdrawal;
+        }
     } else if (stepId) {
         const step = sampleState.steps.find(s => s.id === stepId);
         if (step) { step[field] = value; }
@@ -1207,8 +1257,14 @@ function actionUpdateSpikeState({ sampleId, stepId, withdrawalId, field, value }
         sampleState[field] = value;
     }
 
-    render();
-    actionCalculateSpikeUncertainty(sampleId);
+    // Se è stato modificato un prelievo, ricalcola la sua incertezza
+    if (withdrawalToUpdate && (field === 'pipette' || field === 'volume')) {
+        withdrawalToUpdate.uncertainty = getBestPipetteUncertainty(withdrawalToUpdate.pipette, withdrawalToUpdate.volume);
+    }
+
+
+    render(); // Renderizza per aggiornare i campi di input
+    actionCalculateSpikeUncertainty(sampleId); // Ricalcola il totale
 }
 
 function actionCalculateSpikeUncertainty(sampleId) {
@@ -1246,31 +1302,11 @@ function actionCalculateSpikeUncertainty(sampleId) {
 
             for (const w of step.withdrawals) {
                 totalWithdrawalVolume += w.volume;
-                const pipette = appState.libraries.pipettes[w.pipette];
-                const points = pipette.calibrationPoints.map(p => p.volume);
-                const minVol = Math.min(...points);
-                const maxVol = Math.max(...points);
 
-                if (w.volume < minVol || w.volume > maxVol) {
-                    throw new Error(`Volume ${w.volume}mL fuori range per pipetta ${w.pipette}.`);
+                if (w.uncertainty === null || w.uncertainty === undefined) {
+                     throw new Error(`Incertezza per il prelievo con volume ${w.volume}mL non calcolata. Selezionare una pipetta e un volume validi.`);
                 }
-
-                let uncertainty_U_perc = 0;
-                const sortedPoints = pipette.calibrationPoints.slice().sort((a,b) => a.volume - b.volume);
-
-                let found = false;
-                for (let i = 0; i < sortedPoints.length - 1; i++) {
-                    if (w.volume >= sortedPoints[i].volume && w.volume <= sortedPoints[i+1].volume) {
-                        uncertainty_U_perc = Math.max(sortedPoints[i].U_rel_percent, sortedPoints[i+1].U_rel_percent);
-                        found = true;
-                        break;
-                    }
-                }
-                if (!found) {
-                     const match = sortedPoints.find(p => p.volume === w.volume);
-                     if(match) uncertainty_U_perc = match.U_rel_percent;
-                     else throw new Error(`Logica incertezza pipetta fallita per volume ${w.volume}.`);
-                }
+                const uncertainty_U_perc = w.uncertainty;
 
                 // u_abs = (U_rel_perc / 100 * V_prelievo) / (k=2 * sqrt(3))
                 const u_abs_withdrawal = (uncertainty_U_perc / 100 * w.volume) / (2 * Math.sqrt(3));
