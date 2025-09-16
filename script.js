@@ -1383,10 +1383,23 @@ function actionCalculateSpikeUncertainty(sampleId) {
 
         // NUOVO: Genera il riepilogo testuale
         let summaryLines = [];
+        let concentrationBeforeStep = sampleState.initialConcentration; // Inizia con la concentrazione iniziale
         sampleState.steps.forEach((step, index) => {
-            const withdrawals = step.withdrawals.map(w => `${w.volume} mL`).join(' e ');
+            // Costruisce la stringa dei prelievi con l'ID della pipetta
+            const withdrawalsText = step.withdrawals.map(w => `${w.volume} mL (pipetta: ${w.pipette})`).join(' e ');
+
             const flask = appState.libraries.glassware[step.dilutionFlask];
-            summaryLines.push(`<b>Passaggio ${index + 1}:</b> Prelievo di ${withdrawals} e diluizione a ${flask.volume} mL.`);
+
+            // La concentrazione della soluzione prelevata è quella prima di questo passaggio
+            const initialConcForStep = concentrationBeforeStep;
+
+            // La concentrazione finale di questo passaggio è memorizzata nell'oggetto 'step'
+            const finalConcForStep = step.intermediateConcentration;
+
+            summaryLines.push(`<b>Passaggio ${index + 1}:</b> Prelievo di ${withdrawalsText} da soluzione a ${initialConcForStep.toPrecision(4)} µg/mL. Diluizione a ${flask.volume} mL per una concentrazione finale di ${finalConcForStep.toPrecision(4)} µg/mL.`);
+
+            // Aggiorna la concentrazione per il prossimo passaggio
+            concentrationBeforeStep = finalConcForStep;
         });
         const summary = summaryLines.join('<br>');
 
