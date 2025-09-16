@@ -299,7 +299,7 @@ function renderAnalysisChecklists() {
             <div class="flex items-center p-1 rounded-md hover:bg-gray-100">
                 <input id="cal-sample-reg-${sample.id}" name="calibration_sample_reg" type="checkbox" value="${sample.id}" ${isChecked} class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
                 <label for="cal-sample-reg-${sample.id}" class="ml-3 block text-sm font-medium text-gray-700 cursor-pointer">
-                    ${sample.name} <span class="text-xs text-gray-500 font-mono">(y&#772;=${result.statistics.mean.toPrecision(4)})</span>
+                    ${sample.name} <span class="text-xs text-gray-500 font-mono">(x=${sample.expectedValue})</span>
                 </label>
             </div>
         `;
@@ -312,7 +312,7 @@ function renderAnalysisChecklists() {
             <div class="flex items-center p-1 rounded-md hover:bg-gray-100">
                 <input id="cal-sample-rf-${sample.id}" name="calibration_sample_rf" type="checkbox" value="${sample.id}" ${isChecked} class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
                 <label for="cal-sample-rf-${sample.id}" class="ml-3 block text-sm font-medium text-gray-700 cursor-pointer">
-                    ${sample.name} <span class="text-xs text-gray-500 font-mono">(C=${sample.expectedValue})</span>
+                    ${sample.name} <span class="text-xs text-gray-500 font-mono">(x=${sample.expectedValue})</span>
                 </label>
             </div>
         `;
