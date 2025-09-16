@@ -528,7 +528,7 @@ function renderSpikeUncertainty() {
                             <div class="flex items-center space-x-2 bg-gray-100 p-2 rounded-md">
                                 <div class="flex-grow">
                                     <label class="block text-xs font-medium text-gray-600">Pipetta</label>
-                                    <select data-sample-id="${sample.id}" data-step-id="${step.id}" data-withdrawal-id="${withdrawal.id}" class="spike-input-withdrawal-pipette w-full p-1 border border-gray-300 rounded-md text-sm">
+                                    <select size="5" data-sample-id="${sample.id}" data-step-id="${step.id}" data-withdrawal-id="${withdrawal.id}" class="spike-input-withdrawal-pipette w-full p-1 border border-gray-300 rounded-md text-sm">
                                          <option value="">-- Seleziona --</option>
                                          ${pipetteOptions}
                                     </select>
@@ -555,7 +555,7 @@ function renderSpikeUncertainty() {
                             <div class="space-y-2">
                                 <h5 class="font-semibold text-gray-600">Diluizione</h5>
                                 <label for="flask-select-${step.id}" class="block text-sm font-medium text-gray-700">Matraccio di diluizione finale</label>
-                                <select id="flask-select-${step.id}" data-sample-id="${sample.id}" data-step-id="${step.id}" class="spike-input-dilution mt-1 w-full p-2 border border-gray-300 rounded-md">
+                                <select id="flask-select-${step.id}" size="5" data-sample-id="${sample.id}" data-step-id="${step.id}" class="spike-input-dilution mt-1 w-full p-2 border border-gray-300 rounded-md">
                                     <option value="">-- Seleziona un matraccio --</option>
                                     ${flaskOptions}
                                 </select>
