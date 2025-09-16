@@ -1439,7 +1439,7 @@ function actionCalculateSpikeUncertainty(sampleId) {
             const isCorrect = diff < threshold;
             preparationCheck = {
                 isCorrect: isCorrect,
-                message: isCorrect ? 'Superato: la preparazione è corretta.' : 'Fallito: la preparazione deve essere controllata e corretta.',
+                message: isCorrect ? 'Superato: la concentrazione calcolata è sufficientemente vicina al valore nominale.' : 'Fallito: la concentrazione calcolata differisce dal valore nominale di oltre lo 0.01%. Si raccomanda di controllare i calcoli e la procedura di preparazione.',
                 details: `Differenza: ${diff.toPrecision(3)}, Soglia: ${threshold.toPrecision(3)}`
             };
         }
@@ -1454,7 +1454,7 @@ function actionCalculateSpikeUncertainty(sampleId) {
                 const isAccurate = ratio <= 2;
                 accuracyCheck = {
                     isAccurate: isAccurate,
-                    message: isAccurate ? 'Superato: il metodo è esatto.' : 'Fallito: il metodo non è esatto.',
+                    message: isAccurate ? "Superato: la media delle misure è compatibile con il valore nominale, tenendo conto dell'incertezza di preparazione. Il metodo è considerato esatto." : "Fallito: la media delle misure si discosta significativamente dal valore nominale, anche considerando l'incertezza di preparazione. Il metodo non è considerato esatto.",
                     details: `Rapporto: ${ratio.toFixed(3)} (soglia: <= 2)`
                 };
             } else {
