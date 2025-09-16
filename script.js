@@ -1391,7 +1391,7 @@ function main() {
         }
     });
 
-    prepContainer.addEventListener('input', e => {
+    prepContainer.addEventListener('change', e => {
         const target = e.target;
         const { sampleId, stepId, withdrawalId, field: dataField } = target.dataset;
 
