@@ -637,6 +637,7 @@ function renderSpikeUncertainty() {
                      ${results.summary ? `<div class="text-sm p-3 bg-gray-100 rounded-md border text-gray-600">${results.summary}</div>` : ''}
                     <div class="mt-3 text-right">
                         <p class="text-sm text-gray-600">Concentrazione Finale Calcolata: <span class="font-bold text-lg text-black">${results.finalConcentration.toPrecision(4)} µg/mL</span></p>
+                        <p class="text-sm text-gray-600">Valore Nominale Campione Preparato: <span class="font-bold text-lg text-black">${results.finalConcentration.toPrecision(4)} µg/mL</span></p>
                         <p class="text-sm text-gray-600">Incertezza tipo composta (u_c): <span class="font-bold text-black">${results.u_comp.toPrecision(3)}</span></p>
                         <p class="text-sm text-gray-600">Incertezza tipo composta relativa (u_c %): <span class="font-bold text-black">${results.u_comp_rel_perc.toFixed(2)} %</span></p>
                     </div>
