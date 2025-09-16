@@ -1177,7 +1177,7 @@ function actionAddSpikeStep(sampleId) {
         id: newStepId,
         dilutionFlask: null,
         withdrawals: [
-            { id: `w-${Date.now()}`, pipette: null, volume: null, uncertainty: null }
+            { id: `w-${Date.now()}`, pipette: null, volume: null }
         ]
     });
     render();
@@ -1195,7 +1195,7 @@ function actionRemoveSpikeStep(sampleId, stepId) {
 function actionAddSpikeWithdrawal(sampleId, stepId) {
     const step = appState.spikeUncertainty[sampleId]?.steps.find(s => s.id === stepId);
     if (!step) return;
-    step.withdrawals.push({ id: `w-${Date.now()}`, pipette: null, volume: null, uncertainty: null });
+    step.withdrawals.push({ id: `w-${Date.now()}`, pipette: null, volume: null });
     render();
     actionCalculateSpikeUncertainty(sampleId);
 }
@@ -1208,48 +1208,14 @@ function actionRemoveSpikeWithdrawal(sampleId, stepId, withdrawalId) {
     actionCalculateSpikeUncertainty(sampleId);
 }
 
-function getBestPipetteUncertainty(pipetteId, volume) {
-    if (!pipetteId || volume === null || volume <= 0) return null;
-
-    const pipette = appState.libraries.pipettes[pipetteId];
-    if (!pipette) return null;
-
-    const points = pipette.calibrationPoints.map(p => p.volume);
-    const minVol = Math.min(...points);
-    const maxVol = Math.max(...points);
-
-    if (volume < minVol || volume > maxVol) return null; // Fuori range
-
-    const sortedPoints = pipette.calibrationPoints.slice().sort((a, b) => a.volume - b.volume);
-
-    // Caso 1: Corrispondenza esatta
-    const exactMatch = sortedPoints.find(p => p.volume === volume);
-    if (exactMatch) return exactMatch.U_rel_percent;
-
-    // Caso 2: Interpolazione o maggiorazione
-    for (let i = 0; i < sortedPoints.length - 1; i++) {
-        if (volume > sortedPoints[i].volume && volume < sortedPoints[i+1].volume) {
-            // Usa l'incertezza maggiore tra i due punti
-            return Math.max(sortedPoints[i].U_rel_percent, sortedPoints[i+1].U_rel_percent);
-        }
-    }
-
-    return null; // Non dovrebbe accadere se il volume è in range
-}
-
 function actionUpdateSpikeState({ sampleId, stepId, withdrawalId, field, value }) {
     const sampleState = appState.spikeUncertainty[sampleId];
     if (!sampleState) return;
 
-    let withdrawalToUpdate = null;
-
     if (stepId && withdrawalId) {
         const step = sampleState.steps.find(s => s.id === stepId);
         const withdrawal = step?.withdrawals.find(w => w.id === withdrawalId);
-        if (withdrawal) {
-            withdrawal[field] = value;
-            withdrawalToUpdate = withdrawal;
-        }
+        if (withdrawal) { withdrawal[field] = value; }
     } else if (stepId) {
         const step = sampleState.steps.find(s => s.id === stepId);
         if (step) { step[field] = value; }
@@ -1257,14 +1223,8 @@ function actionUpdateSpikeState({ sampleId, stepId, withdrawalId, field, value }
         sampleState[field] = value;
     }
 
-    // Se è stato modificato un prelievo, ricalcola la sua incertezza
-    if (withdrawalToUpdate && (field === 'pipette' || field === 'volume')) {
-        withdrawalToUpdate.uncertainty = getBestPipetteUncertainty(withdrawalToUpdate.pipette, withdrawalToUpdate.volume);
-    }
-
-
-    render(); // Renderizza per aggiornare i campi di input
-    actionCalculateSpikeUncertainty(sampleId); // Ricalcola il totale
+    render();
+    actionCalculateSpikeUncertainty(sampleId);
 }
 
 function actionCalculateSpikeUncertainty(sampleId) {
