@@ -637,8 +637,26 @@ function renderSpikeUncertainty() {
                      ${results.summary ? `<div class="text-sm p-3 bg-gray-100 rounded-md border text-gray-600">${results.summary}</div>` : ''}
                     <div class="mt-3 text-right">
                         <p class="text-sm text-gray-600">Concentrazione Finale Calcolata: <span class="font-bold text-lg text-black">${results.finalConcentration.toPrecision(4)} µg/mL</span></p>
+                        <p class="text-sm text-gray-600">Valore Nominale Campione Preparato: <span class="font-bold text-lg text-black">${parseFloat(sample.expectedValue).toPrecision(4)} µg/mL</span></p>
+                        <p class="text-sm text-gray-600">Valore Medio Campione (da Statistica): <span class="font-bold text-lg text-black">${appState.results[sample.id].statistics.mean.toPrecision(4)} µg/mL</span></p>
                         <p class="text-sm text-gray-600">Incertezza tipo composta (u_c): <span class="font-bold text-black">${results.u_comp.toPrecision(3)}</span></p>
                         <p class="text-sm text-gray-600">Incertezza tipo composta relativa (u_c %): <span class="font-bold text-black">${results.u_comp_rel_perc.toFixed(2)} %</span></p>
+                    </div>
+                    <!-- Sezione Verifiche -->
+                    <div class="mt-4 pt-4 border-t border-gray-300">
+                        <h5 class="text-md font-semibold text-gray-700 mb-2 text-right">Verifiche Aggiuntive</h5>
+                        ${results.preparationCheck ? `
+                            <div class="mt-2 p-2 rounded-md text-sm ${results.preparationCheck.isCorrect ? 'bg-green-100 text-green-900' : 'bg-red-100 text-red-900'}">
+                                <p class="font-semibold">1. Verifica Preparazione: <span class="font-normal">${results.preparationCheck.message}</span></p>
+                                <p class="text-xs font-mono">${results.preparationCheck.details}</p>
+                            </div>
+                        ` : ''}
+                        ${results.accuracyCheck ? `
+                            <div class="mt-2 p-2 rounded-md text-sm ${results.accuracyCheck.isAccurate ? 'bg-green-100 text-green-900' : 'bg-red-100 text-red-900'}">
+                                <p class="font-semibold">2. Verifica Esattezza Metodo: <span class="font-normal">${results.accuracyCheck.message}</span></p>
+                                 <p class="text-xs font-mono">${results.accuracyCheck.details}</p>
+                            </div>
+                        ` : (results.preparationCheck && results.preparationCheck.isCorrect ? '<div class="mt-2 p-2 rounded-md bg-yellow-100 text-yellow-900 text-sm"><p class="font-semibold">2. Verifica Esattezza Metodo: Non eseguita (dati di statistica mancanti).</p></div>' : '')}
                     </div>
                 </div>
             `;
@@ -1383,19 +1401,79 @@ function actionCalculateSpikeUncertainty(sampleId) {
 
         // NUOVO: Genera il riepilogo testuale
         let summaryLines = [];
+        let concentrationBeforeStep = sampleState.initialConcentration; // Inizia con la concentrazione iniziale
         sampleState.steps.forEach((step, index) => {
-            const withdrawals = step.withdrawals.map(w => `${w.volume} mL`).join(' e ');
+            // Costruisce la stringa dei prelievi con l'ID della pipetta
+            const withdrawalsText = step.withdrawals.map(w => `${w.volume} mL (pipetta: ${w.pipette})`).join(' e ');
+
             const flask = appState.libraries.glassware[step.dilutionFlask];
-            summaryLines.push(`<b>Passaggio ${index + 1}:</b> Prelievo di ${withdrawals} e diluizione a ${flask.volume} mL.`);
+
+            // La concentrazione della soluzione prelevata è quella prima di questo passaggio
+            const initialConcForStep = concentrationBeforeStep;
+
+            // La concentrazione finale di questo passaggio è memorizzata nell'oggetto 'step'
+            const finalConcForStep = step.intermediateConcentration;
+
+            summaryLines.push(`<b>Passaggio ${index + 1}:</b> Prelievo di ${withdrawalsText} da soluzione a ${initialConcForStep.toPrecision(4)} µg/mL. Diluizione a ${flask.volume} mL per una concentrazione finale di ${finalConcForStep.toPrecision(4)} µg/mL.`);
+
+            // Aggiorna la concentrazione per il prossimo passaggio
+            concentrationBeforeStep = finalConcForStep;
         });
         const summary = summaryLines.join('<br>');
+
+        // NUOVO: Logica per le verifiche di preparazione e accuratezza
+        const sample = appState.samples.find(s => s.id == sampleId);
+        const nominalValue = parseFloat(sample.expectedValue);
+        const calculatedConcentration = currentConcentration;
+        const meanValue = appState.results[sampleId]?.statistics?.mean;
+
+        let preparationCheck = null;
+        let accuracyCheck = null;
+
+        // VERIFICA 1: Correttezza della preparazione
+        // Confronta il valore nominale con il valore di concentrazione calcolata.
+        // Se la differenza è minore dello 0.01% del valore nominale il test e superato.
+        if (!isNaN(nominalValue) && !isNaN(calculatedConcentration)) {
+            const diff = Math.abs(nominalValue - calculatedConcentration);
+            const threshold = 0.0001 * nominalValue; // 0.01%
+            const isCorrect = diff < threshold;
+            preparationCheck = {
+                isCorrect: isCorrect,
+                message: isCorrect ? 'Superato: la concentrazione calcolata è sufficientemente vicina al valore nominale.' : 'Fallito: la concentrazione calcolata differisce dal valore nominale di oltre lo 0.01%. Si raccomanda di controllare i calcoli e la procedura di preparazione.',
+                details: `Differenza: ${diff.toPrecision(3)}, Soglia: ${threshold.toPrecision(3)}`
+            };
+        }
+
+        // VERIFICA 2: Esattezza del metodo (solo se la preparazione è corretta)
+        // Calcola il valore assoluto della differenza tra la media e il valore nominale e lo divide per l'incertezza tipo composta di preparazione assoluta.
+        // Se questo rapporto è minore o uguale a 2 il test è superato.
+        if (preparationCheck && preparationCheck.isCorrect && !isNaN(meanValue) && !isNaN(nominalValue)) {
+            const absoluteUncertainty = final_u_rel * nominalValue;
+            if (absoluteUncertainty > 1e-12) { // Evita divisione per zero
+                const ratio = Math.abs(meanValue - nominalValue) / absoluteUncertainty;
+                const isAccurate = ratio <= 2;
+                accuracyCheck = {
+                    isAccurate: isAccurate,
+                    message: isAccurate ? "Superato: la media delle misure è compatibile con il valore nominale, tenendo conto dell'incertezza di preparazione. Il metodo è considerato esatto." : "Fallito: la media delle misure si discosta significativamente dal valore nominale, anche considerando l'incertezza di preparazione. Il metodo non è considerato esatto.",
+                    details: `Rapporto: ${ratio.toFixed(3)} (soglia: <= 2)`
+                };
+            } else {
+                 accuracyCheck = {
+                    isAccurate: false,
+                    message: 'Non calcolabile: incertezza di preparazione è zero.',
+                    details: ''
+                };
+            }
+        }
 
         // Memorizza tutti i risultati finali nello stato
         sampleState.results = {
             finalConcentration: currentConcentration,
             u_comp: final_u_abs,
             u_comp_rel_perc: final_u_rel_perc,
-            summary: summary
+            summary: summary,
+            preparationCheck: preparationCheck,
+            accuracyCheck: accuracyCheck
         };
 
         // Forza un re-render completo per mostrare tutti i nuovi dati
