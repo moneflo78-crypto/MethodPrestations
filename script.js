@@ -234,6 +234,10 @@ function getInitialAppState() {
         project: { objective: '', method: '', component: '' },
         samples: [],
         results: {}, // keyed by sample.id
+        spikeUncertainty: {
+            // Data for spike uncertainty calculations, keyed by sample.id
+            // Each entry will contain initial concentration, uncertainty, and preparation steps.
+        },
         libraries: {
             glassware: deepCopy(DEFAULT_GLASSWARE_LIBRARY),
             pipettes: deepCopy(DEFAULT_PIPETTE_LIBRARY),
@@ -267,6 +271,7 @@ function render() {
     renderSamplesAndResults();
     renderCalibrationTab();
     renderRfResults();
+    renderSpikeUncertainty();
     renderDebugInfo();
 }
 
@@ -458,6 +463,152 @@ function renderRfResults() {
         resultsContainer.innerHTML = '';
         resultsContainer.classList.add('hidden');
     }
+}
+
+function renderSpikeUncertainty() {
+    const container = document.getElementById('spike-calculators-container');
+    if (!container) return;
+
+    const eligibleSamples = appState.samples.filter(sample => {
+        const result = appState.results[sample.id];
+        return result && result.statistics && !result.error && (sample.expectedValue !== null && sample.expectedValue !== '');
+    });
+
+    if (eligibleSamples.length === 0) {
+        container.innerHTML = `<div class="p-4 bg-gray-50 rounded-lg border text-center text-gray-600">
+            <p>Questa sezione si attiva quando sono presenti campioni con "Valore Atteso" calcolati con successo nella scheda "Analisi Statistica".</p>
+            <p class="mt-2 text-sm">Assicurati di aver inserito un valore atteso per almeno un campione e di aver eseguito il calcolo.</p>
+        </div>`;
+        return;
+    }
+
+    let content = '';
+    eligibleSamples.forEach(sample => {
+        // Ensure there's a state object for this sample, and initialize with a default step
+        if (!appState.spikeUncertainty[sample.id]) {
+            appState.spikeUncertainty[sample.id] = {
+                initialConcentration: null,
+                initialUncertainty: null,
+                steps: [] // Start with no steps, user must add one.
+            };
+        }
+        const sampleSpikeState = appState.spikeUncertainty[sample.id];
+
+        // Render steps for the current sample
+        let stepsHTML = '';
+        if (sampleSpikeState.steps.length > 0) {
+            sampleSpikeState.steps.forEach((step, stepIndex) => {
+
+                // Create dropdown options for flasks
+                const flaskOptions = Object.keys(appState.libraries.glassware).map(key => {
+                    const flask = appState.libraries.glassware[key];
+                    const isSelected = key === step.dilutionFlask ? 'selected' : '';
+                    return `<option value="${key}" ${isSelected}>${key} (Vol: ${flask.volume} mL, Tol: ±${flask.uncertainty} mL)</option>`;
+                }).join('');
+
+                // Render withdrawals for the current step
+                let withdrawalsHTML = '';
+                if (step.withdrawals.length > 0) {
+                    step.withdrawals.forEach((withdrawal, wIndex) => {
+                        const pipetteOptions = Object.keys(appState.libraries.pipettes).map(key => {
+                            const isSelected = key === withdrawal.pipette ? 'selected' : '';
+                            return `<option value="${key}" ${isSelected}>${key}</option>`;
+                        }).join('');
+
+                        // Find volume limits for validation hint
+                        let volHint = '';
+                        if (withdrawal.pipette && appState.libraries.pipettes[withdrawal.pipette]) {
+                            const points = appState.libraries.pipettes[withdrawal.pipette].calibrationPoints.map(p => p.volume);
+                            if (points.length > 0) {
+                                volHint = `(min: ${Math.min(...points)}, max: ${Math.max(...points)})`;
+                            }
+                        }
+
+                        withdrawalsHTML += `
+                            <div class="flex items-center space-x-2 bg-gray-100 p-2 rounded-md">
+                                <div class="flex-grow">
+                                    <label class="block text-xs font-medium text-gray-600">Pipetta</label>
+                                    <select data-sample-id="${sample.id}" data-step-id="${step.id}" data-withdrawal-id="${withdrawal.id}" class="spike-input-withdrawal-pipette w-full p-1 border border-gray-300 rounded-md text-sm">
+                                         <option value="">-- Seleziona --</option>
+                                         ${pipetteOptions}
+                                    </select>
+                                </div>
+                                <div class="flex-grow">
+                                    <label class="block text-xs font-medium text-gray-600">Volume (mL) <span class="text-gray-400 font-mono">${volHint}</span></label>
+                                    <input type="number" data-sample-id="${sample.id}" data-step-id="${step.id}" data-withdrawal-id="${withdrawal.id}" class="spike-input-withdrawal-volume w-full p-1 border border-gray-300 rounded-md text-sm" value="${withdrawal.volume || ''}" placeholder="Volume">
+                                </div>
+                                <button data-sample-id="${sample.id}" data-step-id="${step.id}" data-withdrawal-id="${withdrawal.id}" class="btn-remove-withdrawal text-red-500 hover:text-red-700 self-end mb-1 font-bold text-lg" title="Rimuovi Prelievo">&times;</button>
+                            </div>
+                        `;
+                    });
+                } else {
+                    withdrawalsHTML = `<p class="text-sm text-gray-500 bg-gray-100 p-2 rounded-md">Nessun prelievo aggiunto a questo passaggio.</p>`;
+                }
+
+                stepsHTML += `
+                    <div class="p-4 border-2 rounded-lg relative bg-gray-50 border-gray-200">
+                        <button data-sample-id="${sample.id}" data-step-id="${step.id}" class="btn-remove-step absolute top-2 right-2 text-red-500 hover:text-red-700 font-bold text-xl leading-none" title="Rimuovi Passaggio">&times;</button>
+                        <h4 class="text-lg font-semibold text-gray-700 mb-4">Passaggio di Preparazione ${stepIndex + 1}</h4>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                            <!-- Colonna Sinistra: Diluizione -->
+                            <div class="space-y-2">
+                                <h5 class="font-semibold text-gray-600">Diluizione</h5>
+                                <label for="flask-select-${step.id}" class="block text-sm font-medium text-gray-700">Matraccio di diluizione finale</label>
+                                <select id="flask-select-${step.id}" data-sample-id="${sample.id}" data-step-id="${step.id}" class="spike-input-dilution mt-1 w-full p-2 border border-gray-300 rounded-md">
+                                    <option value="">-- Seleziona un matraccio --</option>
+                                    ${flaskOptions}
+                                </select>
+                            </div>
+
+                            <!-- Colonna Destra: Prelievi -->
+                            <div class="space-y-2">
+                                 <h5 class="font-semibold text-gray-600">Prelievi</h5>
+                                <div id="withdrawals-container-${step.id}" class="mt-1 space-y-3">
+                                    ${withdrawalsHTML}
+                                </div>
+                                <button data-sample-id="${sample.id}" data-step-id="${step.id}" class="btn-add-withdrawal mt-2 text-xs bg-blue-100 text-blue-800 font-semibold py-1 px-2 rounded-md hover:bg-blue-200">+ Aggiungi Prelievo</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+        } else {
+            stepsHTML = `<p class="text-gray-500 italic p-4 text-center">Nessun passaggio di preparazione definito. Aggiungine uno per iniziare.</p>`;
+        }
+
+        content += `
+            <div class="bg-white p-6 rounded-lg shadow-md border border-gray-200 mb-6">
+                <h3 class="text-xl font-semibold text-gray-800 mb-4">Preparazione Spike per Campione: <span class="font-bold">${sample.name}</span></h3>
+
+                <!-- Sezione Materiale di Riferimento -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 border rounded-md bg-gray-50 mb-4">
+                    <div>
+                        <label for="initial-conc-${sample.id}" class="block text-sm font-medium text-gray-700">Concentrazione Materiale di Riferimento (µg/mL)</label>
+                        <input type="number" id="initial-conc-${sample.id}" data-sample-id="${sample.id}" data-field="initialConcentration" class="spike-input mt-1 w-full p-2 border border-gray-300 rounded-md" value="${sampleSpikeState.initialConcentration || ''}" placeholder="Es: 1000">
+                    </div>
+                    <div>
+                        <label for="initial-unc-${sample.id}" class="block text-sm font-medium text-gray-700">Incertezza del certificato (U %)</label>
+                        <input type="number" id="initial-unc-${sample.id}" data-sample-id="${sample.id}" data-field="initialUncertainty" class="spike-input mt-1 w-full p-2 border border-gray-300 rounded-md" value="${sampleSpikeState.initialUncertainty || ''}" placeholder="Es: 0.5">
+                    </div>
+                </div>
+
+                <!-- Contenitore per i Passaggi di Preparazione -->
+                <div id="steps-container-${sample.id}" class="space-y-6">
+                    ${stepsHTML}
+                </div>
+
+                <!-- Azioni -->
+                <div class="mt-4 pt-4 border-t flex justify-between items-center">
+                    <button data-sample-id="${sample.id}" class="btn-add-step text-sm bg-blue-100 text-blue-800 font-semibold py-2 px-4 rounded-md hover:bg-blue-200 transition">+ Aggiungi Passaggio</button>
+                    <div id="spike-results-container-${sample.id}" class="text-right font-semibold">
+                        <!-- I risultati verranno mostrati qui -->
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    container.innerHTML = content;
 }
 
 function renderTabs() {
@@ -1000,6 +1151,173 @@ function actionLoadData(event) {
     reader.readAsText(file);
 }
 
+// --- AZIONI PER LA SEZIONE INCERTEZZA DI PREPARAZIONE ---
+
+function actionAddSpikeStep(sampleId) {
+    const sampleState = appState.spikeUncertainty[sampleId];
+    if (!sampleState) return;
+    const newStepId = `step-${Date.now()}`;
+    sampleState.steps.push({
+        id: newStepId,
+        dilutionFlask: null,
+        withdrawals: [
+            { id: `w-${Date.now()}`, pipette: null, volume: null }
+        ]
+    });
+    render();
+    actionCalculateSpikeUncertainty(sampleId);
+}
+
+function actionRemoveSpikeStep(sampleId, stepId) {
+    const sampleState = appState.spikeUncertainty[sampleId];
+    if (!sampleState) return;
+    sampleState.steps = sampleState.steps.filter(s => s.id !== stepId);
+    render();
+    actionCalculateSpikeUncertainty(sampleId);
+}
+
+function actionAddSpikeWithdrawal(sampleId, stepId) {
+    const step = appState.spikeUncertainty[sampleId]?.steps.find(s => s.id === stepId);
+    if (!step) return;
+    step.withdrawals.push({ id: `w-${Date.now()}`, pipette: null, volume: null });
+    render();
+    actionCalculateSpikeUncertainty(sampleId);
+}
+
+function actionRemoveSpikeWithdrawal(sampleId, stepId, withdrawalId) {
+    const step = appState.spikeUncertainty[sampleId]?.steps.find(s => s.id === stepId);
+    if (!step) return;
+    step.withdrawals = step.withdrawals.filter(w => w.id !== withdrawalId);
+    render();
+    actionCalculateSpikeUncertainty(sampleId);
+}
+
+function actionUpdateSpikeState({ sampleId, stepId, withdrawalId, field, value }) {
+    const sampleState = appState.spikeUncertainty[sampleId];
+    if (!sampleState) return;
+
+    if (stepId && withdrawalId) {
+        const step = sampleState.steps.find(s => s.id === stepId);
+        const withdrawal = step?.withdrawals.find(w => w.id === withdrawalId);
+        if (withdrawal) { withdrawal[field] = value; }
+    } else if (stepId) {
+        const step = sampleState.steps.find(s => s.id === stepId);
+        if (step) { step[field] = value; }
+    } else {
+        sampleState[field] = value;
+    }
+
+    render();
+    actionCalculateSpikeUncertainty(sampleId);
+}
+
+function actionCalculateSpikeUncertainty(sampleId) {
+    const sampleState = appState.spikeUncertainty[sampleId];
+    const resultsContainer = document.getElementById(`spike-results-container-${sampleId}`);
+
+    const showError = (message) => {
+        if (resultsContainer) {
+            resultsContainer.innerHTML = `<span class="text-red-500 text-sm font-medium">${message}</span>`;
+        }
+        sampleState.results = null;
+        renderDebugInfo();
+    };
+
+    try {
+        if (resultsContainer) resultsContainer.innerHTML = ''; // Clear previous results
+
+        if (sampleState.initialConcentration === null || sampleState.initialUncertainty === null || sampleState.initialConcentration <= 0) {
+            return showError("Dati iniziali mancanti o non validi.");
+        }
+
+        let currentConcentration = sampleState.initialConcentration;
+        // U% is expanded (k=2), so standard uncertainty u = U / 2. Then convert to relative decimal: u_rel = (U/100)/2
+        let sum_u_rel_sq = Math.pow(sampleState.initialUncertainty / 200, 2);
+
+        for (const step of sampleState.steps) {
+            if (!step.dilutionFlask) return showError(`Matraccio non selezionato.`);
+            if (step.withdrawals.length === 0) return showError(`Nessun prelievo nel passaggio.`);
+            if (step.withdrawals.some(w => !w.pipette || w.volume === null || w.volume <= 0)) {
+                return showError(`Dati di prelievo incompleti o non validi.`);
+            }
+
+            let totalWithdrawalVolume = 0;
+            let sum_u_abs_sq_withdrawals = 0;
+
+            for (const w of step.withdrawals) {
+                totalWithdrawalVolume += w.volume;
+                const pipette = appState.libraries.pipettes[w.pipette];
+                const points = pipette.calibrationPoints.map(p => p.volume);
+                const minVol = Math.min(...points);
+                const maxVol = Math.max(...points);
+
+                if (w.volume < minVol || w.volume > maxVol) {
+                    throw new Error(`Volume ${w.volume}mL fuori range per pipetta ${w.pipette}.`);
+                }
+
+                let uncertainty_U_perc = 0;
+                const sortedPoints = pipette.calibrationPoints.slice().sort((a,b) => a.volume - b.volume);
+
+                let found = false;
+                for (let i = 0; i < sortedPoints.length - 1; i++) {
+                    if (w.volume >= sortedPoints[i].volume && w.volume <= sortedPoints[i+1].volume) {
+                        uncertainty_U_perc = Math.max(sortedPoints[i].U_rel_percent, sortedPoints[i+1].U_rel_percent);
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                     const match = sortedPoints.find(p => p.volume === w.volume);
+                     if(match) uncertainty_U_perc = match.U_rel_percent;
+                     else throw new Error(`Logica incertezza pipetta fallita per volume ${w.volume}.`);
+                }
+
+                // u_abs = (U_rel_perc / 100 * V_prelievo) / (k=2 * sqrt(3))
+                const u_abs_withdrawal = (uncertainty_U_perc / 100 * w.volume) / (2 * Math.sqrt(3));
+                sum_u_abs_sq_withdrawals += Math.pow(u_abs_withdrawal, 2);
+            }
+
+            const u_abs_total_withdrawal = Math.sqrt(sum_u_abs_sq_withdrawals);
+            const u_rel_sq_total_withdrawal = totalWithdrawalVolume > 0 ? Math.pow(u_abs_total_withdrawal / totalWithdrawalVolume, 2) : 0;
+
+            const flask = appState.libraries.glassware[step.dilutionFlask];
+            // u_rel = (Tolerance / Volume_nominal) / sqrt(3)
+            const u_rel_sq_flask = Math.pow(flask.uncertainty / flask.volume / Math.sqrt(3), 2);
+
+            sum_u_rel_sq += u_rel_sq_total_withdrawal + u_rel_sq_flask;
+            currentConcentration = currentConcentration * (totalWithdrawalVolume / flask.volume);
+        }
+
+        if (sampleState.steps.length === 0) {
+             // If no steps, the result is just the initial state
+             const final_u_rel = Math.sqrt(sum_u_rel_sq);
+             const final_u_abs = final_u_rel * currentConcentration;
+             const final_u_rel_perc = final_u_rel * 100;
+             sampleState.results = { finalConcentration: currentConcentration, u_comp: final_u_abs, u_comp_rel_perc: final_u_rel_perc };
+        } else {
+            const final_u_rel = Math.sqrt(sum_u_rel_sq);
+            const final_u_abs = final_u_rel * currentConcentration;
+            const final_u_rel_perc = final_u_rel * 100;
+            sampleState.results = { finalConcentration: currentConcentration, u_comp: final_u_abs, u_comp_rel_perc: final_u_rel_perc };
+        }
+
+        if (resultsContainer && sampleState.results) {
+            const res = sampleState.results;
+            resultsContainer.innerHTML = `
+                <div class="text-right">
+                    <p class="text-sm text-gray-600">Conc. Finale: <span class="font-bold text-black">${res.finalConcentration.toPrecision(4)}</span></p>
+                    <p class="text-sm text-gray-600">u_c: <span class="font-bold text-black">${res.u_comp.toPrecision(3)}</span></p>
+                    <p class="text-sm text-gray-600">u_c %: <span class="font-bold text-black">${res.u_comp_rel_perc.toFixed(2)} %</span></p>
+                </div>
+            `;
+        }
+        renderDebugInfo();
+
+    } catch (e) {
+        showError(e.message);
+    }
+}
+
 // --- MAIN APP SETUP ---
 function main() {
     // --- Event Listeners Scheda Analisi Statistica ---
@@ -1053,6 +1371,46 @@ function main() {
     document.getElementById('project-objective').addEventListener('input', e => { appState.project.objective = e.target.value; });
     document.getElementById('project-method').addEventListener('input', e => { appState.project.method = e.target.value; });
     document.getElementById('project-component').addEventListener('input', e => { appState.project.component = e.target.value; });
+
+    // --- Event Listeners Scheda Incertezza di Preparazione ---
+    const prepContainer = document.getElementById('content-preparazione');
+    prepContainer.addEventListener('click', e => {
+        const addStepBtn = e.target.closest('.btn-add-step');
+        const removeStepBtn = e.target.closest('.btn-remove-step');
+        const addWithdrawalBtn = e.target.closest('.btn-add-withdrawal');
+        const removeWithdrawalBtn = e.target.closest('.btn-remove-withdrawal');
+
+        if (addStepBtn) {
+            actionAddSpikeStep(addStepBtn.dataset.sampleId);
+        } else if (removeStepBtn) {
+            actionRemoveSpikeStep(removeStepBtn.dataset.sampleId, removeStepBtn.dataset.stepId);
+        } else if (addWithdrawalBtn) {
+            actionAddSpikeWithdrawal(addWithdrawalBtn.dataset.sampleId, addWithdrawalBtn.dataset.stepId);
+        } else if (removeWithdrawalBtn) {
+            actionRemoveSpikeWithdrawal(removeWithdrawalBtn.dataset.sampleId, removeWithdrawalBtn.dataset.stepId, removeWithdrawalBtn.dataset.withdrawalId);
+        }
+    });
+
+    prepContainer.addEventListener('input', e => {
+        const target = e.target;
+        const { sampleId, stepId, withdrawalId, field: dataField } = target.dataset;
+
+        const isSpikeInput = target.matches('.spike-input, .spike-input-dilution, .spike-input-withdrawal-pipette, .spike-input-withdrawal-volume');
+
+        if (!isSpikeInput) return;
+
+        let field = dataField;
+        let value = target.type === 'number' ? (target.value === '' ? null : parseFloat(target.value)) : target.value;
+
+        if (target.matches('.spike-input-withdrawal-pipette')) field = 'pipette';
+        else if (target.matches('.spike-input-withdrawal-volume')) field = 'volume';
+        else if (target.matches('.spike-input-dilution')) field = 'dilutionFlask';
+
+        if (field) {
+             actionUpdateSpikeState({ sampleId, stepId, withdrawalId, field, value });
+        }
+    });
+
 
     // --- Event Listeners Scheda Incertezza di Taratura ---
     document.getElementById('btn-add-regression-row').addEventListener('click', actionAddRegressionRow);
