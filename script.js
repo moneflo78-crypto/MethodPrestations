@@ -585,6 +585,41 @@ function renderSpikeUncertainty() {
 
         const u_rel_cert_perc = sampleSpikeState.initialUncertainty ? (sampleSpikeState.initialUncertainty / 2).toFixed(3) : '';
 
+        let resultsHTML = '';
+        const results = sampleSpikeState.results;
+        if (results) {
+            resultsHTML = `
+                <div class="mt-4 pt-4 border-t">
+                    <h4 class="text-md font-semibold text-gray-700 mb-2">Riepilogo Finale</h4>
+                     ${results.summary ? `<div class="text-sm p-3 bg-gray-100 rounded-md border text-gray-600">${results.summary}</div>` : ''}
+                    <div class="mt-3 text-right">
+                        <p class="text-sm text-gray-600">Concentrazione Finale Calcolata: <span class="font-bold text-lg text-black">${results.finalConcentration.toPrecision(4)} µg/mL</span></p>
+                        <p class="text-sm text-gray-600">Valore Nominale Campione Preparato: <span class="font-bold text-lg text-black">${parseFloat(sample.expectedValue).toPrecision(4)} µg/mL</span></p>
+                        <p class="text-sm text-gray-600">Valore Medio Campione (da Statistica): <span class="font-bold text-lg text-black">${appState.results[sample.id].statistics.mean.toPrecision(4)} µg/mL</span></p>
+                        <p class="text-sm text-gray-600">Incertezza tipo composta (u_c): <span class="font-bold text-black">${results.u_comp.toPrecision(3)}</span></p>
+                        <p class="text-sm text-gray-600">Incertezza tipo composta relativa (u_c %): <span class="font-bold text-black">${results.u_comp_rel_perc.toFixed(2)} %</span></p>
+                    </div>
+                    <!-- Sezione Verifiche -->
+                    <div class="mt-4 pt-4 border-t border-gray-300">
+                        <h5 class="text-md font-semibold text-gray-700 mb-2 text-right">Verifiche Aggiuntive</h5>
+                        ${results.preparationCheck ? `
+                            <div class="mt-2 p-2 rounded-md text-sm ${results.preparationCheck.isCorrect ? 'bg-green-100 text-green-900' : 'bg-red-100 text-red-900'}">
+                                <p class="font-semibold">1. Verifica Preparazione: <span class="font-normal">${results.preparationCheck.message}</span></p>
+                                <p class="text-xs font-mono">${results.preparationCheck.details}</p>
+                            </div>
+                        ` : ''}
+                        ${results.accuracyCheck ? `
+                            <div class="mt-2 p-2 rounded-md text-sm ${results.accuracyCheck.isAccurate ? 'bg-green-100 text-green-900' : 'bg-red-100 text-red-900'}">
+                                <p class="font-semibold">2. Verifica Esattezza Metodo: <span class="font-normal">${results.accuracyCheck.message}</span></p>
+                                 <p class="text-xs font-mono">${results.accuracyCheck.details}</p>
+                            </div>
+                        ` : (results.preparationCheck && results.preparationCheck.isCorrect ? '<div class="mt-2 p-2 rounded-md bg-yellow-100 text-yellow-900 text-sm"><p class="font-semibold">2. Verifica Esattezza Metodo: Non eseguita (dati di statistica mancanti).</p></div>' : '')}
+                    </div>
+                </div>
+            `;
+        }
+
+
         content += `
             <div class="bg-white p-6 rounded-lg shadow-md border border-gray-200 mb-6">
                 <h3 class="text-xl font-semibold text-gray-800 mb-4">Preparazione Spike per Campione: <span class="font-bold">${sample.name}</span></h3>
@@ -621,6 +656,9 @@ function renderSpikeUncertainty() {
                         <!-- I risultati verranno mostrati qui -->
                     </div>
                 </div>
+
+                 ${resultsHTML}
+
             </div>
         `;
     });
@@ -1177,7 +1215,7 @@ function actionAddSpikeStep(sampleId) {
         id: newStepId,
         dilutionFlask: null,
         withdrawals: [
-            { id: `w-${Date.now()}`, pipette: null, volume: null }
+            { id: `w-${Date.now()}`, pipette: null, volume: null, uncertainty: null }
         ]
     });
     render();
@@ -1195,7 +1233,7 @@ function actionRemoveSpikeStep(sampleId, stepId) {
 function actionAddSpikeWithdrawal(sampleId, stepId) {
     const step = appState.spikeUncertainty[sampleId]?.steps.find(s => s.id === stepId);
     if (!step) return;
-    step.withdrawals.push({ id: `w-${Date.now()}`, pipette: null, volume: null });
+    step.withdrawals.push({ id: `w-${Date.now()}`, pipette: null, volume: null, uncertainty: null });
     render();
     actionCalculateSpikeUncertainty(sampleId);
 }
@@ -1208,14 +1246,48 @@ function actionRemoveSpikeWithdrawal(sampleId, stepId, withdrawalId) {
     actionCalculateSpikeUncertainty(sampleId);
 }
 
+function getBestPipetteUncertainty(pipetteId, volume) {
+    if (!pipetteId || volume === null || volume <= 0) return null;
+
+    const pipette = appState.libraries.pipettes[pipetteId];
+    if (!pipette) return null;
+
+    const points = pipette.calibrationPoints.map(p => p.volume);
+    const minVol = Math.min(...points);
+    const maxVol = Math.max(...points);
+
+    if (volume < minVol || volume > maxVol) return null; // Fuori range
+
+    const sortedPoints = pipette.calibrationPoints.slice().sort((a, b) => a.volume - b.volume);
+
+    // Caso 1: Corrispondenza esatta
+    const exactMatch = sortedPoints.find(p => p.volume === volume);
+    if (exactMatch) return exactMatch.U_rel_percent;
+
+    // Caso 2: Interpolazione o maggiorazione
+    for (let i = 0; i < sortedPoints.length - 1; i++) {
+        if (volume > sortedPoints[i].volume && volume < sortedPoints[i+1].volume) {
+            // Usa l'incertezza maggiore tra i due punti
+            return Math.max(sortedPoints[i].U_rel_percent, sortedPoints[i+1].U_rel_percent);
+        }
+    }
+
+    return null; // Non dovrebbe accadere se il volume è in range
+}
+
 function actionUpdateSpikeState({ sampleId, stepId, withdrawalId, field, value }) {
     const sampleState = appState.spikeUncertainty[sampleId];
     if (!sampleState) return;
 
+    let withdrawalToUpdate = null;
+
     if (stepId && withdrawalId) {
         const step = sampleState.steps.find(s => s.id === stepId);
         const withdrawal = step?.withdrawals.find(w => w.id === withdrawalId);
-        if (withdrawal) { withdrawal[field] = value; }
+        if (withdrawal) {
+            withdrawal[field] = value;
+            withdrawalToUpdate = withdrawal;
+        }
     } else if (stepId) {
         const step = sampleState.steps.find(s => s.id === stepId);
         if (step) { step[field] = value; }
@@ -1223,8 +1295,14 @@ function actionUpdateSpikeState({ sampleId, stepId, withdrawalId, field, value }
         sampleState[field] = value;
     }
 
-    render();
-    actionCalculateSpikeUncertainty(sampleId);
+    // Se è stato modificato un prelievo, ricalcola la sua incertezza
+    if (withdrawalToUpdate && (field === 'pipette' || field === 'volume')) {
+        withdrawalToUpdate.uncertainty = getBestPipetteUncertainty(withdrawalToUpdate.pipette, withdrawalToUpdate.volume);
+    }
+
+
+    render(); // Renderizza per aggiornare i campi di input
+    actionCalculateSpikeUncertainty(sampleId); // Ricalcola il totale
 }
 
 function actionCalculateSpikeUncertainty(sampleId) {
