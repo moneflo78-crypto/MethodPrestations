@@ -1472,6 +1472,27 @@ function main() {
         });
     }
 
+    // --- Accordion Logic ---
+    document.querySelectorAll('.accordion-btn').forEach(button => {
+        const content = button.nextElementSibling;
+
+        // Start collapsed
+        content.style.maxHeight = '0px';
+        content.style.overflow = 'hidden';
+        content.style.transition = 'max-height 0.25s ease-in-out';
+
+        button.addEventListener('click', () => {
+            const icon = button.querySelector('svg');
+            if (icon) icon.classList.toggle('rotate-180');
+
+            if (content.style.maxHeight === '0px') {
+                content.style.maxHeight = content.scrollHeight + 'px';
+            } else {
+                content.style.maxHeight = '0px';
+            }
+        });
+    });
+
     actionAddSample();
     render(); // Chiamata iniziale per renderizzare tutto
 }
