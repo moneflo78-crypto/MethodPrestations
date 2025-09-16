@@ -249,6 +249,11 @@ function getInitialAppState() {
             ],
             manualSample: { xk: null, p: 1 },
             results: null
+        },
+        rfCalibration: {
+            acceptabilityCriterion: null,
+            manualSample: { xk: null },
+            results: null
         }
     };
 }
@@ -261,6 +266,7 @@ function render() {
     renderProjectInfo();
     renderSamplesAndResults();
     renderCalibrationTab();
+    renderRfResults();
     renderDebugInfo();
 }
 
@@ -387,6 +393,56 @@ function renderCalibrationTab() {
                                 <th class="p-2 font-medium text-gray-600">Concentrazione Nominale (x)</th>
                                 <th class="p-2 font-medium text-gray-600">Incertezza Tipo (u_x)</th>
                                 <th class="p-2 font-medium text-gray-600 rounded-tr-lg">Incertezza Relativa (%)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${samplesHTML}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            resultsContainer.innerHTML = resultsHTML;
+        }
+        resultsContainer.classList.remove('hidden');
+    } else {
+        resultsContainer.innerHTML = '';
+        resultsContainer.classList.add('hidden');
+    }
+}
+
+function renderRfResults() {
+    const resultsContainer = document.getElementById('rf-results');
+    const results = appState.rfCalibration.results;
+
+    if (results) {
+        if (results.error) {
+            resultsContainer.innerHTML = `<div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mt-4" role="alert"><p class="font-bold">Errore di Calcolo</p><p>${results.error}</p></div>`;
+        } else if (results.samples) {
+            const samplesHTML = results.samples.map(s => `
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="p-2 font-medium">${s.sampleName}</td>
+                    <td class="p-2 font-mono">${s.nominalConc.toPrecision(6)}</td>
+                    <td class="p-2 font-mono">${s.ux.toPrecision(6)}</td>
+                </tr>
+            `).join('');
+
+            const resultsHTML = `
+                <h3 class="text-lg font-semibold text-gray-800 my-4 pt-4 border-t">Risultati del Calcolo</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    <div class="bg-gray-50 p-3 rounded-md border">
+                        <p><span class="font-semibold">Incertezza tipo relativa di taratura (u_taratura%):</span></p>
+                        <p class="font-mono text-center my-1 text-lg">${results.utaratura_perc.toFixed(3)} %</p>
+                    </div>
+                </div>
+
+                <h4 class="font-semibold text-gray-700 mt-6 mb-2">Incertezza per Livello di Concentrazione</h4>
+                <div class="mt-2 overflow-x-auto border rounded-lg">
+                    <table class="w-full text-sm text-left">
+                        <thead class="bg-gray-100">
+                            <tr>
+                                <th class="p-2 font-medium text-gray-600 rounded-tl-lg">Nome Campione/Livello</th>
+                                <th class="p-2 font-medium text-gray-600">Concentrazione Nominale (x)</th>
+                                <th class="p-2 font-medium text-gray-600 rounded-tr-lg">Incertezza Tipo (u_x)</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -802,6 +858,16 @@ function actionUpdateManualCalibrationSample(field, value) {
     renderDebugInfo();
 }
 
+function actionUpdateRfCalibrationInput(field, value) {
+    const numValue = value === '' ? null : parseFloat(value);
+    if (field === 'acceptabilityCriterion') {
+        appState.rfCalibration.acceptabilityCriterion = numValue;
+    } else if (field === 'manualConc') {
+        appState.rfCalibration.manualSample.xk = numValue;
+    }
+    renderDebugInfo();
+}
+
 function actionCalculateRegression() {
     try {
         appState.calibration.results = null;
@@ -857,6 +923,63 @@ function actionCalculateRegression() {
         appState.calibration.results = { error: error.message };
     }
     render();
+}
+
+
+function actionCalculateResponseFactor() {
+    try {
+        appState.rfCalibration.results = null; // Reset previous results
+
+        const criterion = appState.rfCalibration.acceptabilityCriterion;
+        if (criterion === null || isNaN(criterion) || criterion <= 0) {
+            throw new Error("Il criterio di accettabilità deve essere un numero positivo.");
+        }
+
+        const utaratura_perc = criterion / Math.sqrt(3);
+
+        const tasks = [];
+        const selectedSampleIds = Array.from(document.querySelectorAll('input[name="calibration_sample_rf"]:checked')).map(cb => cb.value);
+
+        selectedSampleIds.forEach(id => {
+            const sample = appState.samples.find(s => s.id == id);
+            const result = appState.results[id];
+            if (sample && result && result.statistics && sample.expectedValue !== null) {
+                tasks.push({
+                    name: sample.name,
+                    xk: parseFloat(sample.expectedValue)
+                });
+            }
+        });
+
+        const { xk } = appState.rfCalibration.manualSample;
+        if (xk !== null && xk !== '' && !isNaN(xk)) {
+            tasks.push({ name: "Campione Manuale", xk: parseFloat(xk) });
+        }
+
+        if (tasks.length === 0) {
+            throw new Error("Nessun campione selezionato o valore di concentrazione manuale inserito.");
+        }
+
+        const sampleResults = tasks.map(task => {
+            const ux = (Math.abs(task.xk) * utaratura_perc) / 100;
+            return {
+                sampleName: task.name,
+                nominalConc: task.xk,
+                ux: ux
+            };
+        });
+
+        appState.rfCalibration.results = {
+            utaratura_perc: utaratura_perc,
+            samples: sampleResults,
+            error: null
+        };
+
+    } catch (error) {
+        console.error("Errore nel calcolo del fattore di risposta:", error);
+        appState.rfCalibration.results = { error: error.message };
+    }
+    render(); // This will trigger the UI update
 }
 
 
@@ -934,6 +1057,7 @@ function main() {
     // --- Event Listeners Scheda Incertezza di Taratura ---
     document.getElementById('btn-add-regression-row').addEventListener('click', actionAddRegressionRow);
     document.getElementById('btn-calculate-regression').addEventListener('click', actionCalculateRegression);
+    document.getElementById('btn-calculate-response-factor').addEventListener('click', actionCalculateResponseFactor);
 
     const regressionContainer = document.getElementById('regression-table-container');
     regressionContainer.addEventListener('input', e => {
@@ -951,6 +1075,9 @@ function main() {
     document.getElementById('regression-x-manual').addEventListener('input', e => actionUpdateManualCalibrationSample('xk', e.target.value));
     document.getElementById('regression-p').addEventListener('input', e => actionUpdateManualCalibrationSample('p', e.target.value));
 
+    document.getElementById('rf-acceptability-criterion').addEventListener('input', e => actionUpdateRfCalibrationInput('acceptabilityCriterion', e.target.value));
+    document.getElementById('rf-manual-conc').addEventListener('input', e => actionUpdateRfCalibrationInput('manualConc', e.target.value));
+
     // --- Event Listeners per la scelta del metodo di taratura ---
     const btnSelectRegression = document.getElementById('btn-select-regression');
     const btnSelectResponseFactor = document.getElementById('btn-select-response-factor');
@@ -967,7 +1094,8 @@ function main() {
 
     if(btnSelectResponseFactor) {
         btnSelectResponseFactor.addEventListener('click', () => {
-            alert("Questa funzionalità non è ancora implementata.");
+            calibrationChoice.classList.add('hidden');
+            responseFactorCalculator.classList.remove('hidden');
         });
     }
 
