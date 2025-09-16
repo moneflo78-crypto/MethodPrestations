@@ -1475,20 +1475,33 @@ function main() {
     // --- Accordion Logic ---
     document.querySelectorAll('.accordion-btn').forEach(button => {
         const content = button.nextElementSibling;
+        const vh_in_px = window.innerHeight * 0.7; // 70vh in pixels
 
-        // Start collapsed
+        // Initial state: collapsed
         content.style.maxHeight = '0px';
         content.style.overflow = 'hidden';
-        content.style.transition = 'max-height 0.25s ease-in-out';
+        content.style.transition = 'max-height 0.3s ease-in-out';
 
         button.addEventListener('click', () => {
             const icon = button.querySelector('svg');
             if (icon) icon.classList.toggle('rotate-180');
 
             if (content.style.maxHeight === '0px') {
-                content.style.maxHeight = content.scrollHeight + 'px';
+                // Open it
+                const fullHeight = content.scrollHeight;
+                if (fullHeight > vh_in_px) {
+                    // If content is taller than 70vh, cap it and make it scrollable
+                    content.style.maxHeight = vh_in_px + 'px';
+                    content.style.overflowY = 'auto';
+                } else {
+                    // Otherwise, expand to its full natural height
+                    content.style.maxHeight = fullHeight + 'px';
+                    content.style.overflowY = 'hidden'; // No need to scroll if fully visible
+                }
             } else {
+                // Close it
                 content.style.maxHeight = '0px';
+                content.style.overflowY = 'hidden';
             }
         });
     });
