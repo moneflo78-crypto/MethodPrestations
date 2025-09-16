@@ -1391,7 +1391,7 @@ function main() {
         }
     });
 
-    prepContainer.addEventListener('input', e => {
+    prepContainer.addEventListener('change', e => {
         const target = e.target;
         const { sampleId, stepId, withdrawalId, field: dataField } = target.dataset;
 
@@ -1474,22 +1474,17 @@ function main() {
 
     // --- Accordion Logic ---
     document.querySelectorAll('.accordion-btn').forEach(button => {
-        const content = button.nextElementSibling;
-
-        // Start collapsed
-        content.style.maxHeight = '0px';
-        content.style.overflow = 'hidden';
-        content.style.transition = 'max-height 0.25s ease-in-out';
-
         button.addEventListener('click', () => {
+            const content = button.nextElementSibling;
             const icon = button.querySelector('svg');
-            if (icon) icon.classList.toggle('rotate-180');
 
-            if (content.style.maxHeight === '0px') {
-                content.style.maxHeight = content.scrollHeight + 'px';
-            } else {
-                content.style.maxHeight = '0px';
+            // Toggle icon rotation
+            if (icon) {
+                icon.classList.toggle('rotate-180');
             }
+
+            // Toggle the 'open' class to control visibility and scrolling from CSS
+            content.classList.toggle('open');
         });
     });
 
