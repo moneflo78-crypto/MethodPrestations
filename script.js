@@ -7,6 +7,8 @@
 // --- STATISTICAL CONSTANTS & BUSINESS LOGIC ---
 const a_coeffs_table = { 3:[0.7071],4:[0.6872,0.1677],5:[0.6646,0.2413],6:[0.6431,0.2806,0.0875],7:[0.6233,0.3031,0.1401],8:[0.6052,0.3164,0.1743,0.0561],9:[0.5888,0.3244,0.1976,0.0947],10:[0.5739,0.3291,0.2141,0.1224,0.0399],11:[0.5601,0.3315,0.2260,0.1429,0.0695],12:[0.5475,0.3325,0.2347,0.1586,0.0922,0.0303],13:[0.5359,0.3325,0.2412,0.1707,0.1099,0.0539],14:[0.5251,0.3318,0.2460,0.1802,0.1240,0.0727,0.0240],15:[0.5150,0.3306,0.2495,0.1878,0.1353,0.0880,0.0433],16:[0.5056,0.3290,0.2521,0.1939,0.1447,0.1005,0.0593,0.0196],17:[0.4968,0.3273,0.2540,0.1988,0.1524,0.1109,0.0725,0.0359],18:[0.4886,0.3253,0.2553,0.2027,0.1587,0.1197,0.0837,0.0496,0.0153],19:[0.4808,0.3232,0.2561,0.2059,0.1641,0.1271,0.0932,0.0612,0.0303],20:[0.4734,0.3211,0.2565,0.2085,0.1686,0.1334,0.1013,0.0711,0.0422,0.0140],21:[0.4643,0.3185,0.2578,0.2119,0.1736,0.1399,0.1092,0.0804,0.0530,0.0263],22:[0.4590,0.3156,0.2571,0.2131,0.1764,0.1443,0.1150,0.0878,0.0618,0.0368,0.0122],23:[0.4542,0.3126,0.2563,0.2139,0.1787,0.1480,0.1201,0.0941,0.0696,0.0459,0.0228],24:[0.4493,0.3098,0.2554,0.2145,0.1807,0.1512,0.1245,0.0997,0.0764,0.0539,0.0321,0.0107],25:[0.4450,0.3069,0.2543,0.2148,0.1822,0.1539,0.1283,0.1046,0.0823,0.0610,0.0403,0.0200],26:[0.4407,0.3043,0.2533,0.2151,0.1836,0.1563,0.1316,0.1089,0.0876,0.0672,0.0476,0.0284,0.0094]};
 const kp_coeffs_table = { 3:{g:-0.625,e:0.386,f:0.75},4:{g:-1.107,e:0.714,f:0.6297},5:{g:-1.53,e:0.935,f:0.5521},6:{g:-2.01,e:1.138,f:0.4963},7:{g:-2.356,e:1.245,f:0.4533},8:{g:-2.696,e:1.333,f:0.4186},9:{g:-2.968,e:1.4,f:0.39},10:{g:-3.262,e:1.471,f:0.366},11:{g:-3.485,e:1.515,f:0.3451},12:{g:-3.731,e:1.571,f:0.327},13:{g:-3.936,e:1.613,f:0.3111},14:{g:-4.155,e:1.655,f:0.2969},15:{g:-4.373,e:1.695,f:0.2842},16:{g:-4.567,e:1.724,f:0.2727},17:{g:-4.713,e:1.739,f:0.2622},18:{g:-4.885,e:1.77,f:0.2528},19:{g:-5.018,e:1.786,f:0.244},20:{g:-5.153,e:1.802,f:0.2359},21:{g:-5.291,e:1.818,f:0.2284},22:{g:-5.413,e:1.835,f:0.2207},23:{g:-5.508,e:1.848,f:0.2157},24:{g:-5.605,e:1.862,f:0.2106},25:{g:-5.704,e:1.876,f:0.2063},26:{g:-5.803,e:1.89,f:0.202}};
+const STUDENT_T_95_TWO_TAILED = { 1:12.706,2:4.303,3:3.182,4:2.776,5:2.571,6:2.447,7:2.365,8:2.306,9:2.262,10:2.228,11:2.201,12:2.179,13:2.16,14:2.145,15:2.131,16:2.12,17:2.11,18:2.101,19:2.093,20:2.086,21:2.08,22:2.074,23:2.069,24:2.064,25:2.06,26:2.056,27:2.052,28:2.048,29:2.045,30:2.042,infinity:1.96};
+function getTValue(n){if(n<=1)return NaN;const df=n-1;if(df>30)return STUDENT_T_95_TWO_TAILED.infinity;return STUDENT_T_95_TWO_TAILED[df]||NaN}
 
 function shapiroWilk(data) {
     const sorted = data.slice().sort((a, b) => a - b);
@@ -245,7 +247,7 @@ function getInitialAppState() {
                 { x: 1.5, y: 2.28 },
                 { x: 2.0, y: 3.01 },
             ],
-            manualSample: { yk: null, p: 1 },
+            manualSample: { xk: null, p: 1 },
             results: null
         }
     };
@@ -357,7 +359,7 @@ function renderCalibrationTab() {
             const samplesHTML = samples.map(s => `
                 <tr class="border-b hover:bg-gray-50">
                     <td class="p-2 font-medium">${s.sampleName}</td>
-                    <td class="p-2 font-mono">${s.x_k.toPrecision(6)}</td>
+                    <td class="p-2 font-mono">${s.nominalConc.toPrecision(6)}</td>
                     <td class="p-2 font-mono">${s.ux.toPrecision(6)}</td>
                     <td class="p-2 font-mono">${s.ux_rel_perc.toFixed(2)} %</td>
                 </tr>
@@ -376,13 +378,13 @@ function renderCalibrationTab() {
                     </div>
                 </div>
 
-                <h4 class="font-semibold text-gray-700 mt-6 mb-2">Incertezza per Campione</h4>
+                <h4 class="font-semibold text-gray-700 mt-6 mb-2">Incertezza per Livello di Concentrazione</h4>
                 <div class="mt-2 overflow-x-auto border rounded-lg">
                     <table class="w-full text-sm text-left">
                         <thead class="bg-gray-100">
                             <tr>
-                                <th class="p-2 font-medium text-gray-600 rounded-tl-lg">Nome Campione</th>
-                                <th class="p-2 font-medium text-gray-600">Conc. Calcolata (x_k)</th>
+                                <th class="p-2 font-medium text-gray-600 rounded-tl-lg">Nome Campione/Livello</th>
+                                <th class="p-2 font-medium text-gray-600">Concentrazione Nominale (x)</th>
                                 <th class="p-2 font-medium text-gray-600">Incertezza Tipo (u_x)</th>
                                 <th class="p-2 font-medium text-gray-600 rounded-tr-lg">Incertezza Relativa (%)</th>
                             </tr>
@@ -425,11 +427,10 @@ function renderResultsOnly() {
     const hasResults = appState.samples.some(s => appState.results[s.id] && (appState.results[s.id].statistics || appState.results[s.id].error));
     document.getElementById('export-buttons').classList.toggle('hidden', !hasResults);
 
-
     appState.samples.forEach(sample => {
         const result = appState.results[sample.id];
         if (!result || (!result.statistics && !result.error)) {
-            return; // Non mostrare card se non ci sono risultati o errori
+            return;
         }
 
         const resultCard = document.createElement('div');
@@ -439,24 +440,31 @@ function renderResultsOnly() {
         let statsHTML = '';
         if (result.statistics) {
             const stats = result.statistics;
+            const format = (value, precision = 6) => (value !== null && !isNaN(value)) ? value.toPrecision(precision) : 'N/A';
+            const formatPercent = (value) => (value !== null && !isNaN(value)) ? `${value.toFixed(2)} %` : 'N/A';
+
+            let statRows = [];
+            if (stats.nominalValue !== null) {
+                statRows.push(`<tr><td class="p-2 font-medium">Valore Nominale</td><td class="p-2 font-mono">${format(stats.nominalValue)}</td></tr>`);
+            }
+            statRows.push(`<tr><td class="p-2 font-medium">N. Punti</td><td class="p-2 font-mono">${stats.n}</td></tr>`);
+            statRows.push(`<tr><td class="p-2 font-medium">Media</td><td class="p-2 font-mono">${format(stats.mean)}</td></tr>`);
+            statRows.push(`<tr><td class="p-2 font-medium">Minimo</td><td class="p-2 font-mono">${format(stats.min)}</td></tr>`);
+            statRows.push(`<tr><td class="p-2 font-medium">Massimo</td><td class="p-2 font-mono">${format(stats.max)}</td></tr>`);
+            statRows.push(`<tr><td class="p-2 font-medium">Deviazione Standard</td><td class="p-2 font-mono">${format(stats.stdDev)}</td></tr>`);
+            statRows.push(`<tr><td class="p-2 font-medium">CV %</td><td class="p-2 font-mono">${formatPercent(stats.cv_percent)}</td></tr>`);
+            statRows.push(`<tr><td class="p-2 font-medium">Limite Ripetibilità (r)</td><td class="p-2 font-mono">${format(stats.repeatability_limit_r)}</td></tr>`);
+            statRows.push(`<tr><td class="p-2 font-medium">r %</td><td class="p-2 font-mono">${formatPercent(stats.repeatability_limit_r_percent)}</td></tr>`);
+            if (stats.recovery !== null) {
+                statRows.push(`<tr><td class="p-2 font-medium">Recupero %</td><td class="p-2 font-mono">${formatPercent(stats.recovery)}</td></tr>`);
+            }
+
             statsHTML = `
-                <div class="mt-4">
-                    <h5 class="font-semibold text-gray-700 text-md">Statistiche Descrittive Finali</h5>
-                    <div class="overflow-x-auto mt-2 rounded-md border">
-                        <table class="w-full text-sm">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="p-2 text-left font-medium text-gray-600">Statistica</th>
-                                    <th class="p-2 text-left font-medium text-gray-600">Valore</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr class="border-t"><td class="p-2">N. Punti</td><td class="p-2 font-mono">${stats.n}</td></tr>
-                                <tr class="border-t bg-gray-50"><td class="p-2">Media</td><td class="p-2 font-mono">${stats.mean.toPrecision(6)}</td></tr>
-                                <tr class="border-t"><td class="p-2">Deviazione Standard</td><td class="p-2 font-mono">${stats.stdDev.toPrecision(6)}</td></tr>
-                                <tr class="border-t bg-gray-50"><td class="p-2">Varianza</td><td class="p-2 font-mono">${stats.variance.toPrecision(6)}</td></tr>
-                                <tr class="border-t"><td class="p-2">Errore Standard (SEM)</td><td class="p-2 font-mono">${stats.sem.toPrecision(6)}</td></tr>
-                            </tbody>
+                <div>
+                    <h5 class="font-semibold text-gray-700 text-md mb-2">Statistiche Descrittive</h5>
+                    <div class="overflow-x-auto rounded-md border">
+                        <table class="w-full text-sm data-table">
+                           <tbody>${statRows.join('')}</tbody>
                         </table>
                     </div>
                 </div>
@@ -464,22 +472,23 @@ function renderResultsOnly() {
         }
 
         const logHTML = result.log && result.log.length > 0
-            ? `<div class="mt-4">
-                 <h5 class="font-semibold text-gray-700 text-md">Log di Analisi</h5>
-                 <ul class="space-y-1 mt-2 text-sm text-gray-600 pl-4 max-h-40 overflow-y-auto border rounded-md p-2 bg-gray-50">
+            ? `<div>
+                 <h5 class="font-semibold text-gray-700 text-md mb-2">Log di Analisi</h5>
+                 <ul class="space-y-1 text-sm text-gray-600 pl-4 max-h-60 overflow-y-auto border rounded-md p-2 bg-gray-50">
                    ${result.log.map(item => `<li class="analysis-log ${item.type}">${item.message}</li>`).join('')}
                  </ul>
                </div>`
-            : '';
+            : '<div></div>';
 
         const titleColor = result.error ? 'text-red-700' : 'text-gray-900';
         resultCard.innerHTML = `
-            <h4 class="text-lg font-bold ${titleColor}">${sample.name} - Report di Analisi</h4>
-            ${result.error ? `<p class="text-red-600 font-semibold mt-2">Analisi terminata con errore: ${result.error}</p>` : ''}
-            ${statsHTML}
-            ${logHTML}
+            <h4 class="text-lg font-bold ${titleColor} mb-4">${sample.name} - Report di Analisi</h4>
+            ${result.error ? `<p class="text-red-600 font-semibold mb-4">Analisi terminata con errore: ${result.error}</p>` : ''}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8">
+                ${logHTML}
+                ${statsHTML || '<div></div>'}
+            </div>
         `;
-
         resultsContainer.appendChild(resultCard);
     });
 }
@@ -712,30 +721,34 @@ async function processSample(sample) {
             const finalData = appState.results[sample.id].currentData;
             addLog('info', `Calcolo delle statistiche descrittive su ${finalData.length} punti dati finali.`);
 
-            if (finalData.length > 1) {
+            if (finalData.length > 0) {
                 const n = finalData.length;
-                const mean = ss.mean(finalData);
-                const stdDev = ss.standardDeviation(finalData);
+                const mean = n > 0 ? ss.mean(finalData) : 0;
+                const stdDev = n > 1 ? ss.standardDeviation(finalData) : 0;
+                const t_value = getTValue(n);
+                const repeatability_limit_r = n > 1 && t_value ? t_value * stdDev : 0;
+                const nominalValue = (sample.expectedValue !== null && !isNaN(sample.expectedValue) && sample.expectedValue !== '') ? parseFloat(sample.expectedValue) : null;
 
                 const stats = {
                     n: n,
                     mean: mean,
+                    max: n > 0 ? ss.max(finalData) : 0,
+                    min: n > 0 ? ss.min(finalData) : 0,
                     stdDev: stdDev,
-                    variance: ss.variance(finalData),
-                    sum: ss.sum(finalData),
-                    sem: stdDev / Math.sqrt(n)
+                    cv_percent: (mean !== 0 && n > 1) ? (stdDev / Math.abs(mean)) * 100 : 0,
+                    t_value: t_value,
+                    repeatability_limit_r: repeatability_limit_r,
+                    repeatability_limit_r_percent: (mean !== 0 && n > 1) ? (repeatability_limit_r / Math.abs(mean)) * 100 : 0,
+                    nominalValue: nominalValue,
+                    recovery: (nominalValue !== null && nominalValue !== 0) ? (mean / nominalValue) * 100 : null
                 };
                 appState.results[sample.id].statistics = stats;
 
-                addLog('result', `Statistiche Finali: Media = ${stats.mean.toPrecision(6)}, Dev. Std. = ${stats.stdDev.toPrecision(6)}, n = ${stats.n}`);
+                addLog('result', `Statistiche calcolate: Media = ${stats.mean.toPrecision(6)}, Dev. Std. = ${stats.stdDev.toPrecision(6)}, n = ${stats.n}`);
 
-            } else if (finalData.length === 1) {
-                const stats = { n: 1, mean: finalData[0], stdDev: 0, variance: 0, sum: finalData[0], sem: 0 };
-                appState.results[sample.id].statistics = stats;
-                 addLog('result', `Statistiche Finali: Media = ${stats.mean.toPrecision(6)}, n = 1`);
             } else {
                 addLog('warning', 'Nessun dato rimasto per il calcolo delle statistiche finali.');
-                 appState.results[sample.id].error = "Nessun dato rimasto per il calcolo.";
+                appState.results[sample.id].error = "Nessun dato rimasto per il calcolo.";
             }
         }
 
@@ -783,7 +796,7 @@ function actionUpdateRegressionPoint(index, field, value) {
     renderDebugInfo(); // Aggiorna la vista di debug
 }
 
-function actionUpdateManualSample(field, value) {
+function actionUpdateManualCalibrationSample(field, value) {
     const numValue = value === '' ? null : parseFloat(value);
     appState.calibration.manualSample[field] = numValue;
     renderDebugInfo();
@@ -805,24 +818,30 @@ function actionCalculateRegression() {
         selectedSampleIds.forEach(id => {
             const sample = appState.samples.find(s => s.id == id);
             const result = appState.results[id];
-            if (sample && result && result.statistics) {
-                tasks.push({ name: sample.name, yk: result.statistics.mean, p: result.statistics.n });
+            if (sample && result && result.statistics && sample.expectedValue !== null) {
+                tasks.push({
+                    name: sample.name,
+                    xk: parseFloat(sample.expectedValue),
+                    p: result.statistics.n
+                });
             }
         });
 
-        const { yk, p } = appState.calibration.manualSample;
-        if (yk !== null && yk !== '' && !isNaN(yk)) {
-            tasks.push({ name: "Campione Manuale", yk: parseFloat(yk), p: p || 1 });
+        const { xk, p } = appState.calibration.manualSample;
+        if (xk !== null && xk !== '' && !isNaN(xk)) {
+            tasks.push({ name: "Campione Manuale", xk: parseFloat(xk), p: p || 1 });
         }
 
         if (tasks.length === 0) {
-            throw new Error("Nessun campione selezionato o dato manuale inserito. Selezionare almeno un campione o compilare i campi per l'inserimento manuale.");
+            throw new Error("Nessun campione selezionato o valore di concentrazione manuale inserito.");
         }
 
         const sampleResults = tasks.map(task => {
-            const uncertaintyResult = calculateUncertaintyForSample(lineParams, task.yk, task.p);
+            const y_predicted = (lineParams.b * task.xk) + lineParams.a;
+            const uncertaintyResult = calculateUncertaintyForSample(lineParams, y_predicted, task.p);
             return {
                 sampleName: task.name,
+                nominalConc: task.xk,
                 ...uncertaintyResult
             };
         });
@@ -929,8 +948,8 @@ function main() {
         }
     });
 
-    document.getElementById('regression-y-k').addEventListener('input', e => actionUpdateManualSample('yk', e.target.value));
-    document.getElementById('regression-p').addEventListener('input', e => actionUpdateManualSample('p', e.target.value));
+    document.getElementById('regression-x-manual').addEventListener('input', e => actionUpdateManualCalibrationSample('xk', e.target.value));
+    document.getElementById('regression-p').addEventListener('input', e => actionUpdateManualCalibrationSample('p', e.target.value));
 
     // --- Event Listeners per la scelta del metodo di taratura ---
     const btnSelectRegression = document.getElementById('btn-select-regression');
