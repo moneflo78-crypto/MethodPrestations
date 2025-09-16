@@ -198,14 +198,21 @@
                             </div>
                         </div>
                     </div>
-                    <!-- Accordion 3: Diluizione -->
+                    <!-- Accordion 3: Trattamenti Campioni -->
                     <div>
                         <button class="accordion-btn w-full flex justify-between items-center text-left p-4 bg-gray-100 hover:bg-gray-200 rounded-lg transition">
-                            <span class="font-semibold text-lg text-gray-800">Incertezza nella diluizione di campioni o estratti</span>
+                            <span class="font-semibold text-lg text-gray-800">Trattamenti di campioni e estratti</span>
                              <svg class="w-6 h-6 transform transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
                         </button>
-                        <div class="accordion-content p-4 bg-white border rounded-b-lg">
-                            <p class="text-gray-500 italic">Questa sezione è in fase di sviluppo.</p>
+                        <div class="accordion-content p-6 bg-white border rounded-b-lg">
+                            <div id="treatments-container" class="space-y-8">
+                                <!-- Le schede di trattamento verranno generate qui dinamicamente -->
+                            </div>
+                            <div class="mt-6">
+                                <button id="btn-add-treatment-sample" class="bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-blue-700 transition duration-300">
+                                    + Aggiungi Campione da Trattare
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

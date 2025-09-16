@@ -297,7 +297,8 @@ function getInitialAppState() {
             acceptabilityCriterion: null,
             manualSample: { xk: null },
             results: null
-        }
+        },
+        treatments: []
     };
 }
 let appState = getInitialAppState();
@@ -311,7 +312,236 @@ function render() {
     renderCalibrationTab();
     renderRfResults();
     renderSpikeUncertainty();
+    renderTreatments(); // <-- Aggiunta nuova funzione di rendering
     renderDebugInfo();
+}
+
+function renderTreatments() {
+    const container = document.getElementById('treatments-container');
+    if (!container) return;
+
+    // Se non ci sono campioni da trattare, mostra un messaggio e esci.
+    if (appState.treatments.length === 0) {
+        container.innerHTML = `<div class="p-4 bg-gray-50 rounded-lg border text-center text-gray-600">
+            <p>Nessun campione in trattamento. Fai clic su "Aggiungi Campione da Trattare" per iniziare.</p>
+        </div>`;
+        return;
+    }
+
+    const usedSampleIds = new Set(appState.treatments.map(ts => ts.sampleId).filter(id => id !== null));
+    const availableSamples = appState.samples.filter(s => !usedSampleIds.has(s.id));
+    const matrixSpikes = Object.keys(appState.spikeUncertainty)
+        .filter(sampleId => appState.spikeUncertainty[sampleId].results)
+        .map(sampleId => {
+            const sample = appState.samples.find(s => s.id == sampleId);
+            return {
+                id: sampleId,
+                name: sample ? sample.name : `Campione ${sampleId}`,
+                concentration: appState.spikeUncertainty[sampleId].results.finalConcentration,
+                uncertainty: appState.spikeUncertainty[sampleId].results.u_comp_rel_perc
+            };
+        });
+
+    let content = '';
+    appState.treatments.forEach(treatmentSample => {
+        let sampleOptionsHTML = availableSamples.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+        if (treatmentSample.sampleId) {
+            const currentSample = appState.samples.find(s => s.id === treatmentSample.sampleId);
+            if (currentSample) {
+                sampleOptionsHTML += `<option value="${currentSample.id}" selected>${currentSample.name}</option>`;
+            }
+        }
+
+        let treatmentsHTML = '';
+        treatmentSample.treatments.forEach((treatment, index) => {
+            const isFirst = index === 0;
+            let sourceSelectionHTML = '';
+
+            // --- HTML per la selezione della sorgente (solo per il primo trattamento) ---
+            if (isFirst) {
+                const matrixSpikeOptions = matrixSpikes.map(ms => `<option value="${ms.id}" ${treatment.source.spikeSampleId == ms.id ? 'selected' : ''}>Spike: ${ms.name}</option>`).join('');
+                sourceSelectionHTML = `
+                    <div class="p-3 bg-gray-100 rounded-md border">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Sorgente Dati Iniziali</label>
+                        <select data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-field="sourceType" class="treatment-input w-full p-1 border-gray-300 rounded-md text-sm">
+                            <option value="manual" ${treatment.source.type === 'manual' ? 'selected' : ''}>Inserimento Manuale</option>
+                            <option value="spike" ${treatment.source.type === 'spike' ? 'selected' : ''}>Da Matrix Spike</option>
+                        </select>
+                        ${treatment.source.type === 'manual' ? `
+                            <div class="grid grid-cols-2 gap-2 mt-2">
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-600">Concentrazione</label>
+                                    <input type="number" data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-field="sourceManualConcentration" class="treatment-input w-full p-1 border-gray-300 rounded-md text-sm" value="${treatment.source.manualConcentration || ''}" placeholder="Conc. iniziale">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-600">U% (k=2)</label>
+                                    <input type="number" data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-field="sourceManualUncertainty" class="treatment-input w-full p-1 border-gray-300 rounded-md text-sm" value="${treatment.source.manualUncertainty || ''}" placeholder="Incertezza %">
+                                </div>
+                            </div>
+                        ` : ''}
+                        ${treatment.source.type === 'spike' ? `
+                            <div class="mt-2">
+                                <label class="block text-xs font-medium text-gray-600">Seleziona Matrix Spike</label>
+                                <select data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-field="sourceSpikeSampleId" class="treatment-input w-full p-1 border-gray-300 rounded-md text-sm">
+                                    <option value="">-- Seleziona Spike --</option>
+                                    ${matrixSpikeOptions}
+                                </select>
+                            </div>
+                        ` : ''}
+                    </div>`;
+            }
+
+            // --- HTML per i diversi tipi di trattamento ---
+            let treatmentFieldsHTML = '';
+            const flaskOptions = Object.keys(appState.libraries.glassware).map(key => `<option value="${key}">${key}</option>`).join('');
+
+            switch (treatment.type) {
+                case 'diluizione':
+                    let withdrawalsHTML = '';
+                    if (treatment.withdrawals && treatment.withdrawals.length > 0) {
+                        treatment.withdrawals.forEach(w => {
+                            const pipetteOptions = Object.keys(appState.libraries.pipettes).map(key => `<option value="${key}" ${w.pipette === key ? 'selected' : ''}>${key}</option>`).join('');
+                            withdrawalsHTML += `
+                                <div class="bg-gray-100 p-3 rounded-md border border-gray-200">
+                                    <div class="flex justify-between items-start mb-2">
+                                        <div class="flex-grow pr-4">
+                                            <label class="block text-xs font-medium text-gray-600">Pipetta</label>
+                                            <select data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-withdrawal-id="${w.id}" data-field="pipette" class="treatment-input w-full p-1 border border-gray-300 rounded-md text-sm">
+                                                <option value="">-- Seleziona --</option>
+                                                ${pipetteOptions}
+                                            </select>
+                                        </div>
+                                        <button data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-withdrawal-id="${w.id}" class="btn-remove-treatment-withdrawal text-red-500 hover:text-red-700 font-bold text-xl leading-none mt-1" title="Rimuovi Prelievo">&times;</button>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-600">Volume (mL)</label>
+                                        <input type="number" data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-withdrawal-id="${w.id}" data-field="volume" class="treatment-input w-full p-1 border border-gray-300 rounded-md text-sm" value="${w.volume || ''}" placeholder="Volume">
+                                    </div>
+                                </div>
+                            `;
+                        });
+                    }
+
+                    treatmentFieldsHTML = `
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                            <!-- Colonna Sinistra: Prelievi -->
+                            <div class="space-y-2">
+                                 <h5 class="font-semibold text-gray-600">Prelievi</h5>
+                                <div class="mt-1 space-y-3">
+                                    ${withdrawalsHTML}
+                                </div>
+                                <button data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" class="btn-add-treatment-withdrawal mt-2 text-xs bg-blue-100 text-blue-800 font-semibold py-1 px-2 rounded-md hover:bg-blue-200">+ Aggiungi Prelievo</button>
+                            </div>
+
+                            <!-- Colonna Destra: Preparazione (Diluizione) -->
+                            <div class="space-y-2">
+                                <h5 class="font-semibold text-gray-600">Preparazione</h5>
+                                <label class="block text-sm font-medium text-gray-700">Matraccio di diluizione finale</label>
+                                <select data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-field="dilutionFlask" class="treatment-input mt-1 w-full p-2 border border-gray-300 rounded-md">
+                                    <option value="">-- Seleziona un matraccio --</option>
+                                    ${Object.keys(appState.libraries.glassware).map(key => `<option value="${key}" ${treatment.dilutionFlask === key ? 'selected' : ''}>${key}</option>`).join('')}
+                                </select>
+                            </div>
+                        </div>`;
+                    break;
+                case 'estrazione':
+                    treatmentFieldsHTML = `
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Volume Iniziale (Matraccio)</label>
+                                <select data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-field="initialVolumeFlask" class="treatment-input w-full p-1 border-gray-300 rounded-md text-sm">
+                                    <option value="">-- Seleziona --</option>
+                                    ${Object.keys(appState.libraries.glassware).map(key => `<option value="${key}" ${treatment.initialVolumeFlask === key ? 'selected' : ''}>${key}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Volume Finale (Matraccio)</label>
+                                <select data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-field="finalVolumeFlask" class="treatment-input w-full p-1 border-gray-300 rounded-md text-sm">
+                                    <option value="">-- Seleziona --</option>
+                                    ${Object.keys(appState.libraries.glassware).map(key => `<option value="${key}" ${treatment.finalVolumeFlask === key ? 'selected' : ''}>${key}</option>`).join('')}
+                                </select>
+                            </div>
+                        </div>`;
+                    break;
+                case 'concentrazione':
+                    treatmentFieldsHTML = `
+                         <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Volume Iniziale (Matraccio)</label>
+                                <select data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-field="initialVolumeFlask" class="treatment-input w-full p-1 border-gray-300 rounded-md text-sm">
+                                    <option value="">-- Seleziona --</option>
+                                    ${Object.keys(appState.libraries.glassware).map(key => `<option value="${key}" ${treatment.initialVolumeFlask === key ? 'selected' : ''}>${key}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Volume Finale (Matraccio)</label>
+                                <select data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-field="finalVolumeFlask" class="treatment-input w-full p-1 border-gray-300 rounded-md text-sm">
+                                    <option value="">-- Seleziona --</option>
+                                    ${Object.keys(appState.libraries.glassware).map(key => `<option value="${key}" ${treatment.finalVolumeFlask === key ? 'selected' : ''}>${key}</option>`).join('')}
+                                </select>
+                            </div>
+                        </div>`;
+                    break;
+            }
+
+            // --- Risultati del trattamento ---
+            const resultHTML = treatment.results ? `
+                <div class="mt-3 pt-3 border-t text-sm text-right">
+                    <p>Conc. Uscita: <span class="font-bold">${treatment.results.finalConcentration.toPrecision(4)}</span></p>
+                    <p>Uscita u_rel %: <span class="font-bold">${treatment.results.finalUncertaintyRelPerc.toFixed(3)} %</span></p>
+                </div>
+            ` : '';
+
+
+            treatmentsHTML += `
+                <div class="p-4 border-2 rounded-lg relative bg-gray-50 border-gray-300" data-treatment-id="${treatment.id}">
+                    <!-- Controlli del trattamento (sposta/rimuovi) -->
+                    <div class="absolute top-2 right-2 flex items-center space-x-1">
+                        <button data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-direction="up" class="btn-move-treatment p-1 text-gray-500 hover:text-blue-600" title="Sposta su">▲</button>
+                        <button data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-direction="down" class="btn-move-treatment p-1 text-gray-500 hover:text-blue-600" title="Sposta giù">▼</button>
+                        <button data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" class="btn-remove-treatment text-red-500 hover:text-red-700 font-bold text-xl leading-none px-2" title="Rimuovi Trattamento">&times;</button>
+                    </div>
+
+                    <h4 class="text-lg font-semibold text-gray-700 mb-3">Passaggio ${index + 1}: <span class="font-bold capitalize">${treatment.type}</span></h4>
+
+                    <div class="space-y-3">
+                        ${isFirst ? sourceSelectionHTML : `<div class="p-2 bg-blue-100 text-blue-800 text-sm rounded-md">I dati di input sono presi dal passaggio precedente.</div>`}
+                        ${treatmentFieldsHTML}
+                    </div>
+                    ${resultHTML}
+                </div>
+            `;
+        });
+
+        // --- Scheda Campione Completa ---
+        content += `
+            <div class="bg-white p-6 rounded-lg shadow-lg border border-gray-200 mb-8" id="${treatmentSample.id}">
+                <div class="flex justify-between items-center mb-4">
+                     <div>
+                        <label for="sample-select-${treatmentSample.id}" class="block text-sm font-medium text-gray-700">Campione da trattare</label>
+                        <select id="sample-select-${treatmentSample.id}" data-treatment-sample-id="${treatmentSample.id}" class="select-treatment-sample mt-1 p-2 border border-gray-300 rounded-md">
+                            <option value="">-- Seleziona un campione --</option>
+                            ${sampleOptionsHTML}
+                        </select>
+                    </div>
+                    <button data-treatment-sample-id="${treatmentSample.id}" class="btn-remove-treatment-sample bg-red-100 text-red-800 font-semibold py-1 px-3 rounded-md hover:bg-red-200 transition">- Rimuovi Campione</button>
+                </div>
+
+                <div class="mt-4 space-y-4">
+                    ${treatmentsHTML}
+                </div>
+
+                <div class="mt-6 pt-4 border-t flex items-center space-x-3">
+                    <span class="text-sm font-medium">Aggiungi Trattamento:</span>
+                    <button data-treatment-sample-id="${treatmentSample.id}" data-treatment-type="diluizione" class="btn-add-treatment text-xs bg-blue-100 text-blue-800 font-semibold py-1 px-3 rounded-md hover:bg-blue-200">Diluizione</button>
+                    <button data-treatment-sample-id="${treatmentSample.id}" data-treatment-type="estrazione" class="btn-add-treatment text-xs bg-green-100 text-green-800 font-semibold py-1 px-3 rounded-md hover:bg-green-200">Estrazione</button>
+                    <button data-treatment-sample-id="${treatmentSample.id}" data-treatment-type="concentrazione" class="btn-add-treatment text-xs bg-yellow-100 text-yellow-800 font-semibold py-1 px-3 rounded-md hover:bg-yellow-200">Concentrazione</button>
+                </div>
+            </div>
+        `;
+    });
+
+    container.innerHTML = content;
 }
 
 function renderAnalysisChecklists() {
@@ -1638,6 +1868,287 @@ function main() {
 
     document.getElementById('rf-acceptability-criterion').addEventListener('input', e => actionUpdateRfCalibrationInput('acceptabilityCriterion', e.target.value));
     document.getElementById('rf-manual-conc').addEventListener('input', e => actionUpdateRfCalibrationInput('manualConc', e.target.value));
+
+    // --- AZIONI E LISTENER PER LA NUOVA SEZIONE TRATTAMENTI ---
+    // Funzioni di Azione
+    function actionAddTreatmentSample() {
+        const newId = `ts-${Date.now()}`;
+        appState.treatments.push({
+            id: newId,
+            sampleId: null,
+            treatments: []
+        });
+        render();
+    }
+
+    function actionRemoveTreatmentSample(treatmentSampleId) {
+        appState.treatments = appState.treatments.filter(ts => ts.id !== treatmentSampleId);
+        render();
+    }
+
+    function actionSelectTreatmentSample(treatmentSampleId, selectedSampleId) {
+        const treatmentSample = appState.treatments.find(ts => ts.id === treatmentSampleId);
+        if (treatmentSample) {
+            treatmentSample.sampleId = selectedSampleId ? parseInt(selectedSampleId, 10) : null;
+        }
+        render();
+        // Potrebbe essere necessario ricalcolare qui se la selezione del campione influisce sui calcoli
+    }
+
+    function actionAddTreatment(treatmentSampleId, type) {
+        const treatmentSample = appState.treatments.find(ts => ts.id === treatmentSampleId);
+        if (treatmentSample) {
+            const newTreatment = {
+                id: `t-${Date.now()}`,
+                type: type,
+                // Campi di default a seconda del tipo
+                source: {
+                    type: 'manual', // 'manual' o 'spike' o 'previous'
+                    manualConcentration: null,
+                    manualUncertainty: null,
+                    spikeSampleId: null
+                },
+                results: null
+            };
+            if (type === 'estrazione' || type === 'concentrazione') {
+                newTreatment.initialVolumeFlask = null;
+                newTreatment.finalVolumeFlask = null;
+            }
+            if (type === 'diluizione') {
+                // Struttura più complessa, simile a un passo di spike
+                newTreatment.withdrawals = [{ id: `w-${Date.now()}`, pipette: null, volume: null }];
+                newTreatment.dilutionFlask = null;
+            }
+            treatmentSample.treatments.push(newTreatment);
+        }
+        render();
+    }
+
+    function actionRemoveTreatment(treatmentSampleId, treatmentId) {
+        const treatmentSample = appState.treatments.find(ts => ts.id === treatmentSampleId);
+        if (treatmentSample) {
+            treatmentSample.treatments = treatmentSample.treatments.filter(t => t.id !== treatmentId);
+        }
+        render();
+    }
+
+    function actionMoveTreatment(treatmentSampleId, treatmentId, direction) {
+        const treatmentSample = appState.treatments.find(ts => ts.id === treatmentSampleId);
+        if (!treatmentSample) return;
+
+        const treatments = treatmentSample.treatments;
+        const index = treatments.findIndex(t => t.id === treatmentId);
+
+        if (index === -1) return;
+
+        if (direction === 'up' && index > 0) {
+            [treatments[index - 1], treatments[index]] = [treatments[index], treatments[index - 1]];
+        } else if (direction === 'down' && index < treatments.length - 1) {
+            [treatments[index], treatments[index + 1]] = [treatments[index + 1], treatments[index]];
+        }
+        render();
+        actionCalculateTreatmentChain(treatmentSampleId);
+    }
+
+    function actionAddTreatmentWithdrawal(treatmentSampleId, treatmentId) {
+        const treatment = appState.treatments
+            .find(ts => ts.id === treatmentSampleId)?.treatments
+            .find(t => t.id === treatmentId);
+        if (treatment && treatment.type === 'diluizione') {
+            if (!treatment.withdrawals) treatment.withdrawals = [];
+            treatment.withdrawals.push({ id: `w-${Date.now()}`, pipette: null, volume: null });
+            render();
+            actionCalculateTreatmentChain(treatmentSampleId);
+        }
+    }
+
+    function actionRemoveTreatmentWithdrawal(treatmentSampleId, treatmentId, withdrawalId) {
+        const treatment = appState.treatments
+            .find(ts => ts.id === treatmentSampleId)?.treatments
+            .find(t => t.id === treatmentId);
+        if (treatment && treatment.type === 'diluizione' && treatment.withdrawals) {
+            treatment.withdrawals = treatment.withdrawals.filter(w => w.id !== withdrawalId);
+            render();
+            actionCalculateTreatmentChain(treatmentSampleId);
+        }
+    }
+
+    function actionUpdateTreatmentState({ treatmentSampleId, treatmentId, withdrawalId, field, value }) {
+        const treatmentSample = appState.treatments.find(ts => ts.id === treatmentSampleId);
+        if (!treatmentSample) return;
+
+        const treatment = treatmentSample.treatments.find(t => t.id === treatmentId);
+        if (!treatment) return;
+
+        if (withdrawalId) {
+            const withdrawal = treatment.withdrawals?.find(w => w.id === withdrawalId);
+            if (withdrawal) {
+                withdrawal[field] = value;
+            }
+        } else if (field.startsWith('source')) {
+            if (field === 'sourceType') treatment.source.type = value;
+            if (field === 'sourceManualConcentration') treatment.source.manualConcentration = value === '' ? null : parseFloat(value);
+            if (field === 'sourceManualUncertainty') treatment.source.manualUncertainty = value === '' ? null : parseFloat(value);
+            if (field === 'sourceSpikeSampleId') treatment.source.spikeSampleId = value === '' ? null : parseInt(value, 10);
+        } else {
+             treatment[field] = value;
+        }
+
+        actionCalculateTreatmentChain(treatmentSampleId);
+        render();
+        renderDebugInfo();
+    }
+
+    function actionCalculateTreatmentChain(treatmentSampleId) {
+        const treatmentSample = appState.treatments.find(ts => ts.id === treatmentSampleId);
+        if (!treatmentSample) return;
+
+        let currentConcentration = 0;
+        let sum_u_rel_sq = 0;
+
+        try {
+            for (const [index, treatment] of treatmentSample.treatments.entries()) {
+                 // Resetta i risultati precedenti per questo step
+                treatment.results = null;
+
+                if (index === 0) {
+                    // Gestione della sorgente per il primo trattamento
+                    if (treatment.source.type === 'manual') {
+                        if (treatment.source.manualConcentration === null || treatment.source.manualUncertainty === null) throw new Error("Dati manuali incompleti.");
+                        currentConcentration = treatment.source.manualConcentration;
+                        // U% (k=2) -> u_rel
+                        const u_rel_initial = (treatment.source.manualUncertainty / 100) / 2;
+                        sum_u_rel_sq = Math.pow(u_rel_initial, 2);
+                    } else if (treatment.source.type === 'spike') {
+                        if (treatment.source.spikeSampleId === null) throw new Error("Matrix spike non selezionato.");
+                        const spikeData = appState.spikeUncertainty[treatment.source.spikeSampleId];
+                        if (!spikeData || !spikeData.results) throw new Error("Dati dello spike selezionato non disponibili.");
+                        currentConcentration = spikeData.results.finalConcentration;
+                        // u_c % -> u_rel
+                        const u_rel_initial = spikeData.results.u_comp_rel_perc / 100;
+                        sum_u_rel_sq = Math.pow(u_rel_initial, 2);
+                    } else {
+                        throw new Error("Tipo di sorgente non valido per il primo trattamento.");
+                    }
+                }
+
+                // Calcolo specifico per tipo di trattamento
+                if (treatment.type === 'diluizione') {
+                    // Logica adattata da actionCalculateSpikeUncertainty
+                    if (!treatment.dilutionFlask) throw new Error(`Diluizione: Matraccio non selezionato.`);
+                    if (treatment.withdrawals.length === 0) throw new Error(`Diluizione: Nessun prelievo.`);
+                    if (treatment.withdrawals.some(w => !w.pipette || w.volume === null || w.volume <= 0)) throw new Error(`Diluizione: Dati di prelievo incompleti.`);
+
+                    let totalWithdrawalVolume = 0;
+                    let sum_u_abs_sq_withdrawals = 0;
+
+                    treatment.withdrawals.forEach(w => {
+                        totalWithdrawalVolume += w.volume;
+                        const pipette = appState.libraries.pipettes[w.pipette];
+                        const points = pipette.calibrationPoints.map(p => p.volume);
+                        if (w.volume < Math.min(...points) || w.volume > Math.max(...points)) throw new Error(`Volume ${w.volume}mL fuori range per pipetta ${w.pipette}.`);
+
+                        let uncertainty_U_perc = 0;
+                        const sortedPoints = pipette.calibrationPoints.slice().sort((a, b) => a.volume - b.volume);
+                        let found = false;
+                        for (let i = 0; i < sortedPoints.length - 1; i++) {
+                            if (w.volume >= sortedPoints[i].volume && w.volume <= sortedPoints[i + 1].volume) {
+                                uncertainty_U_perc = Math.max(sortedPoints[i].U_rel_percent, sortedPoints[i + 1].U_rel_percent);
+                                found = true; break;
+                            }
+                        }
+                        if(!found) {
+                            const match = sortedPoints.find(p => p.volume === w.volume);
+                            if(match) uncertainty_U_perc = match.U_rel_percent;
+                            else throw new Error("Errore calcolo incertezza pipetta.");
+                        }
+
+                        const u_rel_pipette = (uncertainty_U_perc / 100) / (2 * Math.sqrt(3));
+                        const u_abs_withdrawal = u_rel_pipette * w.volume;
+                        sum_u_abs_sq_withdrawals += Math.pow(u_abs_withdrawal, 2);
+                    });
+
+                    const u_rel_sq_total_withdrawal = totalWithdrawalVolume > 0 ? Math.pow(Math.sqrt(sum_u_abs_sq_withdrawals) / totalWithdrawalVolume, 2) : 0;
+
+                    const flask = appState.libraries.glassware[treatment.dilutionFlask];
+                    const u_rel_flask = (flask.uncertainty / flask.volume / Math.sqrt(3));
+                    const u_rel_sq_flask = Math.pow(u_rel_flask, 2);
+
+                    sum_u_rel_sq += u_rel_sq_total_withdrawal + u_rel_sq_flask;
+                    currentConcentration = currentConcentration * (totalWithdrawalVolume / flask.volume);
+
+                } else if (treatment.type === 'estrazione' || treatment.type === 'concentrazione') {
+                    if (!treatment.initialVolumeFlask || !treatment.finalVolumeFlask) throw new Error(`${treatment.type}: Selezionare i matracci.`);
+
+                    const initialFlask = appState.libraries.glassware[treatment.initialVolumeFlask];
+                    const finalFlask = appState.libraries.glassware[treatment.finalVolumeFlask];
+
+                    const u_rel_initial_flask = (initialFlask.uncertainty / initialFlask.volume / Math.sqrt(3));
+                    const u_rel_final_flask = (finalFlask.uncertainty / finalFlask.volume / Math.sqrt(3));
+
+                    sum_u_rel_sq += Math.pow(u_rel_initial_flask, 2) + Math.pow(u_rel_final_flask, 2);
+                    currentConcentration = currentConcentration * (initialFlask.volume / finalFlask.volume);
+                }
+
+                // Salva i risultati del trattamento corrente
+                treatment.results = {
+                    finalConcentration: currentConcentration,
+                    finalUncertaintyRelPerc: Math.sqrt(sum_u_rel_sq) * 100,
+                };
+            }
+        } catch (e) {
+            console.warn(`Calculation error in treatment chain ${treatmentSampleId}: ${e.message}`);
+            // L'errore interrompe il ciclo, i trattamenti successivi non avranno risultati.
+        } finally {
+            render(); // Aggiorna l'UI per mostrare i risultati calcolati o la loro assenza
+        }
+    }
+
+    // Event Listeners per la sezione Trattamenti
+    document.getElementById('btn-add-treatment-sample').addEventListener('click', actionAddTreatmentSample);
+
+    const treatmentsContainer = document.getElementById('treatments-container');
+    if(treatmentsContainer) {
+        treatmentsContainer.addEventListener('click', e => {
+            const removeSampleBtn = e.target.closest('.btn-remove-treatment-sample');
+            const addTreatmentBtn = e.target.closest('.btn-add-treatment');
+            const removeTreatmentBtn = e.target.closest('.btn-remove-treatment');
+            const moveTreatmentBtn = e.target.closest('.btn-move-treatment');
+            const addWithdrawalBtn = e.target.closest('.btn-add-treatment-withdrawal');
+            const removeWithdrawalBtn = e.target.closest('.btn-remove-treatment-withdrawal');
+
+            if (removeSampleBtn) {
+                actionRemoveTreatmentSample(removeSampleBtn.dataset.treatmentSampleId);
+            } else if (addTreatmentBtn) {
+                actionAddTreatment(addTreatmentBtn.dataset.treatmentSampleId, addTreatmentBtn.dataset.treatmentType);
+            } else if (removeTreatmentBtn) {
+                actionRemoveTreatment(removeTreatmentBtn.dataset.treatmentSampleId, removeTreatmentBtn.dataset.treatmentId);
+            } else if (moveTreatmentBtn) {
+                actionMoveTreatment(moveTreatmentBtn.dataset.treatmentSampleId, moveTreatmentBtn.dataset.treatmentId, moveTreatmentBtn.dataset.direction);
+            } else if (addWithdrawalBtn) {
+                actionAddTreatmentWithdrawal(addWithdrawalBtn.dataset.treatmentSampleId, addWithdrawalBtn.dataset.treatmentId);
+            } else if (removeWithdrawalBtn) {
+                actionRemoveTreatmentWithdrawal(removeWithdrawalBtn.dataset.treatmentSampleId, removeWithdrawalBtn.dataset.treatmentId, removeWithdrawalBtn.dataset.withdrawalId);
+            }
+        });
+
+        treatmentsContainer.addEventListener('change', e => {
+            const selectSample = e.target.closest('.select-treatment-sample');
+            const treatmentInput = e.target.closest('.treatment-input');
+
+            if (selectSample) {
+                actionSelectTreatmentSample(selectSample.dataset.treatmentSampleId, e.target.value);
+            } else if (treatmentInput) {
+                const { treatmentSampleId, treatmentId, withdrawalId, field } = treatmentInput.dataset;
+                let value = e.target.value;
+                if (e.target.type === 'number') {
+                    value = value === '' ? null : parseFloat(value);
+                }
+                actionUpdateTreatmentState({ treatmentSampleId, treatmentId, withdrawalId, field, value });
+            }
+        });
+    }
+
 
     // --- Event Listeners per la scelta del metodo di taratura ---
     const btnSelectRegression = document.getElementById('btn-select-regression');
