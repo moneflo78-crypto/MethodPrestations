@@ -2369,7 +2369,7 @@ function main() {
 
             if (selectSample) {
                 actionSelectTreatmentSample(selectSample.dataset.treatmentSampleId, e.target.value);
-            } else if (treatmentInput) {
+            } else if (treatmentInput && treatmentInput.type !== 'number') { // number inputs are handled by 'input' event
                 const { treatmentSampleId, treatmentId, withdrawalId, field } = treatmentInput.dataset;
                 let value = e.target.value;
                 actionUpdateTreatmentState({ treatmentSampleId, treatmentId, withdrawalId, field, value });
