@@ -1111,9 +1111,11 @@ function actionUpdateSample(sampleId, field, value) {
             sample[field] = value;
         }
     }
-    // Chiamata a render per aggiornare la UI, specialmente per i cambi di unità,
-    // e per mantenere la coerenza tra stato e vista.
-    render();
+    // Il re-render completo è necessario solo quando l'unità cambia, per evitare
+    // di perdere il focus dagli input di testo durante la digitazione.
+    if (field === 'unit') {
+        render();
+    }
 }
 
 async function actionCalculateAll() {
