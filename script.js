@@ -177,6 +177,27 @@ const secondaryBtnClass = "bg-gray-200 text-gray-800 font-semibold py-2 px-4 rou
 // --- UTILITY & CONSTANTS ---
 function deepCopy(obj) { return JSON.parse(JSON.stringify(obj)); }
 
+/**
+ * Converte un valore di concentrazione da un'unità di misura a un'altra.
+ * @param {number|null} value - Il valore numerico da convertire.
+ * @param {string} fromUnit - L'unità di misura di partenza ('mg/L' o 'µg/L').
+ * @param {string} toUnit - L'unità di misura di destinazione ('mg/L' o 'µg/L').
+ * @returns {number|null} Il valore convertito.
+ */
+function convertConcentration(value, fromUnit, toUnit) {
+    if (value === null || fromUnit === toUnit) {
+        return value;
+    }
+    if (fromUnit === 'mg/L' && toUnit === 'µg/L') {
+        return value * 1000;
+    }
+    if (fromUnit === 'µg/L' && toUnit === 'mg/L') {
+        return value / 1000;
+    }
+    // Se la combinazione di unità non è supportata, restituisce il valore originale.
+    return value;
+}
+
 
 // --- MODAL MANAGERS ---
 const choiceModal = {
@@ -757,6 +778,7 @@ function renderSpikeUncertainty() {
             appState.spikeUncertainty[sample.id] = {
                 initialConcentration: null,
                 initialUncertainty: null,
+                unit: 'µg/L',
                 steps: []
             };
         }
@@ -826,10 +848,11 @@ function renderSpikeUncertainty() {
                 const flaskUncertaintyNote = step.flaskUncertaintyRelPerc ?
                     `<div class="text-xs text-gray-500 mt-1" title="Incertezza tipo relativa del volume del matraccio (u_rel)">u_rel(matraccio): <strong>${step.flaskUncertaintyRelPerc.toFixed(3)} %</strong></div>` : '';
 
+                const sampleUnit = sample.unit || 'µg/L';
                 const intermediateResultNote = step.intermediateConcentration ?
                     `<div class="mt-4 pt-3 border-t border-gray-300 text-sm font-medium text-gray-700">
                         <p>Risultato intermedio:
-                           <span class="font-bold text-blue-600">${step.intermediateConcentration.toPrecision(4)}</span> µg/mL
+                           <span class="font-bold text-blue-600">${step.intermediateConcentration.toPrecision(4)}</span> ${sampleUnit}
                            (u_rel: <span class="font-bold text-blue-600">${step.intermediateUncertaintyRelPerc.toFixed(2)} %</span>)
                         </p>
                     </div>` : '';
@@ -872,14 +895,15 @@ function renderSpikeUncertainty() {
         let resultsHTML = '';
         const results = sampleSpikeState.results;
         if (results) {
+            const sampleUnit = sample.unit || 'µg/L';
             resultsHTML = `
                 <div class="mt-4 pt-4 border-t">
                     <h4 class="text-md font-semibold text-gray-700 mb-2">Riepilogo Finale</h4>
                      ${results.summary ? `<div class="text-sm p-3 bg-gray-100 rounded-md border text-gray-600">${results.summary}</div>` : ''}
                     <div class="mt-3 text-right">
-                        <p class="text-sm text-gray-600">Concentrazione Finale Calcolata: <span class="font-bold text-lg text-black">${results.finalConcentration.toPrecision(4)} µg/mL</span></p>
-                        <p class="text-sm text-gray-600">Valore Nominale Campione Preparato: <span class="font-bold text-lg text-black">${parseFloat(sample.expectedValue).toPrecision(4)} µg/mL</span></p>
-                        <p class="text-sm text-gray-600">Valore Medio Campione (da Statistica): <span class="font-bold text-lg text-black">${appState.results[sample.id].statistics.mean.toPrecision(4)} µg/mL</span></p>
+                        <p class="text-sm text-gray-600">Concentrazione Finale Calcolata: <span class="font-bold text-lg text-black">${results.finalConcentration.toPrecision(4)} ${sampleUnit}</span></p>
+                        <p class="text-sm text-gray-600">Valore Nominale Campione Preparato: <span class="font-bold text-lg text-black">${parseFloat(sample.expectedValue).toPrecision(4)} ${sampleUnit}</span></p>
+                        <p class="text-sm text-gray-600">Valore Medio Campione (da Statistica): <span class="font-bold text-lg text-black">${appState.results[sample.id].statistics.mean.toPrecision(4)} ${sampleUnit}</span></p>
                         <p class="text-sm text-gray-600">Incertezza tipo composta (u_c): <span class="font-bold text-black">${results.u_comp.toPrecision(3)}</span></p>
                         <p class="text-sm text-gray-600">Incertezza tipo composta relativa (u_c %): <span class="font-bold text-black">${results.u_comp_rel_perc.toFixed(2)} %</span></p>
                     </div>
@@ -913,8 +937,14 @@ function renderSpikeUncertainty() {
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 border rounded-md bg-gray-50 mb-4">
                     <div>
-                        <label for="initial-conc-${sample.id}" class="block text-sm font-medium text-gray-700">Concentrazione Materiale di Riferimento (µg/mL)</label>
-                        <input type="number" id="initial-conc-${sample.id}" data-sample-id="${sample.id}" data-field="initialConcentration" class="spike-input mt-1 w-full p-2 border border-gray-300 rounded-md" value="${sampleSpikeState.initialConcentration || ''}" placeholder="Es: 1000">
+                        <label for="initial-conc-${sample.id}" class="block text-sm font-medium text-gray-700">Concentrazione Materiale di Riferimento</label>
+                        <div class="flex items-center space-x-2 mt-1">
+                            <input type="number" id="initial-conc-${sample.id}" data-sample-id="${sample.id}" data-field="initialConcentration" class="spike-input w-full p-2 border border-gray-300 rounded-md" value="${sampleSpikeState.initialConcentration || ''}" placeholder="Es: 1000">
+                            <select data-sample-id="${sample.id}" data-field="unit" class="spike-input w-auto p-2 border border-gray-300 rounded-md bg-gray-50 text-sm">
+                                <option value="mg/L" ${sampleSpikeState.unit === 'mg/L' ? 'selected' : ''}>mg/L</option>
+                                <option value="µg/L" ${sampleSpikeState.unit === 'µg/L' ? 'selected' : ''}>µg/L</option>
+                            </select>
+                        </div>
                     </div>
                     <div>
                         <label for="initial-unc-${sample.id}" class="block text-sm font-medium text-gray-700">Incertezza del certificato (U %)</label>
@@ -1041,7 +1071,18 @@ function renderSamplesAndResults() {
             </div>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div class="md:col-span-2"><label class="block text-sm font-medium text-gray-700 mb-1">Dati</label><textarea data-sample-id="${sample.id}" data-field="rawData" rows="4" class="data-input w-full p-2 border border-gray-300 rounded-md">${sample.rawData || ''}</textarea></div>
-                <div><label class="block text-sm font-medium text-gray-700 mb-1">Nome</label><input data-sample-id="${sample.id}" data-field="name" type="text" class="w-full p-2 border border-gray-300 rounded-md" value="${sample.name || ''}"><label class="block text-sm font-medium text-gray-700 mt-2 mb-1">Valore Atteso</label><input data-sample-id="${sample.id}" data-field="expectedValue" type="number" class="w-full p-2 border border-gray-300 rounded-md" value="${sample.expectedValue || ''}"></div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Nome</label>
+                    <input data-sample-id="${sample.id}" data-field="name" type="text" class="w-full p-2 border border-gray-300 rounded-md" value="${sample.name || ''}">
+                    <label class="block text-sm font-medium text-gray-700 mt-2 mb-1">Valore Atteso</label>
+                    <div class="flex items-center space-x-2">
+                        <input data-sample-id="${sample.id}" data-field="expectedValue" type="number" class="w-full p-2 border border-gray-300 rounded-md" value="${sample.expectedValue || ''}">
+                        <select data-sample-id="${sample.id}" data-field="unit" class="unit-select w-auto p-2 border border-gray-300 rounded-md bg-gray-50 text-sm">
+                            <option value="mg/L" ${sample.unit === 'mg/L' ? 'selected' : ''}>mg/L</option>
+                            <option value="µg/L" ${sample.unit === 'µg/L' ? 'selected' : ''}>µg/L</option>
+                        </select>
+                    </div>
+                </div>
             </div>`;
         container.appendChild(card);
     });
@@ -1053,7 +1094,7 @@ function renderSamplesAndResults() {
 function actionSwitchTab(tabName) { appState.ui.activeTab = tabName; render(); }
 function actionAddSample() {
     const newId = appState.samples.length > 0 ? Math.max(...appState.samples.map(s => s.id)) + 1 : 1;
-    appState.samples.push({ id: newId, name: `Campione ${newId}`, rawData: '', expectedValue: null });
+    appState.samples.push({ id: newId, name: `Campione ${newId}`, rawData: '', expectedValue: null, unit: 'µg/L' });
     render();
 }
 function actionRemoveSample(sampleId) {
@@ -1575,7 +1616,19 @@ function actionCalculateSpikeUncertainty(sampleId) {
             return; // Non mostrare errore se i dati iniziali non sono ancora stati inseriti
         }
 
-        let currentConcentration = sampleState.initialConcentration;
+        // --- INIZIO LOGICA DI CONVERSIONE UNITÀ ---
+        const sample = appState.samples.find(s => s.id == sampleId);
+        if (!sample) throw new Error(`Campione con ID ${sampleId} non trovato.`);
+
+        const targetUnit = sample.unit;
+        const sourceUnit = sampleState.unit;
+
+        const initialConcentrationInSourceUnit = sampleState.initialConcentration;
+        const convertedInitialConcentration = convertConcentration(initialConcentrationInSourceUnit, sourceUnit, targetUnit);
+
+        let currentConcentration = convertedInitialConcentration;
+        // --- FINE LOGICA DI CONVERSIONE UNITÀ ---
+
         let sum_u_rel_sq;
 
         if (sampleState.initialUncertainty !== null && sampleState.initialUncertainty > 0) {
@@ -1665,7 +1718,7 @@ function actionCalculateSpikeUncertainty(sampleId) {
 
         // NUOVO: Genera il riepilogo testuale
         let summaryLines = [];
-        let concentrationBeforeStep = sampleState.initialConcentration; // Inizia con la concentrazione iniziale
+        let concentrationBeforeStep = convertedInitialConcentration; // Inizia con la concentrazione GIA' CONVERTITA
         sampleState.steps.forEach((step, index) => {
             // Costruisce la stringa dei prelievi con l'ID della pipetta
             const withdrawalsText = step.withdrawals.map(w => `${w.volume} mL (pipetta: ${w.pipette})`).join(' e ');
@@ -1678,7 +1731,7 @@ function actionCalculateSpikeUncertainty(sampleId) {
             // La concentrazione finale di questo passaggio è memorizzata nell'oggetto 'step'
             const finalConcForStep = step.intermediateConcentration;
 
-            summaryLines.push(`<b>Passaggio ${index + 1}:</b> Prelievo di ${withdrawalsText} da soluzione a ${initialConcForStep.toPrecision(4)} µg/mL. Diluizione a ${flask.volume} mL per una concentrazione finale di ${finalConcForStep.toPrecision(4)} µg/mL.`);
+            summaryLines.push(`<b>Passaggio ${index + 1}:</b> Prelievo di ${withdrawalsText} da soluzione a ${initialConcForStep.toPrecision(4)} ${targetUnit}. Diluizione a ${flask.volume} mL per una concentrazione finale di ${finalConcForStep.toPrecision(4)} ${targetUnit}.`);
 
             // Aggiorna la concentrazione per il prossimo passaggio
             concentrationBeforeStep = finalConcForStep;
@@ -1797,7 +1850,8 @@ function main() {
             }
         }
     });
-    samplesContainer.addEventListener('input', e => { if (e.target.dataset.sampleId) actionUpdateSample(parseInt(e.target.dataset.sampleId, 10), e.target.dataset.field, e.target.value); });
+    samplesContainer.addEventListener('input', e => { if (e.target.dataset.sampleId && !e.target.matches('.unit-select')) actionUpdateSample(parseInt(e.target.dataset.sampleId, 10), e.target.dataset.field, e.target.value); });
+    samplesContainer.addEventListener('change', e => { if (e.target.matches('.unit-select')) actionUpdateSample(parseInt(e.target.dataset.sampleId, 10), e.target.dataset.field, e.target.value); });
 
     document.querySelector('nav[aria-label="Tabs"]').addEventListener('click', e => { if (e.target.closest('button.tab-btn')) actionSwitchTab(e.target.closest('button.tab-btn').dataset.tabName); });
 
