@@ -1518,24 +1518,29 @@ function actionLoadData(event) {
             let loadedState = JSON.parse(e.target.result);
             if (!loadedState.version || !loadedState.project) throw new Error("File non valido.");
 
-            // --- INIZIO MIGRAZIONE STATO ---
-            // Controlla e aggiunge la proprietà 'unit' se mancante, per garantire la compatibilità all'indietro.
-            if (loadedState.samples && loadedState.samples.some(s => s.unit === undefined)) {
-                console.log("Migrating old state format: adding 'unit' properties.");
-                loadedState.samples.forEach(sample => {
-                    if (sample.unit === undefined) {
-                        sample.unit = 'µg/L'; // Imposta un valore predefinito
-                    }
-                });
-                if (loadedState.spikeUncertainty) {
-                    for (const sampleId in loadedState.spikeUncertainty) {
-                        if (loadedState.spikeUncertainty[sampleId].unit === undefined) {
-                            loadedState.spikeUncertainty[sampleId].unit = 'µg/L';
-                        }
+            // --- INIZIO MIGRAZIONE STATO ROBUSTA ---
+            console.log("Checking state for backward compatibility...");
+            // Assicura che 'samples' sia un array e migra ogni campione
+            loadedState.samples = loadedState.samples || [];
+            loadedState.samples.forEach(sample => {
+                if (sample.unit === undefined) {
+                    console.log(`Migrating sample ${sample.id}: adding unit.`);
+                    sample.unit = 'µg/L'; // Imposta un valore predefinito
+                }
+            });
+
+            // Assicura che 'spikeUncertainty' sia un oggetto e migra ogni voce
+            loadedState.spikeUncertainty = loadedState.spikeUncertainty || {};
+            for (const sampleId in loadedState.spikeUncertainty) {
+                if (loadedState.spikeUncertainty.hasOwnProperty(sampleId)) {
+                    const spikeState = loadedState.spikeUncertainty[sampleId];
+                    if (spikeState && spikeState.unit === undefined) {
+                         console.log(`Migrating spike data for sample ${sampleId}: adding unit.`);
+                        spikeState.unit = 'µg/L';
                     }
                 }
             }
-            // --- FINE MIGRAZIONE STATO ---
+            // --- FINE MIGRAZIONE STATO ROBUSTA ---
 
             appState = loadedState;
             render();
@@ -1765,7 +1770,6 @@ function actionCalculateSpikeUncertainty(sampleId) {
         const summary = summaryLines.join('<br>');
 
         // NUOVO: Logica per le verifiche di preparazione e accuratezza
-        const sample = appState.samples.find(s => s.id == sampleId);
         const nominalValue = parseFloat(sample.expectedValue);
         const calculatedConcentration = currentConcentration;
         const meanValue = appState.results[sampleId]?.statistics?.mean;
