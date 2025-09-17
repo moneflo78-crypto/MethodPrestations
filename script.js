@@ -1105,9 +1105,15 @@ function actionRemoveSample(sampleId) {
 function actionUpdateSample(sampleId, field, value) {
     const sample = appState.samples.find(s => s.id === sampleId);
     if (sample) {
-        if (field === 'expectedValue') sample[field] = value === '' ? null : parseFloat(value);
-        else sample[field] = value;
+        if (field === 'expectedValue') {
+            sample[field] = value === '' ? null : parseFloat(value);
+        } else {
+            sample[field] = value;
+        }
     }
+    // Chiamata a render per aggiornare la UI, specialmente per i cambi di unità,
+    // e per mantenere la coerenza tra stato e vista.
+    render();
 }
 
 async function actionCalculateAll() {
@@ -1509,8 +1515,28 @@ function actionLoadData(event) {
     const reader = new FileReader();
     reader.onload = (e) => {
         try {
-            const loadedState = JSON.parse(e.target.result);
+            let loadedState = JSON.parse(e.target.result);
             if (!loadedState.version || !loadedState.project) throw new Error("File non valido.");
+
+            // --- INIZIO MIGRAZIONE STATO ---
+            // Controlla e aggiunge la proprietà 'unit' se mancante, per garantire la compatibilità all'indietro.
+            if (loadedState.samples && loadedState.samples.some(s => s.unit === undefined)) {
+                console.log("Migrating old state format: adding 'unit' properties.");
+                loadedState.samples.forEach(sample => {
+                    if (sample.unit === undefined) {
+                        sample.unit = 'µg/L'; // Imposta un valore predefinito
+                    }
+                });
+                if (loadedState.spikeUncertainty) {
+                    for (const sampleId in loadedState.spikeUncertainty) {
+                        if (loadedState.spikeUncertainty[sampleId].unit === undefined) {
+                            loadedState.spikeUncertainty[sampleId].unit = 'µg/L';
+                        }
+                    }
+                }
+            }
+            // --- FINE MIGRAZIONE STATO ---
+
             appState = loadedState;
             render();
             alert("Dati caricati con successo!");
