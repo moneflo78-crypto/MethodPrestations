@@ -37,12 +37,13 @@ Misura la dispersione dei dati rispetto alla media. Viene usata la deviazione st
   - `media`: media del campione.
 
 #### 1.4 Limite di Ripetibilità (r)
-Indica il valore massimo atteso per la differenza tra due risultati di misura ottenuti nelle stesse condizioni (stesso operatore, stessa apparecchiatura, breve intervallo di tempo).
-- **Formula:** `r = t * s`
+Indica il valore massimo atteso per la differenza assoluta tra due risultati di misura ottenuti in condizioni di ripetibilità (stesso operatore, stessa apparecchiatura, stesso laboratorio, breve intervallo di tempo).
+- **Formula:** `r = t * s * sqrt(2)`
 - **Termini:**
   - `r`: limite di ripetibilità.
-  - `s`: deviazione standard campionaria.
-  - `t`: valore critico della t di Student per `n-1` gradi di libertà e un livello di confidenza del 95% (bilaterale). I valori di `t` sono riportati in una tabella apposita.
+  - `s`: deviazione standard campionaria delle misure.
+  - `t`: valore critico della t di Student per `n-1` gradi di libertà e un livello di confidenza del 95% (bilaterale).
+  - `sqrt(2)`: fattore che tiene conto del fatto che il limite si applica alla differenza tra *due* risultati di misura.
 
 #### 1.5 Recupero Percentuale (Recovery %)
 Utilizzato per campioni di controllo a concentrazione nota, misura l'accuratezza del metodo confrontando il valore medio misurato con il valore atteso (nominale).
