@@ -1,0 +1,270 @@
+###################################################
+# MANUALE DELLE FORMULE STATISTICHE E DEI CALCOLI #
+###################################################
+
+## INTRODUZIONE
+Questo documento descrive in dettaglio tutte le formule e le procedure di calcolo utilizzate all'interno dell'applicazione. Lo scopo è fornire una guida di riferimento completa e trasparente per la validazione dei calcoli e la comprensione dei modelli statistici impiegati.
+Il manuale è strutturato per seguire il flusso logico dell'analisi dei dati, dalle statistiche descrittive di base ai test più complessi per la valutazione dell'incertezza.
+Ogni sezione presenterà le formule matematiche, una spiegazione dei termini e, dove necessario, le tabelle di coefficienti utilizzate.
+
+---------------------------------------------------
+
+### SEZIONE 1: STATISTICHE DESCRITTIVE
+
+Questa sezione copre le statistiche di base utilizzate per descrivere un campione di dati.
+
+#### 1.1 Media Aritmetica (Mean)
+La media è la somma di tutti i valori divisa per il numero di valori.
+- **Formula:** `media = (Σ x_i) / n`
+- **Termini:**
+  - `x_i`: i-esimo valore del campione.
+  - `n`: numero totale di valori nel campione.
+
+#### 1.2 Deviazione Standard Campionaria (Standard Deviation)
+Misura la dispersione dei dati rispetto alla media. Viene usata la deviazione standard campionaria (con `n-1` al denominatore).
+- **Formula:** `s = sqrt( Σ(x_i - media)^2 / (n - 1) )`
+- **Termini:**
+  - `s`: deviazione standard campionaria.
+  - `x_i`: i-esimo valore del campione.
+  - `media`: media del campione.
+  - `n`: numero totale di valori nel campione.
+
+#### 1.3 Coefficiente di Variazione Percentuale (CV%)
+È una misura della deviazione standard relativa alla media, espressa in percentuale.
+- **Formula:** `CV% = (s / |media|) * 100`
+- **Termini:**
+  - `s`: deviazione standard campionaria.
+  - `media`: media del campione.
+
+#### 1.4 Limite di Ripetibilità (r)
+Indica il valore massimo atteso per la differenza tra due risultati di misura ottenuti nelle stesse condizioni (stesso operatore, stessa apparecchiatura, breve intervallo di tempo).
+- **Formula:** `r = t * s`
+- **Termini:**
+  - `r`: limite di ripetibilità.
+  - `s`: deviazione standard campionaria.
+  - `t`: valore critico della t di Student per `n-1` gradi di libertà e un livello di confidenza del 95% (bilaterale). I valori di `t` sono riportati in una tabella apposita.
+
+#### 1.5 Recupero Percentuale (Recovery %)
+Utilizzato per campioni di controllo a concentrazione nota, misura l'accuratezza del metodo confrontando il valore medio misurato con il valore atteso (nominale).
+- **Formula:** `Recupero % = (media_misurata / valore_nominale) * 100`
+- **Termini:**
+  - `media_misurata`: media del campione misurato.
+  - `valore_nominale`: concentrazione nota del campione di controllo.
+
+---------------------------------------------------
+
+### SEZIONE 2: TEST DI NORMALITÀ E DATI ANOMALI
+
+Prima di procedere con alcuni calcoli statistici, è fondamentale verificare se i dati seguono una distribuzione normale e identificare la presenza di eventuali dati anomali (outlier).
+
+#### 2.1 Test di Normalità di Shapiro-Wilk
+Questo test verifica l'ipotesi nulla che un campione di dati provenga da una popolazione distribuita normalmente. È implementato per campioni con numerosità da 3 a 26.
+
+1.  **Calcolo della Somma degli Scarti Quadrati (S²):**
+    - **Formula:** `S² = Σ(x_i - media)²`
+
+2.  **Calcolo del termine `b`:**
+    - **Formula:** `b = Σ(a_i * x_(i))`
+    - **Termini:**
+      - `x_(i)`: i dati ordinati in senso crescente (es. `x_(1)` è il più piccolo).
+      - `a_i`: coefficienti specifici per la dimensione del campione `n`, ottenuti da una tabella (`a_coeffs_table`).
+
+3.  **Calcolo della statistica W:**
+    - **Formula:** `W = b² / S²`
+    - Il valore di `W` è sempre compreso tra 0 e 1. Un valore vicino a 1 indica normalità.
+
+4.  **Trasformazione e calcolo della statistica kp:**
+    - La statistica `W` viene trasformata in un valore `kp`, che approssima una distribuzione normale standard.
+    - **Formula:** `kp = g + e * ln((W' - f) / (1 - W'))`
+    - **Termini:**
+      - `W'`: `min(W, 1.0)`.
+      - `g`, `e`, `f`: coefficienti di trasformazione che dipendono dalla dimensione del campione `n` (ottenuti da `kp_coeffs_table`).
+      - `ln`: logaritmo naturale.
+
+5.  **Decisione:**
+    - L'ipotesi di normalità è accettata se `kp > -1.645`. Questo valore critico corrisponde a un livello di significatività del 5% per un test unilaterale.
+
+#### 2.2 Test di Huber per Dati Anomali (basato sulla MAD)
+Questo è un test robusto per l'identificazione di outlier, che non richiede la normalità dei dati.
+
+1.  **Calcolo della Mediana del campione (med).**
+2.  **Calcolo delle Deviazioni Assolute dalla Mediana:** `d_i = |x_i - med|`
+3.  **Calcolo della Deviazione Mediana Assoluta (MAD):** `MAD = mediana(d_1, d_2, ..., d_n)`
+4.  **Identificazione Outlier:** Un valore `x_i` è considerato anomalo se soddisfa la seguente condizione:
+    - **Formula:** `|x_i - med| / MAD > 3.5`
+    - La soglia di 3.5 è un valore comunemente usato in letteratura per questo test.
+
+#### 2.3 Altri Test (Non Implementati)
+Nel codice sono presenti richiami ai seguenti test, che tuttavia **non sono ancora implementati**:
+- **Test di Dixon:** Utile per piccoli campioni.
+- **Test di Grubbs:** Utile per identificare un singolo outlier in un campione.
+
+---------------------------------------------------
+
+### SEZIONE 3: INCERTEZZA DI TARATURA
+
+Questa sezione descrive i metodi utilizzati per calcolare l'incertezza derivante dalla curva di taratura.
+
+#### PARTE A: METODO DELLA REGRESSIONE LINEARE (MINIMI QUADRATI)
+
+Questo metodo costruisce una retta di taratura (y = bx + a) a partire da una serie di standard a concentrazione nota e ne calcola l'incertezza associata.
+
+1.  **Calcolo dei Parametri della Retta**
+    - **Coefficiente Angolare (b):**
+      `b = [ n * Σ(x_i * y_i) - (Σx_i) * (Σy_i) ] / [ n * Σ(x_i²) - (Σx_i)² ]`
+    - **Intercetta (a):**
+      `a = y_medio - b * x_medio`
+    - **Termini:**
+      - `x_i`, `y_i`: coppie di valori degli standard di taratura.
+      - `n`: numero di punti della retta di taratura.
+      - `x_medio`, `y_medio`: medie dei valori x e y degli standard.
+
+2.  **Valutazione della Retta**
+    - **Deviazione Standard Residua (s_yx):** Misura la dispersione media dei punti sperimentali attorno alla retta di regressione.
+      `s_yx = sqrt( Σ(y_i - y_calcolato_i)² / (n - 2) )`
+      - `y_calcolato_i`: valore y per un dato `x_i` calcolato tramite l'equazione della retta (`b*x_i + a`).
+      - `n-2`: gradi di libertà.
+    - **Coefficiente di Determinazione (R²):** Indica la proporzione di varianza della variabile dipendente `y` che è prevedibile dalla variabile indipendente `x`.
+      `R² = 1 - [ Σ(y_i - y_calcolato_i)² / Σ(y_i - y_medio)² ]`
+      - Un valore di R² vicino a 1 indica una buona aderenza dei dati al modello lineare.
+
+3.  **Calcolo dell'Incertezza di un Campione Incognito (ux)**
+    Questa formula calcola l'incertezza tipo sulla concentrazione `x_k` determinata a partire da una misura di segnale `y_k`.
+    - **Formula:** `ux = (s_yx / |b|) * sqrt(1/p + 1/n + (y_k - y_medio)² / (b² * Σ(x_i - x_medio)²))`
+    - **Termini:**
+      - `s_yx`: deviazione standard residua.
+      - `b`: pendenza della retta.
+      - `p`: numero di misure replicate per il campione incognito (spesso `p=1`).
+      - `n`: numero di punti della retta di taratura.
+      - `y_k`: segnale misurato per il campione incognito.
+      - `y_medio`: media dei segnali `y` degli standard di taratura.
+      - `x_i`: concentrazioni degli standard di taratura.
+      - `x_medio`: media delle concentrazioni `x` degli standard.
+
+#### PARTE B: METODO DEL FATTORE DI RISPOSTA (RESPONSE FACTOR)
+
+Questo metodo alternativo non richiede la costruzione di una retta, ma si basa su un criterio di accettabilità predefinito per la variabilità del fattore di risposta.
+
+1.  **Calcolo dell'Incertezza Tipo Relativa di Taratura (u_taratura%)**
+    - L'incertezza viene derivata dal criterio di accettabilità (es. la massima deviazione standard relativa consentita per i fattori di risposta), assumendo una distribuzione rettangolare.
+    - **Formula:** `u_taratura% = CriterioAccettabilità% / sqrt(3)`
+    - **Termini:**
+      - `CriterioAccettabilità%`: il limite massimo di variabilità definito (es. 20%).
+      - `sqrt(3)`: fattore di divisione per una distribuzione rettangolare.
+
+2.  **Calcolo dell'Incertezza di un Campione Incognito (ux)**
+    - L'incertezza relativa di taratura viene applicata direttamente alla concentrazione del campione.
+    - **Formula:** `ux = (|x_k| * u_taratura%) / 100`
+    - **Termini:**
+      - `x_k`: concentrazione del campione.
+      - `u_taratura%`: incertezza tipo relativa di taratura calcolata sopra.
+
+---------------------------------------------------
+
+### SEZIONE 4: INCERTEZZA DI PREPARAZIONE (INCERTEZZA COMPOSITA)
+
+Questa sezione descrive come vengono combinate le incertezze provenienti da diverse fonti durante la preparazione del campione (es. diluizioni, estrazioni) per ottenere un'incertezza composita finale.
+
+#### 4.1 Principio della Propagazione dell'Incertezza
+L'incertezza composita viene calcolata combinando le singole incertezze tipo relative (u_rel) di ogni passaggio. Si assume che le fonti di incertezza siano non correlate.
+- **Formula:** `u_c_rel = sqrt( Σ u_rel_i² ) = sqrt( u_rel_1² + u_rel_2² + ... )`
+- **Termini:**
+  - `u_c_rel`: incertezza tipo composita relativa.
+  - `u_rel_i`: incertezza tipo relativa del componente i-esimo (es. materiale di riferimento, matraccio, pipetta).
+
+L'incertezza tipo assoluta finale (`u_c`) si ottiene moltiplicando la relativa per la concentrazione finale: `u_c = u_c_rel * C_finale`.
+
+#### 4.2 Calcolo della Concentrazione nei Passaggi
+- **Diluizione:** `C_finale = C_iniziale * (V_prelievo_totale / V_matraccio_finale)`
+- **Estrazione / Concentrazione:** `C_finale = C_iniziale * (V_matraccio_iniziale / V_matraccio_finale)`
+
+#### 4.3 Calcolo delle Incertezze Tipo Relative dei Componenti (u_rel)
+
+1.  **Materiale di Riferimento Certificato:**
+    - L'incertezza estesa (`U%`) fornita dal certificato viene convertita in incertezza tipo relativa.
+    - **Formula:** `u_rel = (U% / 100) / k`
+    - **Termini:**
+      - `U%`: incertezza percentuale riportata sul certificato.
+      - `k`: fattore di copertura (tipicamente `k=2` per un livello di confidenza del 95%). Il codice utilizza `k=2`.
+
+2.  **Vetreria Volumetrica (Matracci):**
+    - L'incertezza è basata sulla tolleranza del costruttore, assumendo una distribuzione di probabilità rettangolare.
+    - **Formula:** `u_rel = (Tolleranza / Volume_nominale) / sqrt(3)`
+    - **Termini:**
+      - `Tolleranza`: incertezza assoluta del matraccio (es. ±0.04 mL).
+      - `Volume_nominale`: volume del matraccio (es. 10 mL).
+      - `sqrt(3)`: fattore di divisione per una distribuzione rettangolare.
+
+3.  **Pipette:**
+    - L'incertezza di una pipetta per un dato volume viene determinata dalla sua libreria di calibrazione. Il valore di `U_rel_percent` viene preso come il massimo tra i due punti di calibrazione che racchiudono il volume di prelievo.
+    - Questo valore viene poi convertito in incertezza tipo relativa (`u_rel`) con una formula specifica che tiene conto sia del fattore di copertura `k=2` che di una distribuzione rettangolare.
+    - **Formula:** `u_rel = (U_pipetta% / 100) / (2 * sqrt(3))`
+    - **Nota:** Questa formula è una combinazione conservativa. Se più prelievi vengono effettuati per una singola diluizione, le loro incertezze assolute vengono combinate in quadratura, e il risultato viene poi convertito in un'unica incertezza relativa per il volume totale prelevato.
+
+---------------------------------------------------
+
+### SEZIONE 5: FORMULE DI VERIFICA
+
+Questa sezione descrive i controlli di coerenza eseguiti per validare la preparazione degli standard e l'esattezza del metodo.
+
+#### 5.1 Verifica della Correttezza della Preparazione
+Questo controllo confronta la concentrazione finale calcolata durante i passaggi di preparazione (`C_calcolata`) con il valore nominale teorico dello standard preparato (`C_nominale`). Lo scopo è verificare la coerenza dei calcoli di diluizione.
+- **Condizione di Superamento:** `|C_nominale - C_calcolata| < 0.0001 * C_nominale`
+- **Spiegazione:** Il test è superato se la differenza assoluta tra il valore nominale e quello calcolato è inferiore allo 0.01% del valore nominale. Una differenza maggiore potrebbe indicare un errore nei dati inseriti per la preparazione.
+
+#### 5.2 Verifica dell'Esattezza del Metodo
+Questo controllo valuta se la media delle misure sperimentali (`media_misure`) è statisticamente compatibile con il valore nominale (`C_nominale`), tenendo conto dell'incertezza composita della preparazione (`u_c`).
+- **Formula del Rapporto:** `Rapporto = |media_misure - C_nominale| / u_c`
+- **Condizione di Superamento:** `Rapporto <= 2`
+- **Spiegazione:**
+  - `u_c` è l'incertezza tipo composita *assoluta* della preparazione (`u_c_rel * C_nominale`).
+  - Il test è superato se la differenza tra la media misurata e il valore nominale è inferiore o uguale al doppio dell'incertezza di preparazione. Questo è analogo a verificare se il valore nominale rientra nell'intervallo di confidenza al 95% della misura (assumendo k=2). Un fallimento suggerisce la presenza di un errore sistematico (bias) nel metodo di misura.
+
+---------------------------------------------------
+
+### SEZIONE 6: TABELLE DI COSTANTI E COEFFICIENTI
+
+Questa sezione riporta le tabelle di valori fissi utilizzate nei calcoli statistici.
+
+#### 6.1 Valori Critici t di Student (95% Confidenza, Bilaterale)
+Utilizzati per il calcolo del limite di ripetibilità (r).
+- `df` (gradi di libertà) = `n - 1`
+
+| df | t-value |   | df | t-value |   | df | t-value |
+|----|---------|---|----|---------|---|----|---------|
+| 1  | 12.706  |   | 11 | 2.201   |   | 21 | 2.080   |
+| 2  | 4.303   |   | 12 | 2.179   |   | 22 | 2.074   |
+| 3  | 3.182   |   | 13 | 2.160   |   | 23 | 2.069   |
+| 4  | 2.776   |   | 14 | 2.145   |   | 24 | 2.064   |
+| 5  | 2.571   |   | 15 | 2.131   |   | 25 | 2.060   |
+| 6  | 2.447   |   | 16 | 2.120   |   | 26 | 2.056   |
+| 7  | 2.365   |   | 17 | 2.110   |   | 27 | 2.052   |
+| 8  | 2.306   |   | 18 | 2.101   |   | 28 | 2.048   |
+| 9  | 2.262   |   | 19 | 2.093   |   | 29 | 2.045   |
+| 10 | 2.228   |   | 20 | 2.086   |   | 30 | 2.042   |
+| >30 (inf) | 1.960 | |    |         |   |    |         |
+
+#### 6.2 Coefficienti per il Test di Shapiro-Wilk
+Queste tabelle contengono i coefficienti `a_i`, `g`, `e`, `f` necessari per il calcolo. Le tabelle complete nel codice sorgente vanno da n=3 a n=26. Di seguito viene riportato un estratto.
+
+**Tabella `a_coeffs_table` (Estratto):**
+- n=3: [0.7071]
+- n=4: [0.6872, 0.1677]
+- n=5: [0.6646, 0.2413]
+- n=6: [0.6431, 0.2806, 0.0875]
+...
+
+**Tabella `kp_coeffs_table` (Estratto):**
+- n=3: {g: -0.625, e: 0.386, f: 0.75}
+- n=4: {g: -1.107, e: 0.714, f: 0.6297}
+- n=5: {g: -1.53,  e: 0.935, f: 0.5521}
+...
+
+#### 6.3 Librerie di Vetreria e Pipette
+Il codice contiene due librerie predefinite:
+- **`DEFAULT_GLASSWARE_LIBRARY`**: Associa a ogni tipo di matraccio il suo volume nominale e la sua tolleranza (incertezza assoluta).
+  - Esempio: `"Matraccio 50 mL": { "volume": 50, "uncertainty": 0.08 }`
+- **`DEFAULT_PIPETTE_LIBRARY`**: Associa a ogni modello di pipetta una serie di punti di calibrazione, ognuno con un volume e un'incertezza estesa relativa percentuale (`U_rel_percent`).
+  - Esempio: `"043CHR": { "calibrationPoints": [ { "volume": 0.1, "U_rel_percent": 2.1 }, ... ] }`
+
+Queste librerie sono utilizzate per recuperare i valori di incertezza per i calcoli della Sezione 4.
