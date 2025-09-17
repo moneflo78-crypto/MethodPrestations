@@ -438,9 +438,60 @@ function renderTreatments() {
                                         <label class="block text-xs font-medium text-gray-600">Volume (mL)</label>
                                         <input type="number" data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-withdrawal-id="${w.id}" data-field="volume" class="treatment-input w-full p-1 border border-gray-300 rounded-md text-sm" value="${w.volume || ''}" placeholder="Volume">
                                     </div>
+                                    ${w.pipetteUncertaintyRelPerc ? `<div class="text-xs text-gray-500 mt-1" title="Incertezza tipo relativa del prelievo (u_rel)">u_rel(pipetta): <strong>${w.pipetteUncertaintyRelPerc.toFixed(3)} %</strong></div>` : ''}
                                 </div>
                             `;
                         });
+                    }
+
+                    let dilutionMethodHTML = `
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Tipo di diluizione</label>
+                            <div class="mt-1 flex rounded-md shadow-sm">
+                                <button data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-field="dilutionType" data-value="bringToVolume" class="dilution-type-btn ${treatment.dilutionType === 'bringToVolume' ? 'active' : ''} relative inline-flex items-center px-4 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:z-10 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500">
+                                    Porta a Volume
+                                </button>
+                                <button data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-field="dilutionType" data-value="addSolvent" class="dilution-type-btn ${treatment.dilutionType === 'addSolvent' ? 'active' : ''} -ml-px relative inline-flex items-center px-4 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:z-10 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500">
+                                    Aggiungi Solvente
+                                </button>
+                            </div>
+                        </div>
+                    `;
+
+                    let dilutionInputsHTML = '';
+                    if (treatment.dilutionType === 'bringToVolume') {
+                        const flaskUncertaintyNote = treatment.flaskUncertaintyRelPerc ?
+                            `<div class="text-xs text-gray-500 mt-1" title="Incertezza tipo relativa del matraccio (u_rel)">u_rel(matraccio): <strong>${treatment.flaskUncertaintyRelPerc.toFixed(3)} %</strong></div>` : '';
+                        dilutionInputsHTML = `
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Matraccio di diluizione finale</label>
+                                <select data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-field="dilutionFlask" class="treatment-input mt-1 w-full p-2 border border-gray-300 rounded-md">
+                                    <option value="">-- Seleziona un matraccio --</option>
+                                    ${Object.keys(appState.libraries.glassware).map(key => `<option value="${key}" ${treatment.dilutionFlask === key ? 'selected' : ''}>${key}</option>`).join('')}
+                                </select>
+                                ${flaskUncertaintyNote}
+                            </div>
+                        `;
+                    } else { // addSolvent
+                        const solventPipetteOptions = Object.keys(appState.libraries.pipettes).map(key => `<option value="${key}" ${treatment.addedSolventPipette === key ? 'selected' : ''}>${key}</option>`).join('');
+                        const solventPipetteUncertaintyNote = treatment.addedSolventPipetteUncertaintyRelPerc ?
+                            `<div class="text-xs text-gray-500 mt-1" title="Incertezza tipo relativa della pipetta per l'aggiunta di solvente (u_rel)">u_rel(pipetta solv.): <strong>${treatment.addedSolventPipetteUncertaintyRelPerc.toFixed(3)} %</strong></div>` : '';
+                        dilutionInputsHTML = `
+                            <div class="space-y-3 p-3 bg-gray-100 rounded-md border">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Volume Solvente Aggiunto (mL)</label>
+                                    <input type="number" data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-field="addedSolventVolume" class="treatment-input mt-1 w-full p-2 border border-gray-300 rounded-md" value="${treatment.addedSolventVolume || ''}" placeholder="Es: 5">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Pipetta per Solvente</label>
+                                    <select data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-field="addedSolventPipette" class="treatment-input mt-1 w-full p-2 border border-gray-300 rounded-md">
+                                        <option value="">-- Seleziona pipetta --</option>
+                                        ${solventPipetteOptions}
+                                    </select>
+                                    ${solventPipetteUncertaintyNote}
+                                </div>
+                            </div>
+                        `;
                     }
 
                     treatmentFieldsHTML = `
@@ -455,17 +506,18 @@ function renderTreatments() {
                             </div>
 
                             <!-- Colonna Destra: Preparazione (Diluizione) -->
-                            <div class="space-y-2">
+                            <div class="space-y-4">
                                 <h5 class="font-semibold text-gray-600">Preparazione</h5>
-                                <label class="block text-sm font-medium text-gray-700">Matraccio di diluizione finale</label>
-                                <select data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-field="dilutionFlask" class="treatment-input mt-1 w-full p-2 border border-gray-300 rounded-md">
-                                    <option value="">-- Seleziona un matraccio --</option>
-                                    ${Object.keys(appState.libraries.glassware).map(key => `<option value="${key}" ${treatment.dilutionFlask === key ? 'selected' : ''}>${key}</option>`).join('')}
-                                </select>
+                                ${dilutionMethodHTML}
+                                ${dilutionInputsHTML}
                             </div>
                         </div>`;
                     break;
                 case 'estrazione':
+                    const initialFlaskUncertaintyNote_est = treatment.initialFlaskUncertaintyRelPerc ?
+                        `<div class="text-xs text-gray-500 mt-1" title="Incertezza tipo relativa del matraccio (u_rel)">u_rel: <strong>${treatment.initialFlaskUncertaintyRelPerc.toFixed(3)} %</strong></div>` : '';
+                    const finalFlaskUncertaintyNote_est = treatment.finalFlaskUncertaintyRelPerc ?
+                        `<div class="text-xs text-gray-500 mt-1" title="Incertezza tipo relativa del matraccio (u_rel)">u_rel: <strong>${treatment.finalFlaskUncertaintyRelPerc.toFixed(3)} %</strong></div>` : '';
                     treatmentFieldsHTML = `
                         <div class="grid grid-cols-2 gap-4">
                             <div>
@@ -474,6 +526,7 @@ function renderTreatments() {
                                     <option value="">-- Seleziona --</option>
                                     ${Object.keys(appState.libraries.glassware).map(key => `<option value="${key}" ${treatment.initialVolumeFlask === key ? 'selected' : ''}>${key}</option>`).join('')}
                                 </select>
+                                ${initialFlaskUncertaintyNote_est}
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700">Volume Finale (Matraccio)</label>
@@ -481,10 +534,15 @@ function renderTreatments() {
                                     <option value="">-- Seleziona --</option>
                                     ${Object.keys(appState.libraries.glassware).map(key => `<option value="${key}" ${treatment.finalVolumeFlask === key ? 'selected' : ''}>${key}</option>`).join('')}
                                 </select>
+                                ${finalFlaskUncertaintyNote_est}
                             </div>
                         </div>`;
                     break;
                 case 'concentrazione':
+                     const initialFlaskUncertaintyNote_conc = treatment.initialFlaskUncertaintyRelPerc ?
+                        `<div class="text-xs text-gray-500 mt-1" title="Incertezza tipo relativa del matraccio (u_rel)">u_rel: <strong>${treatment.initialFlaskUncertaintyRelPerc.toFixed(3)} %</strong></div>` : '';
+                    const finalFlaskUncertaintyNote_conc = treatment.finalFlaskUncertaintyRelPerc ?
+                        `<div class="text-xs text-gray-500 mt-1" title="Incertezza tipo relativa del matraccio (u_rel)">u_rel: <strong>${treatment.finalFlaskUncertaintyRelPerc.toFixed(3)} %</strong></div>` : '';
                     treatmentFieldsHTML = `
                          <div class="grid grid-cols-2 gap-4">
                             <div>
@@ -493,6 +551,7 @@ function renderTreatments() {
                                     <option value="">-- Seleziona --</option>
                                     ${Object.keys(appState.libraries.glassware).map(key => `<option value="${key}" ${treatment.initialVolumeFlask === key ? 'selected' : ''}>${key}</option>`).join('')}
                                 </select>
+                                ${initialFlaskUncertaintyNote_conc}
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700">Volume Finale (Matraccio)</label>
@@ -500,6 +559,7 @@ function renderTreatments() {
                                     <option value="">-- Seleziona --</option>
                                     ${Object.keys(appState.libraries.glassware).map(key => `<option value="${key}" ${treatment.finalVolumeFlask === key ? 'selected' : ''}>${key}</option>`).join('')}
                                 </select>
+                                ${finalFlaskUncertaintyNote_conc}
                             </div>
                         </div>`;
                     break;
@@ -848,6 +908,60 @@ function renderSpikeUncertainty() {
                 const flaskUncertaintyNote = step.flaskUncertaintyRelPerc ?
                     `<div class="text-xs text-gray-500 mt-1" title="Incertezza tipo relativa del volume del matraccio (u_rel)">u_rel(matraccio): <strong>${step.flaskUncertaintyRelPerc.toFixed(3)} %</strong></div>` : '';
 
+                let dilutionMethodHTML = `
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Tipo di diluizione</label>
+                        <div class="mt-1 flex rounded-md shadow-sm">
+                            <button data-sample-id="${sample.id}" data-step-id="${step.id}" data-field="dilutionType" data-value="bringToVolume" class="dilution-type-btn ${step.dilutionType === 'bringToVolume' ? 'active' : ''} relative inline-flex items-center px-4 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:z-10 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500">
+                                Porta a Volume
+                            </button>
+                            <button data-sample-id="${sample.id}" data-step-id="${step.id}" data-field="dilutionType" data-value="addSolvent" class="dilution-type-btn ${step.dilutionType === 'addSolvent' ? 'active' : ''} -ml-px relative inline-flex items-center px-4 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:z-10 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500">
+                                Aggiungi Solvente
+                            </button>
+                        </div>
+                    </div>
+                `;
+
+                let dilutionInputsHTML = '';
+                if (step.dilutionType === 'bringToVolume') {
+                    dilutionInputsHTML = `
+                        <div>
+                            <label for="flask-select-${step.id}" class="block text-sm font-medium text-gray-700">Matraccio di diluizione finale</label>
+                            <select id="flask-select-${step.id}" data-sample-id="${sample.id}" data-step-id="${step.id}" data-field="dilutionFlask" class="spike-input mt-1 w-full p-2 border border-gray-300 rounded-md">
+                                <option value="">-- Seleziona un matraccio --</option>
+                                ${flaskOptions}
+                            </select>
+                            ${flaskUncertaintyNote}
+                        </div>
+                    `;
+                } else { // addSolvent
+                    const solventPipetteOptions = Object.keys(appState.libraries.pipettes).map(key => {
+                        const isSelected = key === step.addedSolventPipette ? 'selected' : '';
+                        return `<option value="${key}" ${isSelected}>${key}</option>`;
+                    }).join('');
+
+                    const solventPipetteUncertaintyNote = step.addedSolventPipetteUncertaintyRelPerc ?
+                        `<div class="text-xs text-gray-500 mt-1" title="Incertezza tipo relativa della pipetta per l'aggiunta di solvente (u_rel)">u_rel(pipetta solv.): <strong>${step.addedSolventPipetteUncertaintyRelPerc.toFixed(3)} %</strong></div>` : '';
+
+                    dilutionInputsHTML = `
+                        <div class="space-y-3 p-3 bg-gray-100 rounded-md border">
+                            <div>
+                                <label for="solvent-volume-${step.id}" class="block text-sm font-medium text-gray-700">Volume Solvente Aggiunto (mL)</label>
+                                <input type="number" id="solvent-volume-${step.id}" data-sample-id="${sample.id}" data-step-id="${step.id}" data-field="addedSolventVolume" class="spike-input mt-1 w-full p-2 border border-gray-300 rounded-md" value="${step.addedSolventVolume || ''}" placeholder="Es: 5">
+                            </div>
+                            <div>
+                                <label for="solvent-pipette-${step.id}" class="block text-sm font-medium text-gray-700">Pipetta per Solvente</label>
+                                <select id="solvent-pipette-${step.id}" data-sample-id="${sample.id}" data-step-id="${step.id}" data-field="addedSolventPipette" class="spike-input mt-1 w-full p-2 border border-gray-300 rounded-md">
+                                    <option value="">-- Seleziona pipetta --</option>
+                                    ${solventPipetteOptions}
+                                </select>
+                                ${solventPipetteUncertaintyNote}
+                            </div>
+                        </div>
+                    `;
+                }
+
+
                 const sampleUnit = sample.unit || 'µg/L';
                 const intermediateResultNote = step.intermediateConcentration ?
                     `<div class="mt-4 pt-3 border-t border-gray-300 text-sm font-medium text-gray-700">
@@ -873,14 +987,10 @@ function renderSpikeUncertainty() {
                             </div>
 
                             <!-- Colonna Destra: Preparazione (Diluizione) -->
-                            <div class="space-y-2">
+                            <div class="space-y-4">
                                 <h5 class="font-semibold text-gray-600">Preparazione</h5>
-                                <label for="flask-select-${step.id}" class="block text-sm font-medium text-gray-700">Matraccio di diluizione finale</label>
-                                <select id="flask-select-${step.id}" data-sample-id="${sample.id}" data-step-id="${step.id}" class="spike-input-dilution mt-1 w-full p-2 border border-gray-300 rounded-md">
-                                    <option value="">-- Seleziona un matraccio --</option>
-                                    ${flaskOptions}
-                                </select>
-                                ${flaskUncertaintyNote}
+                                ${dilutionMethodHTML}
+                                ${dilutionInputsHTML}
                             </div>
                         </div>
                         ${intermediateResultNote}
@@ -1528,7 +1638,10 @@ function actionAddSpikeStep(sampleId) {
     const newStepId = `step-${Date.now()}`;
     sampleState.steps.push({
         id: newStepId,
+        dilutionType: 'bringToVolume', // 'bringToVolume' or 'addSolvent'
         dilutionFlask: null,
+        addedSolventPipette: null,
+        addedSolventVolume: null,
         withdrawals: [
             { id: `w-${Date.now()}`, pipette: null, volume: null }
         ]
@@ -1580,6 +1693,40 @@ function actionUpdateSpikeState({ sampleId, stepId, withdrawalId, field, value }
     actionCalculateSpikeUncertainty(sampleId);
 }
 
+function _get_pipette_uncertainty_contribution(pipetteId, volume, libraries) {
+    if (!pipetteId || volume === null || volume <= 0) {
+        throw new Error("Dati della pipetta incompleti o non validi.");
+    }
+    const pipette = libraries.pipettes[pipetteId];
+    const points = pipette.calibrationPoints.map(p => p.volume);
+    if (volume < Math.min(...points) || volume > Math.max(...points)) {
+        throw new Error(`Volume ${volume}mL fuori range per pipetta ${pipetteId}.`);
+    }
+
+    let uncertainty_U_perc = 0;
+    const sortedPoints = pipette.calibrationPoints.slice().sort((a, b) => a.volume - b.volume);
+    let found = false;
+    for (let i = 0; i < sortedPoints.length - 1; i++) {
+        if (volume >= sortedPoints[i].volume && volume <= sortedPoints[i + 1].volume) {
+            uncertainty_U_perc = Math.max(sortedPoints[i].U_rel_percent, sortedPoints[i + 1].U_rel_percent);
+            found = true;
+            break;
+        }
+    }
+    if (!found) {
+        const match = sortedPoints.find(p => p.volume === volume);
+        if (match) uncertainty_U_perc = match.U_rel_percent;
+        else throw new Error(`Logica incertezza pipetta fallita per volume ${volume}.`);
+    }
+
+    // u_rel = (U_rel_perc / 100) / (k=2 * sqrt(3))
+    const u_rel = (uncertainty_U_perc / 100) / (2 * Math.sqrt(3));
+    const u_abs = u_rel * volume;
+
+    return { u_abs, u_rel_perc: u_rel * 100, U_perc: uncertainty_U_perc };
+}
+
+
 function actionCalculateSpikeUncertainty(sampleId) {
     const sampleState = appState.spikeUncertainty[sampleId];
     const resultsContainer = document.getElementById(`spike-results-container-${sampleId}`);
@@ -1595,7 +1742,11 @@ function actionCalculateSpikeUncertainty(sampleId) {
             step.intermediateConcentration = null;
             step.intermediateUncertaintyRelPerc = null;
             step.flaskUncertaintyRelPerc = null;
-            step.withdrawals.forEach(w => w.pipetteUncertaintyRelPerc = null);
+            step.addedSolventPipetteUncertaintyRelPerc = null;
+            step.withdrawals.forEach(w => {
+                w.pipetteUncertaintyRelPerc = null;
+                w.pipetteUncertainty_U_perc = null;
+            });
         });
         render(); // Rirenderizza per pulire l'UI
     };
@@ -1603,14 +1754,6 @@ function actionCalculateSpikeUncertainty(sampleId) {
     try {
         // Reset parziale prima di iniziare, per evitare dati "orfani" se il calcolo fallisce a metà
         resetAndShowError(null);
-
-        // Pulisce i calcoli precedenti prima di iniziare
-        sampleState.initialUncertaintyRelPerc = null;
-        sampleState.steps.forEach(step => {
-            step.withdrawals.forEach(w => {
-                w.pipetteUncertainty_U_perc = null;
-            });
-        });
 
         if (sampleState.initialConcentration === null || sampleState.initialConcentration <= 0) {
             return; // Non mostrare errore se i dati iniziali non sono ancora stati inseriti
@@ -1632,17 +1775,15 @@ function actionCalculateSpikeUncertainty(sampleId) {
         let sum_u_rel_sq;
 
         if (sampleState.initialUncertainty !== null && sampleState.initialUncertainty > 0) {
-            // L'incertezza del certificato U% (k=2) viene convertita in incertezza tipo relativa: u_rel = (U/100)/2
             const u_rel_initial = sampleState.initialUncertainty / 200;
             sum_u_rel_sq = Math.pow(u_rel_initial, 2);
-            sampleState.initialUncertaintyRelPerc = u_rel_initial * 100; // Memorizza per la visualizzazione
+            sampleState.initialUncertaintyRelPerc = u_rel_initial * 100;
         } else {
-            sum_u_rel_sq = 0; // Se non c'è incertezza, i calcoli di incertezza non possono procedere
+            sum_u_rel_sq = 0;
         }
 
         for (const step of sampleState.steps) {
-            // Validazione input del passaggio
-            if (!step.dilutionFlask) throw new Error(`Matraccio non selezionato.`);
+            // --- 1. Calcolo Prelievi (comune a entrambi i metodi) ---
             if (step.withdrawals.length === 0) throw new Error(`Nessun prelievo nel passaggio.`);
             if (step.withdrawals.some(w => !w.pipette || w.volume === null || w.volume <= 0)) {
                 throw new Error(`Dati di prelievo incompleti o non validi.`);
@@ -1653,60 +1794,52 @@ function actionCalculateSpikeUncertainty(sampleId) {
 
             for (const w of step.withdrawals) {
                 totalWithdrawalVolume += w.volume;
-                const pipette = appState.libraries.pipettes[w.pipette];
-                const points = pipette.calibrationPoints.map(p => p.volume);
-                const minVol = Math.min(...points);
-                const maxVol = Math.max(...points);
+                const contrib = _get_pipette_uncertainty_contribution(w.pipette, w.volume, appState.libraries);
+                w.pipetteUncertainty_U_perc = contrib.U_perc;
+                w.pipetteUncertaintyRelPerc = contrib.u_rel_perc;
+                sum_u_abs_sq_withdrawals += Math.pow(contrib.u_abs, 2);
+            }
+            const u_abs_total_withdrawal = Math.sqrt(sum_u_abs_sq_withdrawals);
 
-                if (w.volume < minVol || w.volume > maxVol) {
-                    throw new Error(`Volume ${w.volume}mL fuori range per pipetta ${w.pipette}.`);
+            // --- 2. Calcolo Diluizione (specifico per metodo) ---
+            if (step.dilutionType === 'addSolvent') {
+                // METODO 2: Aggiunta di un volume di solvente
+                if (!step.addedSolventPipette || !step.addedSolventVolume || step.addedSolventVolume <= 0) {
+                    throw new Error("Dati per l'aggiunta di solvente incompleti o non validi.");
                 }
+                const Vi = totalWithdrawalVolume;
+                const u_abs_Vi = u_abs_total_withdrawal;
 
-                // Calcolo incertezza pipetta (logica esistente)
-                let uncertainty_U_perc = 0;
-                const sortedPoints = pipette.calibrationPoints.slice().sort((a, b) => a.volume - b.volume);
-                let found = false;
-                for (let i = 0; i < sortedPoints.length - 1; i++) {
-                    if (w.volume >= sortedPoints[i].volume && w.volume <= sortedPoints[i + 1].volume) {
-                        uncertainty_U_perc = Math.max(sortedPoints[i].U_rel_percent, sortedPoints[i + 1].U_rel_percent);
-                        found = true;
-                        break;
-                    }
-                }
-                if (!found) {
-                    const match = sortedPoints.find(p => p.volume === w.volume);
-                    if (match) uncertainty_U_perc = match.U_rel_percent;
-                    else throw new Error(`Logica incertezza pipetta fallita per volume ${w.volume}.`);
-                }
+                const solvent_contrib = _get_pipette_uncertainty_contribution(step.addedSolventPipette, step.addedSolventVolume, appState.libraries);
+                const Va = step.addedSolventVolume;
+                const u_abs_Va = solvent_contrib.u_abs;
+                step.addedSolventPipetteUncertaintyRelPerc = solvent_contrib.u_rel_perc;
 
-                // Memorizza l'incertezza U% trovata per la visualizzazione
-                w.pipetteUncertainty_U_perc = uncertainty_U_perc;
+                const Vf = Vi + Va;
+                const u_abs_Vf = Math.sqrt(Math.pow(u_abs_Vi, 2) + Math.pow(u_abs_Va, 2));
 
-                // NUOVO: Calcola e memorizza l'incertezza relativa % della pipetta
-                // u_rel = (U_rel_perc / 100) / (k=2 * sqrt(3)) -> il k=2 è per l'incertezza estesa, sqrt(3) per la distribuzione rettangolare del certificato
-                const u_rel_pipette = (uncertainty_U_perc / 100) / (2 * Math.sqrt(3));
-                w.pipetteUncertaintyRelPerc = u_rel_pipette * 100;
+                const u_rel_sq_Vi = Vi > 0 ? Math.pow(u_abs_Vi / Vi, 2) : 0;
+                const u_rel_sq_Vf = Vf > 0 ? Math.pow(u_abs_Vf / Vf, 2) : 0;
 
-                // Calcolo contributo all'incertezza assoluta
-                const u_abs_withdrawal = u_rel_pipette * w.volume;
-                sum_u_abs_sq_withdrawals += Math.pow(u_abs_withdrawal, 2);
+                sum_u_rel_sq += u_rel_sq_Vi + u_rel_sq_Vf;
+                currentConcentration = currentConcentration * (Vi / Vf);
+
+            } else {
+                // METODO 1: Portando a volume (logica originale)
+                if (!step.dilutionFlask) throw new Error(`Matraccio non selezionato.`);
+
+                const u_rel_sq_total_withdrawal = totalWithdrawalVolume > 0 ? Math.pow(u_abs_total_withdrawal / totalWithdrawalVolume, 2) : 0;
+
+                const flask = appState.libraries.glassware[step.dilutionFlask];
+                const u_rel_flask = (flask.uncertainty / flask.volume / Math.sqrt(3));
+                step.flaskUncertaintyRelPerc = u_rel_flask * 100;
+                const u_rel_sq_flask = Math.pow(u_rel_flask, 2);
+
+                sum_u_rel_sq += u_rel_sq_total_withdrawal + u_rel_sq_flask;
+                currentConcentration = currentConcentration * (totalWithdrawalVolume / flask.volume);
             }
 
-            const u_abs_total_withdrawal = Math.sqrt(sum_u_abs_sq_withdrawals);
-            const u_rel_sq_total_withdrawal = totalWithdrawalVolume > 0 ? Math.pow(u_abs_total_withdrawal / totalWithdrawalVolume, 2) : 0;
-
-            const flask = appState.libraries.glassware[step.dilutionFlask];
-            // NUOVO: Calcola e memorizza l'incertezza relativa % del matraccio
-            // u_rel = (Tolleranza / Volume_nominale) / sqrt(3) per distribuzione rettangolare
-            const u_rel_flask = (flask.uncertainty / flask.volume / Math.sqrt(3));
-            step.flaskUncertaintyRelPerc = u_rel_flask * 100;
-            const u_rel_sq_flask = Math.pow(u_rel_flask, 2);
-
-            // Aggiorna somma delle incertezze e concentrazione
-            sum_u_rel_sq += u_rel_sq_total_withdrawal + u_rel_sq_flask;
-            currentConcentration = currentConcentration * (totalWithdrawalVolume / flask.volume);
-
-            // NUOVO: Memorizza i risultati intermedi per questo passaggio
+            // Memorizza i risultati intermedi per questo passaggio
             step.intermediateConcentration = currentConcentration;
             step.intermediateUncertaintyRelPerc = Math.sqrt(sum_u_rel_sq) * 100;
         }
@@ -1866,6 +1999,7 @@ function main() {
         const removeStepBtn = e.target.closest('.btn-remove-step');
         const addWithdrawalBtn = e.target.closest('.btn-add-withdrawal');
         const removeWithdrawalBtn = e.target.closest('.btn-remove-withdrawal');
+        const dilutionTypeBtn = e.target.closest('.dilution-type-btn');
 
         if (addStepBtn) {
             actionAddSpikeStep(addStepBtn.dataset.sampleId);
@@ -1875,28 +2009,42 @@ function main() {
             actionAddSpikeWithdrawal(addWithdrawalBtn.dataset.sampleId, addWithdrawalBtn.dataset.stepId);
         } else if (removeWithdrawalBtn) {
             actionRemoveSpikeWithdrawal(removeWithdrawalBtn.dataset.sampleId, removeWithdrawalBtn.dataset.stepId, removeWithdrawalBtn.dataset.withdrawalId);
+        } else if (dilutionTypeBtn) {
+            const { sampleId, stepId, field, value } = dilutionTypeBtn.dataset;
+            actionUpdateSpikeState({ sampleId, stepId, field, value });
         }
     });
 
-    prepContainer.addEventListener('change', e => {
+    prepContainer.addEventListener('input', e => { // Changed from 'change' to 'input' for better responsiveness
         const target = e.target;
         const { sampleId, stepId, withdrawalId, field: dataField } = target.dataset;
 
-        const isSpikeInput = target.matches('.spike-input, .spike-input-dilution, .spike-input-withdrawal-pipette, .spike-input-withdrawal-volume');
+        const isSpikeInput = target.matches('.spike-input');
 
         if (!isSpikeInput) return;
 
         let field = dataField;
         let value = target.type === 'number' ? (target.value === '' ? null : parseFloat(target.value)) : target.value;
 
-        if (target.matches('.spike-input-withdrawal-pipette')) field = 'pipette';
-        else if (target.matches('.spike-input-withdrawal-volume')) field = 'volume';
-        else if (target.matches('.spike-input-dilution')) field = 'dilutionFlask';
-
         if (field) {
              actionUpdateSpikeState({ sampleId, stepId, withdrawalId, field, value });
         }
     });
+
+     prepContainer.addEventListener('change', e => { // Keep a change listener for selects
+        const target = e.target;
+        const { sampleId, stepId, withdrawalId, field: dataField } = target.dataset;
+
+        const isSpikeSelect = target.matches('.spike-input-withdrawal-pipette, [data-field=dilutionFlask], [data-field=addedSolventPipette]');
+        if (!isSpikeSelect) return;
+
+        let field = dataField;
+        let value = target.value;
+
+        if (field) {
+            actionUpdateSpikeState({ sampleId, stepId, withdrawalId, field, value });
+        }
+     });
 
 
     // --- Event Listeners Scheda Incertezza di Taratura ---
@@ -1971,7 +2119,10 @@ function main() {
             if (type === 'diluizione') {
                 // Struttura più complessa, simile a un passo di spike
                 newTreatment.withdrawals = [{ id: `w-${Date.now()}`, pipette: null, volume: null }];
+                newTreatment.dilutionType = 'bringToVolume';
                 newTreatment.dilutionFlask = null;
+                newTreatment.addedSolventPipette = null;
+                newTreatment.addedSolventVolume = null;
             }
             treatmentSample.treatments.push(newTreatment);
         }
@@ -2062,8 +2213,16 @@ function main() {
 
         try {
             for (const [index, treatment] of treatmentSample.treatments.entries()) {
-                 // Resetta i risultati precedenti per questo step
+             // Resetta i risultati e le incertezze intermedie per questo step
                 treatment.results = null;
+            treatment.flaskUncertaintyRelPerc = null;
+            treatment.addedSolventPipetteUncertaintyRelPerc = null;
+            treatment.initialFlaskUncertaintyRelPerc = null;
+            treatment.finalFlaskUncertaintyRelPerc = null;
+            if(treatment.withdrawals) {
+                treatment.withdrawals.forEach(w => w.pipetteUncertaintyRelPerc = null);
+            }
+
 
                 if (index === 0) {
                     // Gestione della sorgente per il primo trattamento
@@ -2088,8 +2247,6 @@ function main() {
 
                 // Calcolo specifico per tipo di trattamento
                 if (treatment.type === 'diluizione') {
-                    // Logica adattata da actionCalculateSpikeUncertainty
-                    if (!treatment.dilutionFlask) throw new Error(`Diluizione: Matraccio non selezionato.`);
                     if (treatment.withdrawals.length === 0) throw new Error(`Diluizione: Nessun prelievo.`);
                     if (treatment.withdrawals.some(w => !w.pipette || w.volume === null || w.volume <= 0)) throw new Error(`Diluizione: Dati di prelievo incompleti.`);
 
@@ -2098,38 +2255,42 @@ function main() {
 
                     treatment.withdrawals.forEach(w => {
                         totalWithdrawalVolume += w.volume;
-                        const pipette = appState.libraries.pipettes[w.pipette];
-                        const points = pipette.calibrationPoints.map(p => p.volume);
-                        if (w.volume < Math.min(...points) || w.volume > Math.max(...points)) throw new Error(`Volume ${w.volume}mL fuori range per pipetta ${w.pipette}.`);
-
-                        let uncertainty_U_perc = 0;
-                        const sortedPoints = pipette.calibrationPoints.slice().sort((a, b) => a.volume - b.volume);
-                        let found = false;
-                        for (let i = 0; i < sortedPoints.length - 1; i++) {
-                            if (w.volume >= sortedPoints[i].volume && w.volume <= sortedPoints[i + 1].volume) {
-                                uncertainty_U_perc = Math.max(sortedPoints[i].U_rel_percent, sortedPoints[i + 1].U_rel_percent);
-                                found = true; break;
-                            }
-                        }
-                        if(!found) {
-                            const match = sortedPoints.find(p => p.volume === w.volume);
-                            if(match) uncertainty_U_perc = match.U_rel_percent;
-                            else throw new Error("Errore calcolo incertezza pipetta.");
-                        }
-
-                        const u_rel_pipette = (uncertainty_U_perc / 100) / (2 * Math.sqrt(3));
-                        const u_abs_withdrawal = u_rel_pipette * w.volume;
-                        sum_u_abs_sq_withdrawals += Math.pow(u_abs_withdrawal, 2);
+                        const contrib = _get_pipette_uncertainty_contribution(w.pipette, w.volume, appState.libraries);
+                        w.pipetteUncertaintyRelPerc = contrib.u_rel_perc;
+                        sum_u_abs_sq_withdrawals += Math.pow(contrib.u_abs, 2);
                     });
+                    const u_abs_total_withdrawal = Math.sqrt(sum_u_abs_sq_withdrawals);
 
-                    const u_rel_sq_total_withdrawal = totalWithdrawalVolume > 0 ? Math.pow(Math.sqrt(sum_u_abs_sq_withdrawals) / totalWithdrawalVolume, 2) : 0;
+                    if (treatment.dilutionType === 'addSolvent') {
+                        if (!treatment.addedSolventPipette || !treatment.addedSolventVolume || treatment.addedSolventVolume <= 0) throw new Error("Diluizione: Dati per l'aggiunta di solvente incompleti.");
 
-                    const flask = appState.libraries.glassware[treatment.dilutionFlask];
-                    const u_rel_flask = (flask.uncertainty / flask.volume / Math.sqrt(3));
-                    const u_rel_sq_flask = Math.pow(u_rel_flask, 2);
+                        const Vi = totalWithdrawalVolume;
+                        const u_abs_Vi = u_abs_total_withdrawal;
 
-                    sum_u_rel_sq += u_rel_sq_total_withdrawal + u_rel_sq_flask;
-                    currentConcentration = currentConcentration * (totalWithdrawalVolume / flask.volume);
+                        const solvent_contrib = _get_pipette_uncertainty_contribution(treatment.addedSolventPipette, treatment.addedSolventVolume, appState.libraries);
+                        treatment.addedSolventPipetteUncertaintyRelPerc = solvent_contrib.u_rel_perc;
+                        const Va = treatment.addedSolventVolume;
+                        const u_abs_Va = solvent_contrib.u_abs;
+
+                        const Vf = Vi + Va;
+                        const u_abs_Vf = Math.sqrt(Math.pow(u_abs_Vi, 2) + Math.pow(u_abs_Va, 2));
+
+                        const u_rel_sq_Vi = Vi > 0 ? Math.pow(u_abs_Vi / Vi, 2) : 0;
+                        const u_rel_sq_Vf = Vf > 0 ? Math.pow(u_abs_Vf / Vf, 2) : 0;
+
+                        sum_u_rel_sq += u_rel_sq_Vi + u_rel_sq_Vf;
+                        currentConcentration = currentConcentration * (Vi / Vf);
+
+                    } else { // bringToVolume
+                        if (!treatment.dilutionFlask) throw new Error(`Diluizione: Matraccio non selezionato.`);
+                        const u_rel_sq_total_withdrawal = totalWithdrawalVolume > 0 ? Math.pow(u_abs_total_withdrawal / totalWithdrawalVolume, 2) : 0;
+                        const flask = appState.libraries.glassware[treatment.dilutionFlask];
+                        const u_rel_flask = (flask.uncertainty / flask.volume / Math.sqrt(3));
+                        treatment.flaskUncertaintyRelPerc = u_rel_flask * 100;
+                        const u_rel_sq_flask = Math.pow(u_rel_flask, 2);
+                        sum_u_rel_sq += u_rel_sq_total_withdrawal + u_rel_sq_flask;
+                        currentConcentration = currentConcentration * (totalWithdrawalVolume / flask.volume);
+                    }
 
                 } else if (treatment.type === 'estrazione' || treatment.type === 'concentrazione') {
                     if (!treatment.initialVolumeFlask || !treatment.finalVolumeFlask) throw new Error(`${treatment.type}: Selezionare i matracci.`);
@@ -2139,6 +2300,9 @@ function main() {
 
                     const u_rel_initial_flask = (initialFlask.uncertainty / initialFlask.volume / Math.sqrt(3));
                     const u_rel_final_flask = (finalFlask.uncertainty / finalFlask.volume / Math.sqrt(3));
+                    treatment.initialFlaskUncertaintyRelPerc = u_rel_initial_flask * 100;
+                    treatment.finalFlaskUncertaintyRelPerc = u_rel_final_flask * 100;
+
 
                     sum_u_rel_sq += Math.pow(u_rel_initial_flask, 2) + Math.pow(u_rel_final_flask, 2);
                     currentConcentration = currentConcentration * (initialFlask.volume / finalFlask.volume);
@@ -2170,6 +2334,7 @@ function main() {
             const moveTreatmentBtn = e.target.closest('.btn-move-treatment');
             const addWithdrawalBtn = e.target.closest('.btn-add-treatment-withdrawal');
             const removeWithdrawalBtn = e.target.closest('.btn-remove-treatment-withdrawal');
+            const dilutionTypeBtn = e.target.closest('.dilution-type-btn');
 
             if (removeSampleBtn) {
                 actionRemoveTreatmentSample(removeSampleBtn.dataset.treatmentSampleId);
@@ -2183,6 +2348,18 @@ function main() {
                 actionAddTreatmentWithdrawal(addWithdrawalBtn.dataset.treatmentSampleId, addWithdrawalBtn.dataset.treatmentId);
             } else if (removeWithdrawalBtn) {
                 actionRemoveTreatmentWithdrawal(removeWithdrawalBtn.dataset.treatmentSampleId, removeWithdrawalBtn.dataset.treatmentId, removeWithdrawalBtn.dataset.withdrawalId);
+            } else if (dilutionTypeBtn) {
+                 const { treatmentSampleId, treatmentId, field, value } = dilutionTypeBtn.dataset;
+                 actionUpdateTreatmentState({ treatmentSampleId, treatmentId, field, value });
+            }
+        });
+
+        treatmentsContainer.addEventListener('input', e => {
+            const treatmentInput = e.target.closest('.treatment-input');
+             if (treatmentInput && treatmentInput.type === 'number') {
+                const { treatmentSampleId, treatmentId, withdrawalId, field } = treatmentInput.dataset;
+                let value = e.target.value === '' ? null : parseFloat(e.target.value);
+                actionUpdateTreatmentState({ treatmentSampleId, treatmentId, withdrawalId, field, value });
             }
         });
 
@@ -2195,9 +2372,6 @@ function main() {
             } else if (treatmentInput) {
                 const { treatmentSampleId, treatmentId, withdrawalId, field } = treatmentInput.dataset;
                 let value = e.target.value;
-                if (e.target.type === 'number') {
-                    value = value === '' ? null : parseFloat(value);
-                }
                 actionUpdateTreatmentState({ treatmentSampleId, treatmentId, withdrawalId, field, value });
             }
         });

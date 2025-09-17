@@ -176,8 +176,21 @@ L'incertezza composita viene calcolata combinando le singole incertezze tipo rel
 L'incertezza tipo assoluta finale (`u_c`) si ottiene moltiplicando la relativa per la concentrazione finale: `u_c = u_c_rel * C_finale`.
 
 #### 4.2 Calcolo della Concentrazione nei Passaggi
-- **Diluizione:** `C_finale = C_iniziale * (V_prelievo_totale / V_matraccio_finale)`
-- **Estrazione / Concentrazione:** `C_finale = C_iniziale * (V_matraccio_iniziale / V_matraccio_finale)`
+
+L'applicazione supporta diversi tipi di trattamenti, incluse due modalità di diluizione.
+
+- **Diluizione Metodo 1: "Portando a Volume"**
+  Questo è il metodo classico in cui un volume prelevato viene posto in un matraccio di volume noto e portato a volume con un solvente.
+  - **Formula:** `C_finale = C_iniziale * (V_prelievo_totale / V_matraccio_finale)`
+  - **Incertezza:** La `u_rel` del volume finale è determinata dall'incertezza del matraccio.
+
+- **Diluizione Metodo 2: "Per Aggiunta di Solvente" (Nuovo)**
+  Questo metodo prevede l'aggiunta di un volume noto di solvente (`V_aggiunto`) a un volume prelevato (`V_prelievo_totale`). Il volume finale è la somma dei due.
+  - **Formula:** `C_finale = C_iniziale * V_prelievo_totale / (V_prelievo_totale + V_aggiunto)`
+  - **Incertezza:** L'incertezza del volume finale `V_finale = V_prelievo_totale + V_aggiunto` viene calcolata propagando le incertezze assolute dei volumi che lo compongono: `u_abs(V_finale)² = u_abs(V_prelievo_totale)² + u_abs(V_aggiunto)²`. L'incertezza composita totale segue poi il principio generale di propagazione.
+
+- **Estrazione / Concentrazione:**
+  - **Formula:** `C_finale = C_iniziale * (V_matraccio_iniziale / V_matraccio_finale)`
 
 #### 4.3 Calcolo delle Incertezze Tipo Relative dei Componenti (u_rel)
 
@@ -201,6 +214,7 @@ L'incertezza tipo assoluta finale (`u_c`) si ottiene moltiplicando la relativa p
     - Questo valore viene poi convertito in incertezza tipo relativa (`u_rel`) con una formula specifica che tiene conto sia del fattore di copertura `k=2` che di una distribuzione rettangolare.
     - **Formula:** `u_rel = (U_pipetta% / 100) / (2 * sqrt(3))`
     - **Nota:** Questa formula è una combinazione conservativa. Se più prelievi vengono effettuati per una singola diluizione, le loro incertezze assolute vengono combinate in quadratura, e il risultato viene poi convertito in un'unica incertezza relativa per il volume totale prelevato.
+- **Visualizzazione nell'App:** Per garantire la massima trasparenza, l'applicazione mostra l'incertezza tipo relativa calcolata per ogni singolo strumento (pipetta o matraccio) direttamente nell'interfaccia utente, accanto al campo di selezione corrispondente.
 
 ---------------------------------------------------
 
