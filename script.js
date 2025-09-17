@@ -1261,7 +1261,7 @@ async function processSample(sample) {
                 const mean = n > 0 ? ss.mean(finalData) : 0;
                 const stdDev = n > 1 ? ss.sampleStandardDeviation(finalData) : 0;
                 const t_value = getTValue(n);
-                const repeatability_limit_r = n > 1 && t_value ? t_value * stdDev : 0;
+                const repeatability_limit_r = n > 1 && t_value ? t_value * stdDev * Math.sqrt(2) : 0;
                 const nominalValue = (sample.expectedValue !== null && !isNaN(sample.expectedValue) && sample.expectedValue !== '') ? parseFloat(sample.expectedValue) : null;
 
                 const stats = {
