@@ -1872,7 +1872,6 @@ function actionCalculateSpikeUncertainty(sampleId) {
         const summary = summaryLines.join('<br>');
 
         // NUOVO: Logica per le verifiche di preparazione e accuratezza
-        const sample = appState.samples.find(s => s.id == sampleId);
         const nominalValue = parseFloat(sample.expectedValue);
         const calculatedConcentration = currentConcentration;
         const meanValue = appState.results[sampleId]?.statistics?.mean;
@@ -2015,36 +2014,24 @@ function main() {
         }
     });
 
-    prepContainer.addEventListener('change', e => { // Reverted to 'change' to prevent focus stealing on every keystroke
+    prepContainer.addEventListener('change', e => {
         const target = e.target;
         const { sampleId, stepId, withdrawalId, field: dataField } = target.dataset;
-
-        const isSpikeInput = target.matches('.spike-input');
+        const isSpikeInput = target.matches('.spike-input, .spike-input-withdrawal-pipette, [data-field=dilutionFlask], [data-field=addedSolventPipette]');
 
         if (!isSpikeInput) return;
 
         let field = dataField;
-        let value = target.type === 'number' ? (target.value === '' ? null : parseFloat(target.value)) : target.value;
-
-        if (field) {
-             actionUpdateSpikeState({ sampleId, stepId, withdrawalId, field, value });
-        }
-    });
-
-     prepContainer.addEventListener('change', e => { // Keep a change listener for selects
-        const target = e.target;
-        const { sampleId, stepId, withdrawalId, field: dataField } = target.dataset;
-
-        const isSpikeSelect = target.matches('.spike-input-withdrawal-pipette, [data-field=dilutionFlask], [data-field=addedSolventPipette]');
-        if (!isSpikeSelect) return;
-
-        let field = dataField;
         let value = target.value;
+
+        if (target.type === 'number') {
+            value = value === '' ? null : parseFloat(value);
+        }
 
         if (field) {
             actionUpdateSpikeState({ sampleId, stepId, withdrawalId, field, value });
         }
-     });
+    });
 
 
     // --- Event Listeners Scheda Incertezza di Taratura ---
@@ -2355,15 +2342,6 @@ function main() {
         });
 
         treatmentsContainer.addEventListener('change', e => {
-            const treatmentInput = e.target.closest('.treatment-input');
-             if (treatmentInput && treatmentInput.type === 'number') {
-                const { treatmentSampleId, treatmentId, withdrawalId, field } = treatmentInput.dataset;
-                let value = e.target.value === '' ? null : parseFloat(e.target.value);
-                actionUpdateTreatmentState({ treatmentSampleId, treatmentId, withdrawalId, field, value });
-            }
-        });
-
-        treatmentsContainer.addEventListener('change', e => {
             const selectSample = e.target.closest('.select-treatment-sample');
             const treatmentInput = e.target.closest('.treatment-input');
 
@@ -2372,6 +2350,9 @@ function main() {
             } else if (treatmentInput) {
                 const { treatmentSampleId, treatmentId, withdrawalId, field } = treatmentInput.dataset;
                 let value = e.target.value;
+                 if (treatmentInput.type === 'number') {
+                    value = value === '' ? null : parseFloat(value);
+                 }
                 actionUpdateTreatmentState({ treatmentSampleId, treatmentId, withdrawalId, field, value });
             }
         });
