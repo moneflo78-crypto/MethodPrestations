@@ -2338,7 +2338,7 @@ function _get_pipette_uncertainty_contribution(pipetteId, volume, libraries) {
     // u_rel = (U_rel_perc / 100) / (k=2 * sqrt(3)) -> This is incorrect. It should be U/(k=2) for normal distribution, or U/sqrt(3) for rectangular.
     // The original formula seems to combine both, which is non-standard.
     // Let's assume U is given with k=2, so u = U/2. The relative uncertainty u_rel is (U/2)/100.
-    const u_rel = (uncertainty_U_perc / 100) / 2;
+    const u_rel = (uncertainty_U_perc / 100) / (2 * Math.sqrt(3));
     const u_abs = u_rel * volume;
 
     return { u_abs, u_rel_perc: u_rel * 100, U_perc: uncertainty_U_perc };
@@ -2665,6 +2665,27 @@ async function runPipetteCrudTests() {
     });
 }
 
+async function runCalculationTests() {
+    await testSuite('Calculation Logic', async () => {
+        console.log('Starting Calculation Logic tests...');
+
+        // Test case for _get_pipette_uncertainty_contribution
+        const pipetteId = '043CHR'; // From default library
+        const volume = 0.7; // A volume between calibration points 0.5 and 1.0
+        const expected_U_perc = 2.1; // Max of U% for 0.5 (0.57) and 1.0 (2.1)
+
+        // This is the CORRECT value that should be calculated by the fixed function
+        const expected_correct_u_rel_perc = (expected_U_perc / 100) / (2 * Math.sqrt(3)) * 100;
+
+        const result = _get_pipette_uncertainty_contribution(pipetteId, volume, appState.libraries);
+
+        assert(
+            Math.abs(result.u_rel_perc - expected_correct_u_rel_perc) < 1e-9,
+            `Pipette uncertainty (u_rel_perc) should be ~${expected_correct_u_rel_perc.toFixed(4)} (FIXED)`
+        );
+    });
+}
+
 async function runAllTests() {
     // Hide modals in case they are open from previous actions
     if (typeof choiceModal !== 'undefined' && choiceModal.backdrop && !choiceModal.backdrop.classList.contains('hidden')) await choiceModal.hide();
@@ -2682,6 +2703,7 @@ async function runAllTests() {
     try {
         await runGlasswareCrudTests();
         await runPipetteCrudTests();
+        await runCalculationTests();
         console.log('All tests completed successfully.');
         // Display success message in the UI
         if (resultsContainer) {
@@ -2799,7 +2821,17 @@ function main() {
     document.getElementById('project-component').addEventListener('input', e => { appState.project.component = e.target.value; });
 
     // --- Automated Tests Event Listener ---
-    document.getElementById('btn-run-tests').addEventListener('click', runAllTests);
+    const testRunnerButton = document.getElementById('btn-run-tests');
+    if (testRunnerButton) {
+        testRunnerButton.addEventListener('click', () => {
+            // Make the container visible when tests are run
+            const testRunnerContainer = document.getElementById('test-runner-container');
+            if (testRunnerContainer) {
+                testRunnerContainer.style.display = 'block';
+            }
+            runAllTests();
+        });
+    }
 
     // --- Event Listeners Scheda Incertezza di Preparazione ---
     const prepContainer = document.getElementById('content-preparazione');
