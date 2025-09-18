@@ -1792,7 +1792,7 @@ function actionCalculateSpikeUncertainty(sampleId) {
         let sum_u_rel_sq;
 
         if (sampleState.initialUncertainty !== null && sampleState.initialUncertainty > 0) {
-            const u_rel_initial = sampleState.initialUncertainty / 200;
+            const u_rel_initial = sampleState.initialUncertainty / (200 * Math.sqrt(2));
             sum_u_rel_sq = Math.pow(u_rel_initial, 2);
             sampleState.initialUncertaintyRelPerc = u_rel_initial * 100;
         } else {
@@ -2247,7 +2247,7 @@ function main() {
                         if (treatment.source.manualConcentration === null || treatment.source.manualUncertainty === null) throw new Error("Dati manuali incompleti.");
                         currentConcentration = treatment.source.manualConcentration;
                         // U% (k=2) -> u_rel
-                        const u_rel_initial = (treatment.source.manualUncertainty / 100) / 2;
+                        const u_rel_initial = (treatment.source.manualUncertainty / 100) / 2 / Math.sqrt(2);
                         sum_u_rel_sq = Math.pow(u_rel_initial, 2);
                     } else if (treatment.source.type === 'spike') {
                         if (treatment.source.spikeSampleId === null) throw new Error("Matrix spike non selezionato.");
