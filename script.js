@@ -234,6 +234,46 @@ const choiceModal = {
     }
 };
 
+const formModal = {
+    backdrop: document.getElementById('form-modal-backdrop'),
+    content: document.getElementById('form-modal-content'),
+    title: document.getElementById('form-modal-title'),
+    body: document.getElementById('form-modal-body'),
+    footer: document.getElementById('form-modal-footer'),
+    show({ title, bodyHTML, buttons }) {
+        return new Promise(resolve => {
+            this.title.textContent = title;
+            this.body.innerHTML = bodyHTML;
+            this.footer.innerHTML = '';
+
+            const clickHandler = async (isConfirm) => {
+                await this.hide();
+                resolve(isConfirm); // Only resolve with a boolean
+            };
+
+            buttons.forEach(btn => {
+                const buttonEl = document.createElement('button');
+                buttonEl.textContent = btn.text;
+                buttonEl.className = btn.class;
+                buttonEl.onclick = () => clickHandler(btn.isConfirm);
+                this.footer.appendChild(buttonEl);
+            });
+
+            this.backdrop.classList.remove('hidden');
+            setTimeout(() => this.backdrop.classList.remove('opacity-0'), 10);
+        });
+    },
+    hide() {
+        return new Promise(resolve => {
+            this.backdrop.classList.add('opacity-0');
+            setTimeout(() => {
+                this.backdrop.classList.add('hidden');
+                resolve();
+            }, 300);
+        });
+    }
+};
+
 const multiChoiceModal = {
     backdrop: document.getElementById('multi-choice-modal-backdrop'),
     content: document.getElementById('multi-choice-modal-content'),
@@ -290,7 +330,10 @@ const multiChoiceModal = {
 function getInitialAppState() {
     return {
         version: '3.0.0',
-        ui: { activeTab: 'frontespizio' },
+        ui: {
+            activeTab: 'frontespizio',
+            activeLibrarySubTab: 'vetreria' // 'vetreria' or 'pipette'
+        },
         project: { objective: '', method: '', component: '' },
         samples: [],
         results: {}, // keyed by sample.id
@@ -334,7 +377,64 @@ function render() {
     renderRfResults();
     renderSpikeUncertainty();
     renderTreatments(); // <-- Aggiunta nuova funzione di rendering
+    renderLibraryTabs(); // <-- Funzione per le librerie
+    renderLibraries(); // <-- Funzione per le tabelle delle librerie
     renderDebugInfo();
+}
+
+function renderLibraries() {
+    // Render Glassware Table
+    const glasswareTableBody = document.getElementById('glassware-library-table');
+    if (!glasswareTableBody) return;
+    glasswareTableBody.innerHTML = ''; // Clear existing rows
+    for (const name in appState.libraries.glassware) {
+        const item = appState.libraries.glassware[name];
+        const row = document.createElement('tr');
+        row.className = 'border-b hover:bg-gray-50';
+        row.innerHTML = `
+            <td class="p-3">${name}</td>
+            <td class="p-3 font-mono">${item.volume}</td>
+            <td class="p-3 font-mono">${item.uncertainty}</td>
+            <td class="p-3 space-x-2 whitespace-nowrap">
+                <button data-library="glassware" data-name="${name}" class="btn-edit-library-item text-xs bg-yellow-100 text-yellow-800 font-semibold py-1 px-2 rounded-md hover:bg-yellow-200">Modifica</button>
+                <button data-library="glassware" data-name="${name}" class="btn-duplicate-library-item text-xs bg-blue-100 text-blue-800 font-semibold py-1 px-2 rounded-md hover:bg-blue-200">Duplica</button>
+                <button data-library="glassware" data-name="${name}" class="btn-remove-library-item text-xs bg-red-100 text-red-800 font-semibold py-1 px-2 rounded-md hover:bg-red-200">Rimuovi</button>
+            </td>
+        `;
+        glasswareTableBody.appendChild(row);
+    }
+
+    // Render Pipette Table
+    const pipetteTableBody = document.getElementById('pipette-library-table');
+    if (!pipetteTableBody) return;
+    pipetteTableBody.innerHTML = ''; // Clear existing rows
+    for (const id in appState.libraries.pipettes) {
+        const item = appState.libraries.pipettes[id];
+        const pointsSummary = item.calibrationPoints.map(p => `${p.volume}mL (${p.U_rel_percent}%)`).join(', ');
+        const row = document.createElement('tr');
+        row.className = 'border-b hover:bg-gray-50';
+        row.innerHTML = `
+            <td class="p-3">${id}</td>
+            <td class="p-3 text-xs font-mono">${pointsSummary}</td>
+            <td class="p-3 space-x-2 whitespace-nowrap">
+                <button data-library="pipettes" data-name="${id}" class="btn-edit-library-item text-xs bg-yellow-100 text-yellow-800 font-semibold py-1 px-2 rounded-md hover:bg-yellow-200">Modifica</button>
+                <button data-library="pipettes" data-name="${id}" class="btn-duplicate-library-item text-xs bg-blue-100 text-blue-800 font-semibold py-1 px-2 rounded-md hover:bg-blue-200">Duplica</button>
+                <button data-library="pipettes" data-name="${id}" class="btn-remove-library-item text-xs bg-red-100 text-red-800 font-semibold py-1 px-2 rounded-md hover:bg-red-200">Rimuovi</button>
+            </td>
+        `;
+        pipetteTableBody.appendChild(row);
+    }
+}
+
+function renderLibraryTabs() {
+    const activeSubTab = appState.ui.activeLibrarySubTab;
+    // Gestisce i pulsanti delle sotto-schede
+    document.querySelectorAll('.subtab-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.subtabName === activeSubTab);
+    });
+    // Gestisce la visibilità dei contenuti
+    document.getElementById('subcontent-vetreria').classList.toggle('hidden', activeSubTab !== 'vetreria');
+    document.getElementById('subcontent-pipette').classList.toggle('hidden', activeSubTab !== 'pipette');
 }
 
 function renderTreatments() {
@@ -1202,6 +1302,490 @@ function renderSamplesAndResults() {
 
 // --- ACTIONS ---
 function actionSwitchTab(tabName) { appState.ui.activeTab = tabName; render(); }
+function actionSwitchLibrarySubTab(subTabName) { appState.ui.activeLibrarySubTab = subTabName; render(); }
+
+async function actionAddGlassware() {
+    const confirmed = await formModal.show({
+        title: 'Aggiungi Nuova Vetreria',
+        bodyHTML: `
+            <div class="space-y-4">
+                <div>
+                    <label for="form-field-name" class="block text-sm font-medium text-gray-700">Nome Vetreria</label>
+                    <input type="text" id="form-field-name" class="mt-1 w-full p-2 border border-gray-300 rounded-md" placeholder="Es: Matraccio 250 mL">
+                </div>
+                <div>
+                    <label for="form-field-volume" class="block text-sm font-medium text-gray-700">Volume (mL)</label>
+                    <input type="number" id="form-field-volume" class="mt-1 w-full p-2 border border-gray-300 rounded-md" placeholder="Es: 250">
+                </div>
+                <div>
+                    <label for="form-field-uncertainty" class="block text-sm font-medium text-gray-700">Tolleranza (± mL)</label>
+                    <input type="number" id="form-field-uncertainty" class="mt-1 w-full p-2 border border-gray-300 rounded-md" placeholder="Es: 0.15">
+                </div>
+            </div>
+        `,
+        buttons: [
+            { text: 'Annulla', isConfirm: false, class: secondaryBtnClass },
+            { text: 'Salva', isConfirm: true, class: primaryBtnClass }
+        ]
+    });
+
+    if (confirmed) {
+        const modalBody = document.getElementById('form-modal-body');
+        const name = modalBody.querySelector('#form-field-name').value.trim();
+        const volume = parseFloat(modalBody.querySelector('#form-field-volume').value);
+        const uncertainty = parseFloat(modalBody.querySelector('#form-field-uncertainty').value);
+
+        if (!name) {
+            alert("Il nome non può essere vuoto.");
+            return;
+        }
+        if (appState.libraries.glassware[name]) {
+            alert("Esiste già un elemento di vetreria con questo nome.");
+            return;
+        }
+        if (isNaN(volume) || isNaN(uncertainty) || volume <= 0 || uncertainty < 0) {
+            alert("Volume e Tolleranza devono essere numeri positivi (la tolleranza può essere zero).");
+            return;
+        }
+
+        appState.libraries.glassware[name] = { volume, uncertainty };
+        render();
+        actionSaveLibraries();
+    }
+}
+
+function actionExportLibraries() {
+    try {
+        const librariesString = JSON.stringify(appState.libraries, null, 2);
+        const blob = new Blob([librariesString], { type: 'application/json' });
+        const now = new Date();
+        const fileName = `unccalib_librerie_${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}.json`;
+
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(link.href);
+    } catch (e) {
+        console.error('Failed to export libraries:', e);
+        alert('Esportazione fallita. Controlla la console per i dettagli.');
+    }
+}
+
+function actionImportLibraries(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const loadedLibraries = JSON.parse(e.target.result);
+
+            // Basic validation
+            if (loadedLibraries && loadedLibraries.glassware && loadedLibraries.pipettes) {
+                appState.libraries = loadedLibraries;
+                actionSaveLibraries(); // Persist the new libraries
+                render();
+                alert('Librerie importate con successo!');
+            } else {
+                throw new Error("Il file JSON non ha la struttura corretta. Deve contenere gli oggetti 'glassware' e 'pipettes'.");
+            }
+        } catch (error) {
+            alert(`Errore nell'importazione: ${error.message}`);
+        } finally {
+            // Reset the file input so the same file can be loaded again
+            event.target.value = null;
+        }
+    };
+    reader.readAsText(file);
+}
+
+function actionSaveLibraries() {
+    try {
+        const librariesString = JSON.stringify(appState.libraries);
+        localStorage.setItem('unccalib_libraries', librariesString);
+        console.log('Libraries saved to localStorage.');
+    } catch (e) {
+        console.error('Failed to save libraries to localStorage:', e);
+    }
+}
+
+function actionLoadLibraries() {
+    try {
+        const librariesString = localStorage.getItem('unccalib_libraries');
+        if (librariesString) {
+            const loadedLibraries = JSON.parse(librariesString);
+            // Basic validation
+            if (loadedLibraries && loadedLibraries.glassware && loadedLibraries.pipettes) {
+                appState.libraries = loadedLibraries;
+                console.log('Libraries loaded from localStorage.');
+            }
+        }
+    } catch (e) {
+        console.error('Failed to load libraries from localStorage:', e);
+    }
+}
+
+async function actionEditPipette(id) {
+    const item = appState.libraries.pipettes[id];
+    if (!item) return;
+
+    const createPointRowHTML = (point = { volume: '', U_rel_percent: '' }) => {
+        return `
+            <div class="pipette-point-row flex items-center space-x-2 p-2 bg-gray-50 rounded-md">
+                <input type="number" class="w-full p-1 border-gray-300 rounded-md text-sm pipette-point-volume" value="${point.volume}" placeholder="Volume (mL)">
+                <input type="number" class="w-full p-1 border-gray-300 rounded-md text-sm pipette-point-u" value="${point.U_rel_percent}" placeholder="U rel %">
+                <button type="button" class="btn-remove-pipette-point text-red-500 hover:text-red-700 font-bold px-2" title="Rimuovi punto">&times;</button>
+            </div>
+        `;
+    };
+
+    const pointsHTML = item.calibrationPoints.map(createPointRowHTML).join('');
+
+    const container = document.createElement('div');
+    container.innerHTML = `
+        <div class="space-y-4">
+            <div>
+                <label for="form-field-id" class="block text-sm font-medium text-gray-700">ID Pipetta</label>
+                <input type="text" id="form-field-id" class="mt-1 w-full p-2 border border-gray-300 rounded-md" value="${id}">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Punti di Taratura</label>
+                <div id="pipette-points-container" class="mt-1 space-y-2 border p-2 rounded-md max-h-60 overflow-y-auto">
+                    ${pointsHTML}
+                </div>
+                <button type="button" id="btn-add-pipette-point" class="mt-2 text-xs bg-blue-100 text-blue-800 font-semibold py-1 px-2 rounded-md hover:bg-blue-200">+ Aggiungi Punto</button>
+            </div>
+        </div>
+    `;
+
+    const confirmed = await formModal.show({
+        title: 'Modifica Pipetta',
+        bodyHTML: container.innerHTML,
+        buttons: [
+            { text: 'Annulla', isConfirm: false, class: secondaryBtnClass },
+            { text: 'Salva Modifiche', isConfirm: true, class: primaryBtnClass }
+        ]
+    });
+
+    // This is a bit of a hack to re-attach events to the new modal content
+    const modalBody = document.getElementById('form-modal-body');
+    const addPointBtn = modalBody.querySelector('#btn-add-pipette-point');
+    const pointsContainer = modalBody.querySelector('#pipette-points-container');
+
+    if (addPointBtn && pointsContainer) {
+        addPointBtn.addEventListener('click', () => {
+            pointsContainer.insertAdjacentHTML('beforeend', createPointRowHTML());
+        });
+
+        pointsContainer.addEventListener('click', (e) => {
+            if (e.target.classList.contains('btn-remove-pipette-point')) {
+                e.target.closest('.pipette-point-row').remove();
+            }
+        });
+    }
+
+    if (confirmed) {
+        const newId = modalBody.querySelector('#form-field-id').value.trim();
+
+        if (!newId) {
+            alert("L'ID della pipetta non può essere vuoto.");
+            return;
+        }
+        if (newId !== id && appState.libraries.pipettes[newId]) {
+            alert("Esiste già una pipetta con questo ID.");
+            return;
+        }
+
+        const calibrationPoints = [];
+        const pointRows = modalBody.querySelectorAll('.pipette-point-row');
+        for (const row of pointRows) {
+            const volume = parseFloat(row.querySelector('.pipette-point-volume').value);
+            const U_rel_percent = parseFloat(row.querySelector('.pipette-point-u').value);
+
+            if (!isNaN(volume) && !isNaN(U_rel_percent) && volume > 0 && U_rel_percent > 0) {
+                calibrationPoints.push({ volume, U_rel_percent });
+            }
+        }
+
+        if (calibrationPoints.length === 0) {
+            alert("Inserire almeno un punto di taratura valido. Tutti i valori devono essere numeri positivi.");
+            return;
+        }
+
+        calibrationPoints.sort((a, b) => a.volume - b.volume);
+
+        if (id !== newId) {
+            delete appState.libraries.pipettes[id];
+        }
+        appState.libraries.pipettes[newId] = { calibrationPoints };
+        render();
+        actionSaveLibraries();
+    }
+}
+
+async function actionDuplicatePipette(id) {
+    const itemToCopy = appState.libraries.pipettes[id];
+    if (!itemToCopy) return;
+
+    const confirmed = await formModal.show({
+        title: 'Duplica Pipetta',
+        bodyHTML: `
+            <p>Stai duplicando "<strong>${id}</strong>". Inserisci un nuovo ID per la copia.</p>
+            <div class="mt-4">
+                <label for="form-field-id" class="block text-sm font-medium text-gray-700">Nuovo ID</label>
+                <input type="text" id="form-field-id" class="mt-1 w-full p-2 border border-gray-300 rounded-md" value="${id} (copia)">
+            </div>
+        `,
+        buttons: [
+             { text: 'Annulla', isConfirm: false, class: secondaryBtnClass },
+            { text: 'Crea Duplicato', isConfirm: true, class: primaryBtnClass }
+        ]
+    });
+
+    if (confirmed) {
+        const modalBody = document.getElementById('form-modal-body');
+        const newId = modalBody.querySelector('#form-field-id').value.trim();
+         if (!newId) {
+            alert("L'ID non può essere vuoto.");
+            return;
+        }
+        if (appState.libraries.pipettes[newId]) {
+            alert("Esiste già una pipetta con questo ID.");
+            return;
+        }
+        appState.libraries.pipettes[newId] = deepCopy(itemToCopy);
+        render();
+        actionSaveLibraries();
+    }
+}
+
+async function actionRemovePipette(id) {
+    const confirm = await choiceModal.show({
+        title: 'Conferma Rimozione',
+        bodyContent: `Sei sicuro di voler rimuovere la pipetta "<strong>${id}</strong>" dalla libreria? L'azione è irreversibile.`,
+        buttons: [
+            { text: 'Annulla', value: false, class: secondaryBtnClass },
+            { text: 'Rimuovi', value: true, class: primaryBtnClass.replace('bg-blue-600', 'bg-red-600').replace('hover:bg-blue-700', 'hover:bg-red-700') }
+        ]
+    });
+
+    if (confirm) {
+        delete appState.libraries.pipettes[id];
+        render();
+        actionSaveLibraries();
+    }
+}
+
+async function actionEditGlassware(name) {
+    const item = appState.libraries.glassware[name];
+    if (!item) return;
+
+    const confirmed = await formModal.show({
+        title: 'Modifica Vetreria',
+        bodyHTML: `
+            <div class="space-y-4">
+                <div>
+                    <label for="form-field-name" class="block text-sm font-medium text-gray-700">Nome Vetreria</label>
+                    <input type="text" id="form-field-name" class="mt-1 w-full p-2 border border-gray-300 rounded-md" value="${name}">
+                </div>
+                <div>
+                    <label for="form-field-volume" class="block text-sm font-medium text-gray-700">Volume (mL)</label>
+                    <input type="number" id="form-field-volume" class="mt-1 w-full p-2 border border-gray-300 rounded-md" value="${item.volume}">
+                </div>
+                <div>
+                    <label for="form-field-uncertainty" class="block text-sm font-medium text-gray-700">Tolleranza (± mL)</label>
+                    <input type="number" id="form-field-uncertainty" class="mt-1 w-full p-2 border border-gray-300 rounded-md" value="${item.uncertainty}">
+                </div>
+            </div>
+        `,
+        buttons: [
+            { text: 'Annulla', isConfirm: false, class: secondaryBtnClass },
+            { text: 'Salva Modifiche', isConfirm: true, class: primaryBtnClass }
+        ]
+    });
+
+    if (confirmed) {
+        const modalBody = document.getElementById('form-modal-body');
+        const newName = modalBody.querySelector('#form-field-name').value.trim();
+        const volume = parseFloat(modalBody.querySelector('#form-field-volume').value);
+        const uncertainty = parseFloat(modalBody.querySelector('#form-field-uncertainty').value);
+
+        if (!newName) {
+            alert("Il nome non può essere vuoto.");
+            return;
+        }
+        if (newName !== name && appState.libraries.glassware[newName]) {
+            alert("Esiste già un elemento di vetreria con questo nome.");
+            return;
+        }
+        if (isNaN(volume) || isNaN(uncertainty) || volume <= 0 || uncertainty < 0) {
+            alert("Volume e Tolleranza devono essere numeri positivi (la tolleranza può essere zero).");
+            return;
+        }
+
+        if (name !== newName) {
+            delete appState.libraries.glassware[name];
+        }
+        appState.libraries.glassware[newName] = { volume, uncertainty };
+        render();
+        actionSaveLibraries();
+    }
+}
+
+async function actionRemoveGlassware(name) {
+    const confirm = await choiceModal.show({
+        title: 'Conferma Rimozione',
+        bodyContent: `Sei sicuro di voler rimuovere "<strong>${name}</strong>" dalla libreria? L'azione è irreversibile.`,
+        buttons: [
+            { text: 'Annulla', value: false, class: secondaryBtnClass },
+            { text: 'Rimuovi', value: true, class: primaryBtnClass.replace('bg-blue-600', 'bg-red-600').replace('hover:bg-blue-700', 'hover:bg-red-700') }
+        ]
+    });
+
+    if (confirm) {
+        delete appState.libraries.glassware[name];
+        render();
+        actionSaveLibraries();
+    }
+}
+
+async function actionDuplicateGlassware(name) {
+    const itemToCopy = appState.libraries.glassware[name];
+    if (!itemToCopy) return;
+
+    const confirmed = await formModal.show({
+        title: 'Duplica Vetreria',
+        bodyHTML: `
+            <p>Stai duplicando "<strong>${name}</strong>". Inserisci un nuovo nome per la copia.</p>
+            <div class="mt-4">
+                <label for="form-field-name" class="block text-sm font-medium text-gray-700">Nuovo Nome</label>
+                <input type="text" id="form-field-name" class="mt-1 w-full p-2 border border-gray-300 rounded-md" value="${name} (copia)">
+            </div>
+        `,
+        buttons: [
+             { text: 'Annulla', isConfirm: false, class: secondaryBtnClass },
+            { text: 'Crea Duplicato', isConfirm: true, class: primaryBtnClass }
+        ]
+    });
+
+    if (confirmed) {
+        const modalBody = document.getElementById('form-modal-body');
+        const newName = modalBody.querySelector('#form-field-name').value.trim();
+         if (!newName) {
+            alert("Il nome non può essere vuoto.");
+            return;
+        }
+        if (appState.libraries.glassware[newName]) {
+            alert("Esiste già un elemento di vetreria con questo nome.");
+            return;
+        }
+        appState.libraries.glassware[newName] = deepCopy(itemToCopy);
+        render();
+        actionSaveLibraries();
+    }
+}
+
+
+
+
+async function actionAddPipette() {
+    const container = document.createElement('div');
+
+    const createPointRowHTML = (point = { volume: '', U_rel_percent: '' }) => {
+        const pointId = `point-${Date.now()}-${Math.random()}`;
+        return `
+            <div class="pipette-point-row flex items-center space-x-2 p-2 bg-gray-50 rounded-md" data-point-id="${pointId}">
+                <input type="number" class="w-full p-1 border-gray-300 rounded-md text-sm pipette-point-volume" value="${point.volume}" placeholder="Volume (mL)">
+                <input type="number" class="w-full p-1 border-gray-300 rounded-md text-sm pipette-point-u" value="${point.U_rel_percent}" placeholder="U rel %">
+                <button type="button" class="btn-remove-pipette-point text-red-500 hover:text-red-700 font-bold px-2" title="Rimuovi punto">&times;</button>
+            </div>
+        `;
+    };
+
+    container.innerHTML = `
+        <div class="space-y-4">
+            <div>
+                <label for="form-field-id" class="block text-sm font-medium text-gray-700">ID Pipetta</label>
+                <input type="text" id="form-field-id" class="mt-1 w-full p-2 border border-gray-300 rounded-md" placeholder="Es: 042CHR">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Punti di Taratura</label>
+                <div id="pipette-points-container" class="mt-1 space-y-2 border p-2 rounded-md max-h-60 overflow-y-auto">
+                    ${createPointRowHTML()}
+                    ${createPointRowHTML()}
+                    ${createPointRowHTML()}
+                </div>
+                <button type="button" id="btn-add-pipette-point" class="mt-2 text-xs bg-blue-100 text-blue-800 font-semibold py-1 px-2 rounded-md hover:bg-blue-200">+ Aggiungi Punto</button>
+            </div>
+        </div>
+    `;
+
+    const confirmed = await formModal.show({
+        title: 'Aggiungi Nuova Pipetta',
+        bodyHTML: container.innerHTML,
+        buttons: [
+            { text: 'Annulla', isConfirm: false, class: secondaryBtnClass },
+            { text: 'Salva', isConfirm: true, class: primaryBtnClass }
+        ]
+    });
+
+    // Attach event listeners after the modal is shown and its content is in the DOM
+    const modalBody = document.getElementById('form-modal-body');
+    const addPointBtn = modalBody.querySelector('#btn-add-pipette-point');
+    const pointsContainer = modalBody.querySelector('#pipette-points-container');
+
+    if (addPointBtn && pointsContainer) {
+        addPointBtn.addEventListener('click', () => {
+            pointsContainer.insertAdjacentHTML('beforeend', createPointRowHTML());
+        });
+
+        pointsContainer.addEventListener('click', (e) => {
+            if (e.target.classList.contains('btn-remove-pipette-point')) {
+                e.target.closest('.pipette-point-row').remove();
+            }
+        });
+    }
+
+    if (confirmed) {
+        const id = modalBody.querySelector('#form-field-id').value.trim();
+
+        if (!id) {
+            alert("L'ID della pipetta non può essere vuoto.");
+            return;
+        }
+        if (appState.libraries.pipettes[id]) {
+            alert("Esiste già una pipetta con questo ID.");
+            return;
+        }
+
+        const calibrationPoints = [];
+        const pointRows = modalBody.querySelectorAll('.pipette-point-row');
+        for (const row of pointRows) {
+            const volume = parseFloat(row.querySelector('.pipette-point-volume').value);
+            const U_rel_percent = parseFloat(row.querySelector('.pipette-point-u').value);
+
+            if (!isNaN(volume) && !isNaN(U_rel_percent) && volume > 0 && U_rel_percent > 0) {
+                calibrationPoints.push({ volume, U_rel_percent });
+            }
+        }
+
+        if (calibrationPoints.length === 0) {
+            alert("Inserire almeno un punto di taratura valido. Tutti i valori devono essere numeri positivi.");
+            return;
+        }
+
+        calibrationPoints.sort((a, b) => a.volume - b.volume);
+
+        appState.libraries.pipettes[id] = { calibrationPoints };
+        render();
+        actionSaveLibraries();
+    }
+}
+
+
 function actionAddSample() {
     const newId = appState.samples.length > 0 ? Math.max(...appState.samples.map(s => s.id)) + 1 : 1;
     appState.samples.push({ id: newId, name: `Campione ${newId}`, rawData: '', expectedValue: null, unit: 'µg/L' });
@@ -1953,8 +2537,152 @@ function actionCalculateSpikeUncertainty(sampleId) {
     }
 }
 
+// --- Automated Tests ---
+const assert = (condition, message) => {
+    const testResultsContainer = document.getElementById('test-results-container');
+    if (!testResultsContainer) {
+        console.error("Test results container not found!");
+        return;
+    }
+    const pass = Boolean(condition);
+    const li = document.createElement('li');
+    li.className = `p-2 rounded-md ${pass ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`;
+    li.textContent = `${pass ? '✅ PASS:' : '❌ FAIL:'} ${message}`;
+    testResultsContainer.appendChild(li);
+    if (!pass) {
+        console.error(`Assertion failed: ${message}`);
+        throw new Error(`Test failed: ${message}`);
+    }
+};
+
+const testSuite = async (name, testFn) => {
+    const testResultsContainer = document.getElementById('test-results-container');
+    const h3 = document.createElement('h3');
+    h3.className = 'text-lg font-semibold mt-4 mb-2';
+    h3.textContent = `Suite: ${name}`;
+    if (testResultsContainer) {
+        testResultsContainer.appendChild(h3);
+    }
+    await testFn();
+};
+
+async function runGlasswareCrudTests() {
+    await testSuite('Glassware CRUD', async () => {
+        console.log('Starting Glassware CRUD tests...');
+        const originalLibrary = deepCopy(appState.libraries.glassware);
+        appState.libraries.glassware = {};
+
+        // 1. Add
+        appState.libraries.glassware['Test Flask'] = { volume: 100, uncertainty: 0.1 };
+        render();
+        assert(appState.libraries.glassware['Test Flask'], 'ADD: Item should exist in state');
+
+        // 2. Edit
+        const oldName = 'Test Flask';
+        const newName = 'Test Flask Edited';
+        const item = appState.libraries.glassware[oldName];
+        item.volume = 150;
+        delete appState.libraries.glassware[oldName];
+        appState.libraries.glassware[newName] = item;
+        render();
+        assert(appState.libraries.glassware[newName] && appState.libraries.glassware[newName].volume === 150, 'EDIT: Item should be renamed and updated');
+        assert(!appState.libraries.glassware[oldName], 'EDIT: Old item should be removed');
+
+        // 3. Duplicate
+        const duplicatedName = 'Test Flask Edited (copia)';
+        appState.libraries.glassware[duplicatedName] = deepCopy(appState.libraries.glassware[newName]);
+        render();
+        assert(appState.libraries.glassware[duplicatedName], 'DUPLICATE: New item should exist');
+        assert(appState.libraries.glassware[duplicatedName].volume === 150, 'DUPLICATE: New item should have same data');
+
+        // 4. Remove
+        delete appState.libraries.glassware[newName];
+        render();
+        assert(!appState.libraries.glassware[newName], 'REMOVE: Item should be removed from state');
+
+        // Restore original library
+        appState.libraries.glassware = originalLibrary;
+        render();
+    });
+}
+
+async function runPipetteCrudTests() {
+    await testSuite('Pipette CRUD', async () => {
+        console.log('Starting Pipette CRUD tests...');
+        const originalLibrary = deepCopy(appState.libraries.pipettes);
+        appState.libraries.pipettes = {};
+
+        // 1. Add
+        const newPipette = {
+            calibrationPoints: [{ volume: 1, U_rel_percent: 1 }, { volume: 5, U_rel_percent: 0.5 }]
+        };
+        appState.libraries.pipettes['TestPipette'] = newPipette;
+        render();
+        assert(appState.libraries.pipettes['TestPipette'], 'ADD: Pipette should exist');
+        assert(appState.libraries.pipettes['TestPipette'].calibrationPoints.length === 2, 'ADD: Pipette should have 2 calibration points');
+
+        // 2. Edit
+        const editedPipette = appState.libraries.pipettes['TestPipette'];
+        editedPipette.calibrationPoints.push({ volume: 10, U_rel_percent: 0.2 });
+        appState.libraries.pipettes['TestPipetteEdited'] = editedPipette;
+        delete appState.libraries.pipettes['TestPipette'];
+        render();
+        assert(appState.libraries.pipettes['TestPipetteEdited'].calibrationPoints.length === 3, 'EDIT: Pipette should have 3 calibration points');
+        assert(!appState.libraries.pipettes['TestPipette'], 'EDIT: Old pipette should be removed');
+
+        // 3. Duplicate
+        const duplicatedName = 'TestPipetteEdited (copia)';
+        appState.libraries.pipettes[duplicatedName] = deepCopy(appState.libraries.pipettes['TestPipetteEdited']);
+        render();
+        assert(appState.libraries.pipettes[duplicatedName], 'DUPLICATE: Duplicated pipette should exist');
+        assert(appState.libraries.pipettes[duplicatedName].calibrationPoints.length === 3, 'DUPLICATE: Duplicated pipette should have same data');
+
+        // 4. Remove
+        delete appState.libraries.pipettes['TestPipetteEdited'];
+        render();
+        assert(!appState.libraries.pipettes['TestPipetteEdited'], 'REMOVE: Pipette should be removed');
+
+        // Restore original library
+        appState.libraries.pipettes = originalLibrary;
+        render();
+    });
+}
+
+async function runAllTests() {
+    // Hide modals in case they are open from previous actions
+    if (typeof choiceModal !== 'undefined' && choiceModal.backdrop && !choiceModal.backdrop.classList.contains('hidden')) await choiceModal.hide();
+    if (typeof formModal !== 'undefined' && formModal.backdrop && !formModal.backdrop.classList.contains('hidden')) await formModal.hide();
+    if (typeof multiChoiceModal !== 'undefined' && multiChoiceModal.backdrop && !multiChoiceModal.backdrop.classList.contains('hidden')) await multiChoiceModal.hide();
+
+    // Clear previous results
+    const resultsContainer = document.getElementById('test-results-container');
+    if (resultsContainer) {
+        resultsContainer.innerHTML = '';
+    }
+
+    console.log('Running all automated tests...');
+
+    try {
+        await runGlasswareCrudTests();
+        await runPipetteCrudTests();
+        console.log('All tests completed successfully.');
+        // Display success message in the UI
+        if (resultsContainer) {
+            const li = document.createElement('li');
+            li.className = 'p-2 rounded-md bg-blue-100 text-blue-800 font-bold';
+            li.textContent = '🎉 All tests completed successfully!';
+            resultsContainer.appendChild(li);
+        }
+        return "All tests passed.";
+    } catch(e) {
+        console.error("Test run failed:", e);
+        return `Test failed: ${e.message}`;
+    }
+}
+
 // --- MAIN APP SETUP ---
 function main() {
+    actionLoadLibraries();
     // --- Event Listeners Scheda Analisi Statistica ---
     document.getElementById('btn-add-sample').addEventListener('click', actionAddSample);
     document.getElementById('btn-load-data').addEventListener('click', () => document.getElementById('load-data-input').click());
@@ -2004,9 +2732,57 @@ function main() {
 
     document.querySelector('nav[aria-label="Tabs"]').addEventListener('click', e => { if (e.target.closest('button.tab-btn')) actionSwitchTab(e.target.closest('button.tab-btn').dataset.tabName); });
 
+    // Listener per le sotto-schede della libreria
+    document.querySelector('nav[aria-label="Sub-tabs"]').addEventListener('click', e => {
+        const subtabButton = e.target.closest('button.subtab-btn');
+        if (subtabButton) {
+            actionSwitchLibrarySubTab(subtabButton.dataset.subtabName);
+        }
+    });
+
+    // --- Event Listeners Scheda Gestione Librerie ---
+    document.getElementById('btn-export-libraries').addEventListener('click', actionExportLibraries);
+    document.getElementById('btn-import-libraries').addEventListener('click', () => document.getElementById('import-libraries-input').click());
+    document.getElementById('import-libraries-input').addEventListener('change', actionImportLibraries);
+
+    document.getElementById('btn-add-glassware').addEventListener('click', actionAddGlassware);
+    document.getElementById('btn-add-pipette').addEventListener('click', actionAddPipette);
+
+    const libraryContentContainer = document.getElementById('content-librerie');
+    libraryContentContainer.addEventListener('click', e => {
+        const button = e.target.closest('button');
+        if (!button) return;
+
+        const library = button.dataset.library;
+        const name = button.dataset.name;
+
+        if (button.classList.contains('btn-edit-library-item')) {
+            if (library === 'glassware') {
+                actionEditGlassware(name);
+            } else if (library === 'pipettes') {
+                actionEditPipette(name);
+            }
+        } else if (button.classList.contains('btn-remove-library-item')) {
+            if (library === 'glassware') {
+                actionRemoveGlassware(name);
+            } else if (library === 'pipettes') {
+                actionRemovePipette(name);
+            }
+        } else if (button.classList.contains('btn-duplicate-library-item')) {
+            if (library === 'glassware') {
+                actionDuplicateGlassware(name);
+            } else if (library === 'pipettes') {
+                actionDuplicatePipette(name);
+            }
+        }
+    });
+
     document.getElementById('project-objective').addEventListener('input', e => { appState.project.objective = e.target.value; });
     document.getElementById('project-method').addEventListener('input', e => { appState.project.method = e.target.value; });
     document.getElementById('project-component').addEventListener('input', e => { appState.project.component = e.target.value; });
+
+    // --- Automated Tests Event Listener ---
+    document.getElementById('btn-run-tests').addEventListener('click', runAllTests);
 
     // --- Event Listeners Scheda Incertezza di Preparazione ---
     const prepContainer = document.getElementById('content-preparazione');
