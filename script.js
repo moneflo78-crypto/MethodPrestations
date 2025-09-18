@@ -1632,6 +1632,58 @@ function actionLoadData(event) {
 
 // --- AZIONI PER LA SEZIONE INCERTEZZA DI PREPARAZIONE ---
 
+// Funzione per sincronizzare i valori degli input del DOM con l'appState prima di un re-render
+function syncSpikeInputs(sampleId) {
+    const sampleState = appState.spikeUncertainty[sampleId];
+    if (!sampleState) return;
+
+    const container = document.querySelector(`#spike-calculators-container .bg-white:has(#initial-conc-${sampleId})`);
+    if (!container) return;
+
+    // Sincronizza campi a livello di campione
+    const initialConcInput = container.querySelector(`#initial-conc-${sampleId}`);
+    if (initialConcInput) sampleState.initialConcentration = initialConcInput.value === '' ? null : parseFloat(initialConcInput.value);
+
+    const initialUncInput = container.querySelector(`#initial-unc-${sampleId}`);
+    if (initialUncInput) sampleState.initialUncertainty = initialUncInput.value === '' ? null : parseFloat(initialUncInput.value);
+
+    const unitSelect = container.querySelector(`select[data-sample-id="${sampleId}"][data-field="unit"]`);
+    if (unitSelect) sampleState.unit = unitSelect.value;
+
+    // Sincronizza i passaggi
+    sampleState.steps.forEach(step => {
+        const stepId = step.id;
+
+        // Sincronizza tipo di diluizione
+        const dilutionTypeBtnActive = container.querySelector(`button[data-step-id="${stepId}"].dilution-type-btn.active`);
+        if (dilutionTypeBtnActive) step.dilutionType = dilutionTypeBtnActive.dataset.value;
+
+        if (step.dilutionType === 'bringToVolume') {
+            const flaskSelect = container.querySelector(`select[data-step-id="${stepId}"][data-field="dilutionFlask"]`);
+            if (flaskSelect) step.dilutionFlask = flaskSelect.value || null;
+        } else { // addSolvent
+            const solventVolumeInput = container.querySelector(`input[data-step-id="${stepId}"][data-field="addedSolventVolume"]`);
+            if (solventVolumeInput) step.addedSolventVolume = solventVolumeInput.value === '' ? null : parseFloat(solventVolumeInput.value);
+
+            const solventPipetteSelect = container.querySelector(`select[data-step-id="${stepId}"][data-field="addedSolventPipette"]`);
+            if (solventPipetteSelect) step.addedSolventPipette = solventPipetteSelect.value || null;
+        }
+
+        // Sincronizza i prelievi
+        if (step.withdrawals) {
+            step.withdrawals.forEach(withdrawal => {
+                const withdrawalId = withdrawal.id;
+
+                const pipetteSelect = container.querySelector(`select[data-withdrawal-id="${withdrawalId}"][data-step-id="${step.id}"]`);
+                if (pipetteSelect) withdrawal.pipette = pipetteSelect.value || null;
+
+                const volumeInput = container.querySelector(`input[data-withdrawal-id="${withdrawalId}"][data-step-id="${step.id}"].spike-input-withdrawal-volume`);
+                if (volumeInput) withdrawal.volume = volumeInput.value === '' ? null : parseFloat(volumeInput.value);
+            });
+        }
+    });
+}
+
 function actionAddSpikeStep(sampleId) {
     const sampleState = appState.spikeUncertainty[sampleId];
     if (!sampleState) return;
@@ -1670,25 +1722,6 @@ function actionRemoveSpikeWithdrawal(sampleId, stepId, withdrawalId) {
     const step = appState.spikeUncertainty[sampleId]?.steps.find(s => s.id === stepId);
     if (!step) return;
     step.withdrawals = step.withdrawals.filter(w => w.id !== withdrawalId);
-    render();
-    actionCalculateSpikeUncertainty(sampleId);
-}
-
-function actionUpdateSpikeState({ sampleId, stepId, withdrawalId, field, value }) {
-    const sampleState = appState.spikeUncertainty[sampleId];
-    if (!sampleState) return;
-
-    if (stepId && withdrawalId) {
-        const step = sampleState.steps.find(s => s.id === stepId);
-        const withdrawal = step?.withdrawals.find(w => w.id === withdrawalId);
-        if (withdrawal) { withdrawal[field] = value; }
-    } else if (stepId) {
-        const step = sampleState.steps.find(s => s.id === stepId);
-        if (step) { step[field] = value; }
-    } else {
-        sampleState[field] = value;
-    }
-
     render();
     actionCalculateSpikeUncertainty(sampleId);
 }
@@ -1872,6 +1905,7 @@ function actionCalculateSpikeUncertainty(sampleId) {
         const summary = summaryLines.join('<br>');
 
         // NUOVO: Logica per le verifiche di preparazione e accuratezza
+        const sample = appState.samples.find(s => s.id == sampleId);
         const nominalValue = parseFloat(sample.expectedValue);
         const calculatedConcentration = currentConcentration;
         const meanValue = appState.results[sampleId]?.statistics?.mean;
@@ -1965,8 +1999,8 @@ function main() {
             console.log("Remove button was clicked!"); // DEBUG
             const sampleId = parseInt(removeButton.dataset.sampleId, 10);
             console.log("Sample ID:", sampleId); // DEBUG
-            const sample = appState.samples.find(s => s.id === sampleId);
-            const sampleName = sample ? sample.name : `Campione ${sampleId}`;
+            const sampleInfo = appState.samples.find(s => s.id === sampleId);
+            const sampleName = sampleInfo ? sampleInfo.name : `Campione ${sampleId}`;
 
             const confirmDelete = await choiceModal.show({
                 title: 'Conferma Eliminazione',
@@ -2001,35 +2035,41 @@ function main() {
         const dilutionTypeBtn = e.target.closest('.dilution-type-btn');
 
         if (addStepBtn) {
+            syncSpikeInputs(addStepBtn.dataset.sampleId);
             actionAddSpikeStep(addStepBtn.dataset.sampleId);
         } else if (removeStepBtn) {
+            syncSpikeInputs(removeStepBtn.dataset.sampleId);
             actionRemoveSpikeStep(removeStepBtn.dataset.sampleId, removeStepBtn.dataset.stepId);
         } else if (addWithdrawalBtn) {
+            syncSpikeInputs(addWithdrawalBtn.dataset.sampleId);
             actionAddSpikeWithdrawal(addWithdrawalBtn.dataset.sampleId, addWithdrawalBtn.dataset.stepId);
         } else if (removeWithdrawalBtn) {
+            syncSpikeInputs(removeWithdrawalBtn.dataset.sampleId);
             actionRemoveSpikeWithdrawal(removeWithdrawalBtn.dataset.sampleId, removeWithdrawalBtn.dataset.stepId, removeWithdrawalBtn.dataset.withdrawalId);
         } else if (dilutionTypeBtn) {
             const { sampleId, stepId, field, value } = dilutionTypeBtn.dataset;
-            actionUpdateSpikeState({ sampleId, stepId, field, value });
+            syncSpikeInputs(sampleId);
+            // Manually update the dilutionType in the state before recalculating
+            const sampleState = appState.spikeUncertainty[sampleId];
+            const step = sampleState?.steps.find(s => s.id === stepId);
+            if (step) {
+                step[field] = value;
+            }
+            actionCalculateSpikeUncertainty(sampleId);
         }
     });
 
+    // The 'input' listener was removed to prevent re-rendering on every keystroke.
+    // A single 'change' listener now handles all form inputs (text, number, select)
+    // and triggers a sync and recalculation when the user finishes editing a field.
     prepContainer.addEventListener('change', e => {
         const target = e.target;
-        const { sampleId, stepId, withdrawalId, field: dataField } = target.dataset;
-        const isSpikeInput = target.matches('.spike-input, .spike-input-withdrawal-pipette, [data-field=dilutionFlask], [data-field=addedSolventPipette]');
+        const { sampleId } = target.dataset;
 
-        if (!isSpikeInput) return;
-
-        let field = dataField;
-        let value = target.value;
-
-        if (target.type === 'number') {
-            value = value === '' ? null : parseFloat(value);
-        }
-
-        if (field) {
-            actionUpdateSpikeState({ sampleId, stepId, withdrawalId, field, value });
+        // If the change happened on any input with a sampleId within the spike prep section...
+        if (sampleId && target.closest('#spike-calculators-container')) {
+            syncSpikeInputs(sampleId);
+            actionCalculateSpikeUncertainty(sampleId);
         }
     });
 
@@ -2075,15 +2115,6 @@ function main() {
         render();
     }
 
-    function actionSelectTreatmentSample(treatmentSampleId, selectedSampleId) {
-        const treatmentSample = appState.treatments.find(ts => ts.id === treatmentSampleId);
-        if (treatmentSample) {
-            treatmentSample.sampleId = selectedSampleId ? parseInt(selectedSampleId, 10) : null;
-        }
-        render();
-        // Potrebbe essere necessario ricalcolare qui se la selezione del campione influisce sui calcoli
-    }
-
     function actionAddTreatment(treatmentSampleId, type) {
         const treatmentSample = appState.treatments.find(ts => ts.id === treatmentSampleId);
         if (treatmentSample) {
@@ -2114,6 +2145,7 @@ function main() {
             treatmentSample.treatments.push(newTreatment);
         }
         render();
+        actionCalculateTreatmentChain(treatmentSampleId);
     }
 
     function actionRemoveTreatment(treatmentSampleId, treatmentId) {
@@ -2122,9 +2154,10 @@ function main() {
             treatmentSample.treatments = treatmentSample.treatments.filter(t => t.id !== treatmentId);
         }
         render();
+        actionCalculateTreatmentChain(treatmentSampleId);
     }
 
-    function actionMoveTreatment(treatmentSampleId, treatmentId, direction) {
+     function actionMoveTreatment(treatmentSampleId, treatmentId, direction) {
         const treatmentSample = appState.treatments.find(ts => ts.id === treatmentSampleId);
         if (!treatmentSample) return;
 
@@ -2165,31 +2198,75 @@ function main() {
         }
     }
 
-    function actionUpdateTreatmentState({ treatmentSampleId, treatmentId, withdrawalId, field, value }) {
-        const treatmentSample = appState.treatments.find(ts => ts.id === treatmentSampleId);
-        if (!treatmentSample) return;
+    function syncTreatmentsInputs(treatmentSampleId) {
+        const treatmentSampleState = appState.treatments.find(ts => ts.id === treatmentSampleId);
+        if (!treatmentSampleState) return;
 
-        const treatment = treatmentSample.treatments.find(t => t.id === treatmentId);
-        if (!treatment) return;
+        const container = document.getElementById(treatmentSampleId);
+        if (!container) return;
 
-        if (withdrawalId) {
-            const withdrawal = treatment.withdrawals?.find(w => w.id === withdrawalId);
-            if (withdrawal) {
-                withdrawal[field] = value;
-            }
-        } else if (field.startsWith('source')) {
-            if (field === 'sourceType') treatment.source.type = value;
-            if (field === 'sourceManualConcentration') treatment.source.manualConcentration = value === '' ? null : parseFloat(value);
-            if (field === 'sourceManualUncertainty') treatment.source.manualUncertainty = value === '' ? null : parseFloat(value);
-            if (field === 'sourceSpikeSampleId') treatment.source.spikeSampleId = value === '' ? null : parseInt(value, 10);
-        } else {
-             treatment[field] = value;
+        // Sync sample selection
+        const sampleSelect = container.querySelector(`.select-treatment-sample[data-treatment-sample-id="${treatmentSampleId}"]`);
+        if (sampleSelect) {
+            treatmentSampleState.sampleId = sampleSelect.value ? parseInt(sampleSelect.value, 10) : null;
         }
 
-        actionCalculateTreatmentChain(treatmentSampleId);
-        render();
-        renderDebugInfo();
+        // Sync each treatment step
+        treatmentSampleState.treatments.forEach(treatment => {
+            const treatmentId = treatment.id;
+            const treatmentDiv = container.querySelector(`[data-treatment-id="${treatmentId}"]`);
+            if (!treatmentDiv) return;
+
+            // Sync source (only for first treatment)
+            if (treatmentSampleState.treatments.indexOf(treatment) === 0) {
+                const sourceTypeSelect = treatmentDiv.querySelector(`[data-field="sourceType"]`);
+                if (sourceTypeSelect) treatment.source.type = sourceTypeSelect.value;
+
+                if (treatment.source.type === 'manual') {
+                    const concInput = treatmentDiv.querySelector(`[data-field="sourceManualConcentration"]`);
+                    if (concInput) treatment.source.manualConcentration = concInput.value === '' ? null : parseFloat(concInput.value);
+                    const uncInput = treatmentDiv.querySelector(`[data-field="sourceManualUncertainty"]`);
+                    if (uncInput) treatment.source.manualUncertainty = uncInput.value === '' ? null : parseFloat(uncInput.value);
+                } else if (treatment.source.type === 'spike') {
+                    const spikeSelect = treatmentDiv.querySelector(`[data-field="sourceSpikeSampleId"]`);
+                    if (spikeSelect) treatment.source.spikeSampleId = spikeSelect.value === '' ? null : parseInt(spikeSelect.value, 10);
+                }
+            }
+
+            // Sync treatment-specific fields
+            if (treatment.type === 'diluizione') {
+                // Sync dilution type button
+                const activeDilutionBtn = treatmentDiv.querySelector(`.dilution-type-btn.active`);
+                if(activeDilutionBtn) treatment.dilutionType = activeDilutionBtn.dataset.value;
+
+                if (treatment.dilutionType === 'bringToVolume') {
+                    const flaskSelect = treatmentDiv.querySelector(`[data-field="dilutionFlask"]`);
+                    if (flaskSelect) treatment.dilutionFlask = flaskSelect.value || null;
+                } else { // addSolvent
+                    const solventVolInput = treatmentDiv.querySelector(`[data-field="addedSolventVolume"]`);
+                    if (solventVolInput) treatment.addedSolventVolume = solventVolInput.value === '' ? null : parseFloat(solventVolInput.value);
+                    const solventPipetteSelect = treatmentDiv.querySelector(`[data-field="addedSolventPipette"]`);
+                    if (solventPipetteSelect) treatment.addedSolventPipette = solventPipetteSelect.value || null;
+                }
+
+                // Sync withdrawals
+                treatment.withdrawals.forEach(w => {
+                    const wId = w.id;
+                    const pipetteSelect = treatmentDiv.querySelector(`[data-withdrawal-id="${wId}"][data-field="pipette"]`);
+                    if (pipetteSelect) w.pipette = pipetteSelect.value || null;
+                    const volInput = treatmentDiv.querySelector(`[data-withdrawal-id="${wId}"][data-field="volume"]`);
+                    if (volInput) w.volume = volInput.value === '' ? null : parseFloat(volInput.value);
+                });
+
+            } else if (treatment.type === 'estrazione' || treatment.type === 'concentrazione') {
+                const initialFlask = treatmentDiv.querySelector(`[data-field="initialVolumeFlask"]`);
+                if (initialFlask) treatment.initialVolumeFlask = initialFlask.value || null;
+                const finalFlask = treatmentDiv.querySelector(`[data-field="finalVolumeFlask"]`);
+                if (finalFlask) treatment.finalVolumeFlask = finalFlask.value || null;
+            }
+        });
     }
+
 
     function actionCalculateTreatmentChain(treatmentSampleId) {
         const treatmentSample = appState.treatments.find(ts => ts.id === treatmentSampleId);
@@ -2313,7 +2390,8 @@ function main() {
     document.getElementById('btn-add-treatment-sample').addEventListener('click', actionAddTreatmentSample);
 
     const treatmentsContainer = document.getElementById('treatments-container');
-    if(treatmentsContainer) {
+    if (treatmentsContainer) {
+        // CLICK listener for buttons that modify the structure (add/remove/move)
         treatmentsContainer.addEventListener('click', e => {
             const removeSampleBtn = e.target.closest('.btn-remove-treatment-sample');
             const addTreatmentBtn = e.target.closest('.btn-add-treatment');
@@ -2323,37 +2401,54 @@ function main() {
             const removeWithdrawalBtn = e.target.closest('.btn-remove-treatment-withdrawal');
             const dilutionTypeBtn = e.target.closest('.dilution-type-btn');
 
+            let treatmentSampleId;
+
             if (removeSampleBtn) {
-                actionRemoveTreatmentSample(removeSampleBtn.dataset.treatmentSampleId);
+                treatmentSampleId = removeSampleBtn.dataset.treatmentSampleId;
+                // No sync needed, the whole thing is being removed.
+                actionRemoveTreatmentSample(treatmentSampleId);
             } else if (addTreatmentBtn) {
-                actionAddTreatment(addTreatmentBtn.dataset.treatmentSampleId, addTreatmentBtn.dataset.treatmentType);
+                treatmentSampleId = addTreatmentBtn.dataset.treatmentSampleId;
+                syncTreatmentsInputs(treatmentSampleId);
+                actionAddTreatment(treatmentSampleId, addTreatmentBtn.dataset.treatmentType);
             } else if (removeTreatmentBtn) {
-                actionRemoveTreatment(removeTreatmentBtn.dataset.treatmentSampleId, removeTreatmentBtn.dataset.treatmentId);
+                treatmentSampleId = removeTreatmentBtn.dataset.treatmentSampleId;
+                syncTreatmentsInputs(treatmentSampleId);
+                actionRemoveTreatment(treatmentSampleId, removeTreatmentBtn.dataset.treatmentId);
             } else if (moveTreatmentBtn) {
-                actionMoveTreatment(moveTreatmentBtn.dataset.treatmentSampleId, moveTreatmentBtn.dataset.treatmentId, moveTreatmentBtn.dataset.direction);
+                treatmentSampleId = moveTreatmentBtn.dataset.treatmentSampleId;
+                syncTreatmentsInputs(treatmentSampleId);
+                actionMoveTreatment(treatmentSampleId, moveTreatmentBtn.dataset.treatmentId, moveTreatmentBtn.dataset.direction);
             } else if (addWithdrawalBtn) {
-                actionAddTreatmentWithdrawal(addWithdrawalBtn.dataset.treatmentSampleId, addWithdrawalBtn.dataset.treatmentId);
+                treatmentSampleId = addWithdrawalBtn.dataset.treatmentSampleId;
+                syncTreatmentsInputs(treatmentSampleId);
+                actionAddTreatmentWithdrawal(treatmentSampleId, addWithdrawalBtn.dataset.treatmentId);
             } else if (removeWithdrawalBtn) {
-                actionRemoveTreatmentWithdrawal(removeWithdrawalBtn.dataset.treatmentSampleId, removeWithdrawalBtn.dataset.treatmentId, removeWithdrawalBtn.dataset.withdrawalId);
+                treatmentSampleId = removeWithdrawalBtn.dataset.treatmentSampleId;
+                syncTreatmentsInputs(treatmentSampleId);
+                actionRemoveTreatmentWithdrawal(treatmentSampleId, removeWithdrawalBtn.dataset.treatmentId, removeWithdrawalBtn.dataset.withdrawalId);
             } else if (dilutionTypeBtn) {
-                 const { treatmentSampleId, treatmentId, field, value } = dilutionTypeBtn.dataset;
-                 actionUpdateTreatmentState({ treatmentSampleId, treatmentId, field, value });
+                treatmentSampleId = dilutionTypeBtn.dataset.treatmentSampleId;
+                // The sync function reads the active button, so we just need to sync and recalculate.
+                // The render function will correctly set the 'active' class based on the new state.
+                syncTreatmentsInputs(treatmentSampleId);
+                // Manually update the state for the clicked button before recalculating
+                 const treatment = appState.treatments.find(ts => ts.id === treatmentSampleId)?.treatments.find(t => t.id === dilutionTypeBtn.dataset.treatmentId);
+                if(treatment) treatment.dilutionType = dilutionTypeBtn.dataset.value;
+                actionCalculateTreatmentChain(treatmentSampleId);
+                render(); // Re-render to update the active class
             }
         });
 
+        // CHANGE listener for inputs and selects. This fires when the user is DONE editing a field.
         treatmentsContainer.addEventListener('change', e => {
-            const selectSample = e.target.closest('.select-treatment-sample');
-            const treatmentInput = e.target.closest('.treatment-input');
-
-            if (selectSample) {
-                actionSelectTreatmentSample(selectSample.dataset.treatmentSampleId, e.target.value);
-            } else if (treatmentInput) {
-                const { treatmentSampleId, treatmentId, withdrawalId, field } = treatmentInput.dataset;
-                let value = e.target.value;
-                 if (treatmentInput.type === 'number') {
-                    value = value === '' ? null : parseFloat(value);
-                 }
-                actionUpdateTreatmentState({ treatmentSampleId, treatmentId, withdrawalId, field, value });
+            const treatmentInput = e.target.closest('.treatment-input, .select-treatment-sample');
+            if (treatmentInput) {
+                const { treatmentSampleId } = treatmentInput.dataset;
+                if (treatmentSampleId) {
+                    syncTreatmentsInputs(treatmentSampleId);
+                    actionCalculateTreatmentChain(treatmentSampleId);
+                }
             }
         });
     }
