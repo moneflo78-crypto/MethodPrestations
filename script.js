@@ -1872,8 +1872,8 @@ function actionCalculateSpikeUncertainty(sampleId) {
         const summary = summaryLines.join('<br>');
 
         // NUOVO: Logica per le verifiche di preparazione e accuratezza
-        const spikeSample = appState.samples.find(s => s.id == sampleId);
-        const nominalValue = parseFloat(spikeSample.expectedValue);
+        const sample = appState.samples.find(s => s.id == sampleId);
+        const nominalValue = parseFloat(sample.expectedValue);
         const calculatedConcentration = currentConcentration;
         const meanValue = appState.results[sampleId]?.statistics?.mean;
 
@@ -2015,7 +2015,7 @@ function main() {
         }
     });
 
-    prepContainer.addEventListener('input', e => { // Changed from 'change' to 'input' for better responsiveness
+    prepContainer.addEventListener('change', e => { // Reverted to 'change' to prevent focus stealing on every keystroke
         const target = e.target;
         const { sampleId, stepId, withdrawalId, field: dataField } = target.dataset;
 
@@ -2354,7 +2354,7 @@ function main() {
             }
         });
 
-        treatmentsContainer.addEventListener('input', e => {
+        treatmentsContainer.addEventListener('change', e => {
             const treatmentInput = e.target.closest('.treatment-input');
              if (treatmentInput && treatmentInput.type === 'number') {
                 const { treatmentSampleId, treatmentId, withdrawalId, field } = treatmentInput.dataset;
