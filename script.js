@@ -1905,7 +1905,6 @@ function actionCalculateSpikeUncertainty(sampleId) {
         const summary = summaryLines.join('<br>');
 
         // NUOVO: Logica per le verifiche di preparazione e accuratezza
-        const sample = appState.samples.find(s => s.id == sampleId);
         const nominalValue = parseFloat(sample.expectedValue);
         const calculatedConcentration = currentConcentration;
         const meanValue = appState.results[sampleId]?.statistics?.mean;
