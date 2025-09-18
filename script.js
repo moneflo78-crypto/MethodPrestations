@@ -883,7 +883,7 @@ function renderSpikeUncertainty() {
                                 <div class="flex justify-between items-start mb-2">
                                     <div class="flex-grow pr-4">
                                         <label class="block text-xs font-medium text-gray-600">Pipetta</label>
-                                        <select data-sample-id="${sample.id}" data-step-id="${step.id}" data-withdrawal-id="${withdrawal.id}" class="spike-input-withdrawal-pipette w-full p-1 border border-gray-300 rounded-md text-sm">
+                                        <select data-sample-id="${sample.id}" data-step-id="${step.id}" data-withdrawal-id="${withdrawal.id}" data-field="pipette" class="spike-input-withdrawal-pipette w-full p-1 border border-gray-300 rounded-md text-sm">
                                              <option value="">-- Seleziona --</option>
                                              ${pipetteOptions}
                                         </select>
@@ -893,7 +893,7 @@ function renderSpikeUncertainty() {
                                 <div class="flex items-end space-x-2">
                                     <div class="flex-grow">
                                         <label class="block text-xs font-medium text-gray-600">Volume (mL) <span class="text-gray-400 font-mono">${volHint}</span></label>
-                                        <input type="number" data-sample-id="${sample.id}" data-step-id="${step.id}" data-withdrawal-id="${withdrawal.id}" class="spike-input-withdrawal-volume w-full p-1 border border-gray-300 rounded-md text-sm" value="${withdrawal.volume || ''}" placeholder="Volume">
+                                        <input type="number" data-sample-id="${sample.id}" data-step-id="${step.id}" data-withdrawal-id="${withdrawal.id}" data-field="volume" class="spike-input w-full p-1 border border-gray-300 rounded-md text-sm" value="${withdrawal.volume !== null ? withdrawal.volume : ''}" placeholder="Volume">
                                     </div>
                                     ${uncertaintyDisplayHTML}
                                 </div>
@@ -947,7 +947,7 @@ function renderSpikeUncertainty() {
                         <div class="space-y-3 p-3 bg-gray-100 rounded-md border">
                             <div>
                                 <label for="solvent-volume-${step.id}" class="block text-sm font-medium text-gray-700">Volume Solvente Aggiunto (mL)</label>
-                                <input type="number" id="solvent-volume-${step.id}" data-sample-id="${sample.id}" data-step-id="${step.id}" data-field="addedSolventVolume" class="spike-input mt-1 w-full p-2 border border-gray-300 rounded-md" value="${step.addedSolventVolume || ''}" placeholder="Es: 5">
+                                <input type="number" id="solvent-volume-${step.id}" data-sample-id="${sample.id}" data-step-id="${step.id}" data-field="addedSolventVolume" class="spike-input mt-1 w-full p-2 border border-gray-300 rounded-md" value="${step.addedSolventVolume !== null ? step.addedSolventVolume : ''}" placeholder="Es: 5">
                             </div>
                             <div>
                                 <label for="solvent-pipette-${step.id}" class="block text-sm font-medium text-gray-700">Pipetta per Solvente</label>
@@ -1049,7 +1049,7 @@ function renderSpikeUncertainty() {
                     <div>
                         <label for="initial-conc-${sample.id}" class="block text-sm font-medium text-gray-700">Concentrazione Materiale di Riferimento</label>
                         <div class="flex items-center space-x-2 mt-1">
-                            <input type="number" id="initial-conc-${sample.id}" data-sample-id="${sample.id}" data-field="initialConcentration" class="spike-input w-full p-2 border border-gray-300 rounded-md" value="${sampleSpikeState.initialConcentration || ''}" placeholder="Es: 1000">
+                            <input type="number" id="initial-conc-${sample.id}" data-sample-id="${sample.id}" data-field="initialConcentration" class="spike-input w-full p-2 border border-gray-300 rounded-md" value="${sampleSpikeState.initialConcentration !== null ? sampleSpikeState.initialConcentration : ''}" placeholder="Es: 1000">
                             <select data-sample-id="${sample.id}" data-field="unit" class="spike-input w-auto p-2 border border-gray-300 rounded-md bg-gray-50 text-sm">
                                 <option value="mg/L" ${sampleSpikeState.unit === 'mg/L' ? 'selected' : ''}>mg/L</option>
                                 <option value="µg/L" ${sampleSpikeState.unit === 'µg/L' ? 'selected' : ''}>µg/L</option>
@@ -1058,7 +1058,7 @@ function renderSpikeUncertainty() {
                     </div>
                     <div>
                         <label for="initial-unc-${sample.id}" class="block text-sm font-medium text-gray-700">Incertezza del certificato (U %)</label>
-                        <input type="number" id="initial-unc-${sample.id}" data-sample-id="${sample.id}" data-field="initialUncertainty" class="spike-input mt-1 w-full p-2 border border-gray-300 rounded-md" value="${sampleSpikeState.initialUncertainty || ''}" placeholder="Es: 0.5">
+                        <input type="number" id="initial-unc-${sample.id}" data-sample-id="${sample.id}" data-field="initialUncertainty" class="spike-input mt-1 w-full p-2 border border-gray-300 rounded-md" value="${sampleSpikeState.initialUncertainty !== null ? sampleSpikeState.initialUncertainty : ''}" placeholder="Es: 0.5">
                         ${initialUncertaintyNote}
                     </div>
                 </div>
@@ -1674,6 +1674,23 @@ function actionRemoveSpikeWithdrawal(sampleId, stepId, withdrawalId) {
     actionCalculateSpikeUncertainty(sampleId);
 }
 
+function _updateSpikeStateFromInput({ sampleId, stepId, withdrawalId, field, value }) {
+    const sampleState = appState.spikeUncertainty[sampleId];
+    if (!sampleState) return;
+
+    if (stepId && withdrawalId) {
+        const step = sampleState.steps.find(s => s.id === stepId);
+        const withdrawal = step?.withdrawals.find(w => w.id === withdrawalId);
+        if (withdrawal) { withdrawal[field] = value; }
+    } else if (stepId) {
+        const step = sampleState.steps.find(s => s.id === stepId);
+        if (step) { step[field] = value; }
+    } else {
+        sampleState[field] = value;
+    }
+    renderDebugInfo();
+}
+
 function actionUpdateSpikeState({ sampleId, stepId, withdrawalId, field, value }) {
     const sampleState = appState.spikeUncertainty[sampleId];
     if (!sampleState) return;
@@ -2035,15 +2052,13 @@ function main() {
         const target = e.target;
         const { sampleId, stepId, withdrawalId, field: dataField } = target.dataset;
 
-        const isSpikeInput = target.matches('.spike-input');
+        if (!target.matches('.spike-input')) return;
 
-        if (!isSpikeInput) return;
-
-        let field = dataField;
-        let value = target.type === 'number' ? (target.value === '' ? null : parseFloat(target.value)) : target.value;
+        const field = dataField;
+        const value = target.type === 'number' ? (target.value === '' ? null : parseFloat(target.value)) : target.value;
 
         if (field) {
-             actionUpdateSpikeState({ sampleId, stepId, withdrawalId, field, value });
+             _updateSpikeStateFromInput({ sampleId, stepId, withdrawalId, field, value });
         }
     });
 
@@ -2051,14 +2066,22 @@ function main() {
         const target = e.target;
         const { sampleId, stepId, withdrawalId, field: dataField } = target.dataset;
 
+        // Handle SELECTS - these need a full re-render and calculation
         const isSpikeSelect = target.matches('.spike-input-withdrawal-pipette, [data-field=dilutionFlask], [data-field=addedSolventPipette]');
-        if (!isSpikeSelect) return;
+        if (isSpikeSelect) {
+            const field = dataField;
+            const value = target.value;
+            if (field) {
+                actionUpdateSpikeState({ sampleId, stepId, withdrawalId, field, value });
+            }
+            return; // Stop further execution
+        }
 
-        let field = dataField;
-        let value = target.value;
-
-        if (field) {
-            actionUpdateSpikeState({ sampleId, stepId, withdrawalId, field, value });
+        // Handle number INPUTS - these only need calculation, state is already updated by 'input' listener
+        if (target.matches('.spike-input')) {
+            if (sampleId) {
+                actionCalculateSpikeUncertainty(sampleId);
+            }
         }
      });
 
