@@ -883,7 +883,7 @@ function renderSpikeUncertainty() {
                                 <div class="flex justify-between items-start mb-2">
                                     <div class="flex-grow pr-4">
                                         <label class="block text-xs font-medium text-gray-600">Pipetta</label>
-                                        <select data-sample-id="${sample.id}" data-step-id="${step.id}" data-withdrawal-id="${withdrawal.id}" class="spike-input-withdrawal-pipette w-full p-1 border border-gray-300 rounded-md text-sm">
+                                        <select data-sample-id="${sample.id}" data-step-id="${step.id}" data-withdrawal-id="${withdrawal.id}" data-field="pipette" class="spike-input-withdrawal-pipette w-full p-1 border border-gray-300 rounded-md text-sm">
                                              <option value="">-- Seleziona --</option>
                                              ${pipetteOptions}
                                         </select>
@@ -893,7 +893,7 @@ function renderSpikeUncertainty() {
                                 <div class="flex items-end space-x-2">
                                     <div class="flex-grow">
                                         <label class="block text-xs font-medium text-gray-600">Volume (mL) <span class="text-gray-400 font-mono">${volHint}</span></label>
-                                        <input type="number" data-sample-id="${sample.id}" data-step-id="${step.id}" data-withdrawal-id="${withdrawal.id}" class="spike-input-withdrawal-volume w-full p-1 border border-gray-300 rounded-md text-sm" value="${withdrawal.volume || ''}" placeholder="Volume">
+                                        <input type="number" data-sample-id="${sample.id}" data-step-id="${step.id}" data-withdrawal-id="${withdrawal.id}" data-field="volume" class="spike-input w-full p-1 border border-gray-300 rounded-md text-sm" value="${withdrawal.volume || ''}" placeholder="Volume">
                                     </div>
                                     ${uncertaintyDisplayHTML}
                                 </div>
