@@ -1698,29 +1698,46 @@ function _get_pipette_uncertainty_contribution(pipetteId, volume, libraries) {
         throw new Error("Dati della pipetta incompleti o non validi.");
     }
     const pipette = libraries.pipettes[pipetteId];
+    if (!pipette) {
+        throw new Error(`Pipetta con ID '${pipetteId}' non trovata nella libreria.`);
+    }
     const points = pipette.calibrationPoints.map(p => p.volume);
     if (volume < Math.min(...points) || volume > Math.max(...points)) {
-        throw new Error(`Volume ${volume}mL fuori range per pipetta ${pipetteId}.`);
+        throw new Error(`Volume ${volume}mL fuori range per pipetta ${pipetteId}. Range valido: [${Math.min(...points)} - ${Math.max(...points)}].`);
     }
 
     let uncertainty_U_perc = 0;
     const sortedPoints = pipette.calibrationPoints.slice().sort((a, b) => a.volume - b.volume);
-    let found = false;
-    for (let i = 0; i < sortedPoints.length - 1; i++) {
-        if (volume >= sortedPoints[i].volume && volume <= sortedPoints[i + 1].volume) {
-            uncertainty_U_perc = Math.max(sortedPoints[i].U_rel_percent, sortedPoints[i + 1].U_rel_percent);
-            found = true;
-            break;
+
+    // --- FIX START ---
+    // 1. Check for an exact match first.
+    const exactMatch = sortedPoints.find(p => p.volume === volume);
+    if (exactMatch) {
+        uncertainty_U_perc = exactMatch.U_rel_percent;
+    } else {
+        // 2. If no exact match, find the interval the volume falls into
+        //    and take the max uncertainty of the two bounding points.
+        let foundInInterval = false;
+        for (let i = 0; i < sortedPoints.length - 1; i++) {
+            // Use strict inequality because exact matches are already handled.
+            if (volume > sortedPoints[i].volume && volume < sortedPoints[i + 1].volume) {
+                uncertainty_U_perc = Math.max(sortedPoints[i].U_rel_percent, sortedPoints[i + 1].U_rel_percent);
+                foundInInterval = true;
+                break;
+            }
+        }
+        if (!foundInInterval) {
+            // This case should ideally not be reached due to the range check at the beginning.
+            // It acts as a safeguard against unexpected logic failures.
+            throw new Error(`Logica incertezza pipetta fallita per volume ${volume}. Non è stato trovato un punto esatto o un intervallo valido.`);
         }
     }
-    if (!found) {
-        const match = sortedPoints.find(p => p.volume === volume);
-        if (match) uncertainty_U_perc = match.U_rel_percent;
-        else throw new Error(`Logica incertezza pipetta fallita per volume ${volume}.`);
-    }
+    // --- FIX END ---
 
-    // u_rel = (U_rel_perc / 100) / (k=2 * sqrt(3))
-    const u_rel = (uncertainty_U_perc / 100) / (2 * Math.sqrt(3));
+    // u_rel = (U_rel_perc / 100) / (k=2 * sqrt(3)) -> This is incorrect. It should be U/(k=2) for normal distribution, or U/sqrt(3) for rectangular.
+    // The original formula seems to combine both, which is non-standard.
+    // Let's assume U is given with k=2, so u = U/2. The relative uncertainty u_rel is (U/2)/100.
+    const u_rel = (uncertainty_U_perc / 100) / 2;
     const u_abs = u_rel * volume;
 
     return { u_abs, u_rel_perc: u_rel * 100, U_perc: uncertainty_U_perc };
