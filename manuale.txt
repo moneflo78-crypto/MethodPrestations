@@ -196,10 +196,11 @@ L'applicazione supporta diversi tipi di trattamenti, incluse due modalità di di
 
 1.  **Materiale di Riferimento Certificato:**
     - L'incertezza estesa (`U%`) fornita dal certificato viene convertita in incertezza tipo relativa.
-    - **Formula:** `u_rel = (U% / 100) / k`
+    - **Formula:** `u_rel = (U% / 100) / k / sqrt(2)`
     - **Termini:**
       - `U%`: incertezza percentuale riportata sul certificato.
       - `k`: fattore di copertura (tipicamente `k=2` per un livello di confidenza del 95%). Il codice utilizza `k=2`.
+      - `sqrt(2)`: fattore di divisione aggiuntivo per tenere conto di una distribuzione rettangolare dell'incertezza.
 
 2.  **Vetreria Volumetrica (Matracci):**
     - L'incertezza è basata sulla tolleranza del costruttore, assumendo una distribuzione di probabilità rettangolare.
