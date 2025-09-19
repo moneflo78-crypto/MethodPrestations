@@ -341,18 +341,21 @@ function getInitialAppState() {
             // Data for spike uncertainty calculations, keyed by sample.id
             // Each entry will contain initial concentration, uncertainty, and preparation steps.
         },
+        calibrationSolutionUncertainty: {
+            // Data for calibration solution uncertainty calculations, keyed by a unique ID for each calibration point.
+        },
         libraries: {
             glassware: deepCopy(DEFAULT_GLASSWARE_LIBRARY),
             pipettes: deepCopy(DEFAULT_PIPETTE_LIBRARY),
         },
         calibration: {
             points: [
-                { x: 0.0, y: 0.05 },
-                { x: 0.1, y: 0.18 },
-                { x: 0.5, y: 0.80 },
-                { x: 1.0, y: 1.55 },
-                { x: 1.5, y: 2.28 },
-                { x: 2.0, y: 3.01 },
+                { id: 'cal-point-1', x: 0.0, y: 0.05, unit: 'µg/L' },
+                { id: 'cal-point-2', x: 0.1, y: 0.18, unit: 'µg/L' },
+                { id: 'cal-point-3', x: 0.5, y: 0.80, unit: 'µg/L' },
+                { id: 'cal-point-4', x: 1.0, y: 1.55, unit: 'µg/L' },
+                { id: 'cal-point-5', x: 1.5, y: 2.28, unit: 'µg/L' },
+                { id: 'cal-point-6', x: 2.0, y: 3.01, unit: 'µg/L' },
             ],
             manualSample: { xk: null, p: 1 },
             results: null
@@ -376,10 +379,199 @@ function render() {
     renderCalibrationTab();
     renderRfResults();
     renderSpikeUncertainty();
+    renderCalibrationSolutionUncertainty();
     renderTreatments(); // <-- Aggiunta nuova funzione di rendering
     renderLibraryTabs(); // <-- Funzione per le librerie
     renderLibraries(); // <-- Funzione per le tabelle delle librerie
     renderDebugInfo();
+}
+
+function renderCalibrationSolutionUncertainty() {
+    const container = document.getElementById('calibration-solution-calculators-container');
+    if (!container) return;
+
+    const calibrationPoints = appState.calibration.points;
+
+    if (calibrationPoints.length === 0) {
+        container.innerHTML = `<div class="p-4 bg-gray-50 rounded-lg border text-center text-gray-600">
+            <p>Questa sezione si attiva quando sono presenti punti di taratura nella scheda "Incertezza di Taratura".</p>
+            <p class="mt-2 text-sm">Assicurati di aver inserito almeno un punto di taratura.</p>
+        </div>`;
+        return;
+    }
+
+    let content = '';
+    calibrationPoints.forEach(point => {
+        if (!appState.calibrationSolutionUncertainty[point.id]) {
+            appState.calibrationSolutionUncertainty[point.id] = {
+                initialConcentration: null,
+                initialUncertainty: null,
+                unit: 'mg/L',
+                steps: []
+            };
+        }
+        const pointState = appState.calibrationSolutionUncertainty[point.id];
+
+        let stepsHTML = '';
+        if (pointState.steps.length > 0) {
+            pointState.steps.forEach((step, stepIndex) => {
+                const flaskOptions = Object.keys(appState.libraries.glassware).map(key => {
+                    const flask = appState.libraries.glassware[key];
+                    const isSelected = key === step.dilutionFlask ? 'selected' : '';
+                    return `<option value="${key}" ${isSelected}>${key} (Vol: ${flask.volume} mL, Tol: ±${flask.uncertainty} mL)</option>`;
+                }).join('');
+
+                let withdrawalsHTML = '';
+                 if (step.withdrawals.length > 0) {
+                    step.withdrawals.forEach((withdrawal) => {
+                        const pipetteOptions = Object.keys(appState.libraries.pipettes).map(key => {
+                            const isSelected = key === withdrawal.pipette ? 'selected' : '';
+                            return `<option value="${key}" ${isSelected}>${key}</option>`;
+                        }).join('');
+
+                        let volHint = '';
+                        if (withdrawal.pipette && appState.libraries.pipettes[withdrawal.pipette]) {
+                            const points = appState.libraries.pipettes[withdrawal.pipette].calibrationPoints.map(p => p.volume);
+                            if (points.length > 0) volHint = `(min: ${Math.min(...points)}, max: ${Math.max(...points)})`;
+                        }
+
+                        const uncertaintyValue = withdrawal.pipetteUncertainty_U_perc !== undefined && withdrawal.pipetteUncertainty_U_perc !== null ? withdrawal.pipetteUncertainty_U_perc.toFixed(2) : '';
+                        const uncertaintyDisplayHTML = `
+                            <div class="w-1/3">
+                                <label class="block text-xs font-medium text-gray-600">U (%)</label>
+                                <input type="text" class="w-full p-1 border-gray-200 bg-gray-100 rounded-md text-sm text-center" value="${uncertaintyValue}" readonly title="Incertezza estesa (U%) calcolata per la pipetta e il volume selezionati.">
+                            </div>
+                        `;
+
+                        const pipetteUncertaintyNote = withdrawal.pipetteUncertaintyRelPerc ?
+                            `<div class="text-xs text-gray-500 mt-1" title="Incertezza tipo relativa del prelievo con la pipetta (u_rel)">u_rel(pipetta): <strong>${withdrawal.pipetteUncertaintyRelPerc.toFixed(3)} %</strong></div>` : '';
+
+                        withdrawalsHTML += `
+                            <div class="bg-gray-100 p-3 rounded-md">
+                                <div class="flex justify-between items-start mb-2">
+                                    <div class="flex-grow pr-4">
+                                        <label class="block text-xs font-medium text-gray-600">Pipetta</label>
+                                        <select data-point-id="${point.id}" data-step-id="${step.id}" data-withdrawal-id="${withdrawal.id}" data-field="pipette" class="calsol-input-withdrawal-pipette w-full p-1 border border-gray-300 rounded-md text-sm">
+                                             <option value="">-- Seleziona --</option>
+                                             ${pipetteOptions}
+                                        </select>
+                                    </div>
+                                    <button data-point-id="${point.id}" data-step-id="${step.id}" data-withdrawal-id="${withdrawal.id}" class="btn-remove-calsol-withdrawal text-red-500 hover:text-red-700 font-bold text-xl leading-none mt-1" title="Rimuovi Prelievo">&times;</button>
+                                </div>
+                                <div class="flex items-end space-x-2">
+                                    <div class="flex-grow">
+                                        <label class="block text-xs font-medium text-gray-600">Volume (mL) <span class="text-gray-400 font-mono">${volHint}</span></label>
+                                        <input type="number" data-point-id="${point.id}" data-step-id="${step.id}" data-withdrawal-id="${withdrawal.id}" data-field="volume" class="calsol-input w-full p-1 border border-gray-300 rounded-md text-sm" value="${withdrawal.volume !== null ? withdrawal.volume : ''}" placeholder="Volume">
+                                    </div>
+                                    ${uncertaintyDisplayHTML}
+                                </div>
+                                ${pipetteUncertaintyNote}
+                            </div>
+                        `;
+                    });
+                } else {
+                    withdrawalsHTML = `<p class="text-sm text-gray-500 bg-gray-100 p-2 rounded-md">Nessun prelievo aggiunto.</p>`;
+                }
+
+                const flaskUncertaintyNote = step.flaskUncertaintyRelPerc ?
+                    `<div class="text-xs text-gray-500 mt-1" title="Incertezza tipo relativa del volume del matraccio (u_rel)">u_rel(matraccio): <strong>${step.flaskUncertaintyRelPerc.toFixed(3)} %</strong></div>` : '';
+
+                const intermediateResultNote = step.intermediateConcentration ?
+                    `<div class="mt-4 pt-3 border-t border-gray-300 text-sm font-medium text-gray-700">
+                        <p>Risultato intermedio:
+                           <span class="font-bold text-blue-600">${step.intermediateConcentration.toPrecision(4)}</span> ${point.unit}
+                           (u_rel: <span class="font-bold text-blue-600">${step.intermediateUncertaintyRelPerc.toFixed(2)} %</span>)
+                        </p>
+                    </div>` : '';
+
+                stepsHTML += `
+                    <div class="p-4 border-2 rounded-lg relative bg-gray-50 border-gray-200">
+                        <button data-point-id="${point.id}" data-step-id="${step.id}" class="btn-remove-calsol-step absolute top-2 right-2 text-red-500 hover:text-red-700 font-bold text-xl leading-none" title="Rimuovi Passaggio">&times;</button>
+                        <h4 class="text-lg font-semibold text-gray-700 mb-4">Passaggio di Preparazione ${stepIndex + 1}</h4>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                            <div class="space-y-2">
+                                 <h5 class="font-semibold text-gray-600">Prelievi</h5>
+                                <div id="calsol-withdrawals-container-${step.id}" class="mt-1 space-y-3">
+                                    ${withdrawalsHTML}
+                                </div>
+                                <button data-point-id="${point.id}" data-step-id="${step.id}" class="btn-add-calsol-withdrawal mt-2 text-xs bg-blue-100 text-blue-800 font-semibold py-1 px-2 rounded-md hover:bg-blue-200">+ Aggiungi Prelievo</button>
+                            </div>
+                            <div class="space-y-4">
+                                <h5 class="font-semibold text-gray-600">Preparazione</h5>
+                                <div>
+                                    <label for="calsol-flask-select-${step.id}" class="block text-sm font-medium text-gray-700">Matraccio di diluizione finale</label>
+                                    <select id="calsol-flask-select-${step.id}" data-point-id="${point.id}" data-step-id="${step.id}" data-field="dilutionFlask" class="calsol-input mt-1 w-full p-2 border border-gray-300 rounded-md">
+                                        <option value="">-- Seleziona un matraccio --</option>
+                                        ${flaskOptions}
+                                    </select>
+                                    ${flaskUncertaintyNote}
+                                </div>
+                            </div>
+                        </div>
+                        ${intermediateResultNote}
+                    </div>
+                `;
+            });
+        } else {
+            stepsHTML = `<p class="text-gray-500 italic p-4 text-center">Nessun passaggio di preparazione definito. Aggiungine uno per iniziare.</p>`;
+        }
+
+        let resultsHTML = '';
+        const results = pointState.results;
+        if (results) {
+            resultsHTML = `
+                <div class="mt-4 pt-4 border-t">
+                    <h4 class="text-md font-semibold text-gray-700 mb-2">Riepilogo Finale</h4>
+                    <div class="mt-3 text-right">
+                        <p class="text-sm text-gray-600">Concentrazione Finale Calcolata: <span class="font-bold text-lg text-black">${results.finalConcentration.toPrecision(4)} ${point.unit}</span></p>
+                        <p class="text-sm text-gray-600">Valore Nominale Punto di Taratura: <span class="font-bold text-lg text-black">${parseFloat(point.x).toPrecision(4)} ${point.unit}</span></p>
+                        <p class="text-sm text-gray-600">Incertezza tipo composta (u_c): <span class="font-bold text-black">${results.u_comp.toPrecision(3)}</span></p>
+                        <p class="text-sm text-gray-600">Incertezza tipo composta relativa (u_c %): <span class="font-bold text-black">${results.u_comp_rel_perc.toFixed(2)} %</span></p>
+                    </div>
+                </div>
+            `;
+        }
+
+        const initialUncertaintyNote = pointState.initialUncertaintyRelPerc ?
+            `<div class="text-xs text-gray-500 mt-1" title="Incertezza tipo relativa del materiale di riferimento (u_rel)">u_rel(certificato): <strong>${pointState.initialUncertaintyRelPerc.toFixed(3)} %</strong></div>` : '';
+
+        content += `
+            <div class="bg-white p-6 rounded-lg shadow-md border border-gray-200 mb-6">
+                <h3 class="text-xl font-semibold text-gray-800 mb-4">Preparazione per Punto di Taratura: <span class="font-bold">${point.x} ${point.unit}</span></h3>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 border rounded-md bg-gray-50 mb-4">
+                    <div>
+                        <label for="calsol-initial-conc-${point.id}" class="block text-sm font-medium text-gray-700">Concentrazione Materiale di Riferimento</label>
+                        <div class="flex items-center space-x-2 mt-1">
+                            <input type="number" id="calsol-initial-conc-${point.id}" data-point-id="${point.id}" data-field="initialConcentration" class="calsol-input w-full p-2 border border-gray-300 rounded-md" value="${pointState.initialConcentration !== null ? pointState.initialConcentration : ''}" placeholder="Es: 1000">
+                            <select data-point-id="${point.id}" data-field="unit" class="calsol-input w-auto p-2 border border-gray-300 rounded-md bg-gray-50 text-sm">
+                                <option value="mg/L" ${pointState.unit === 'mg/L' ? 'selected' : ''}>mg/L</option>
+                                <option value="µg/L" ${pointState.unit === 'µg/L' ? 'selected' : ''}>µg/L</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="calsol-initial-unc-${point.id}" class="block text-sm font-medium text-gray-700">Incertezza del certificato (U %)</label>
+                        <input type="number" id="calsol-initial-unc-${point.id}" data-point-id="${point.id}" data-field="initialUncertainty" class="calsol-input mt-1 w-full p-2 border border-gray-300 rounded-md" value="${pointState.initialUncertainty !== null ? pointState.initialUncertainty : ''}" placeholder="Es: 0.5">
+                        ${initialUncertaintyNote}
+                    </div>
+                </div>
+
+                <div id="calsol-steps-container-${point.id}" class="space-y-6">
+                    ${stepsHTML}
+                </div>
+
+                <div class="mt-4 pt-4 border-t flex justify-between items-center">
+                    <button data-point-id="${point.id}" class="btn-add-calsol-step text-sm bg-blue-100 text-blue-800 font-semibold py-2 px-4 rounded-md hover:bg-blue-200 transition">+ Aggiungi Passaggio</button>
+                    <div id="calsol-results-container-${point.id}" class="flex-grow ml-4">
+                         ${resultsHTML}
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    container.innerHTML = content;
 }
 
 function renderLibraries() {
@@ -790,13 +982,26 @@ function renderCalibrationTab() {
     if (!container) return;
     container.innerHTML = '';
 
-    (appState.calibration.points || []).forEach((point, index) => {
+    (appState.calibration.points || []).forEach((point) => {
         const row = document.createElement('div');
         row.className = 'flex items-center space-x-2 mb-2';
         row.innerHTML = `
-            <input type="number" data-index="${index}" data-field="x" placeholder="Valore X (Conc.)" class="w-full p-2 border border-gray-300 rounded-md regression-input" value="${point.x ?? ''}">
-            <input type="number" data-index="${index}" data-field="y" placeholder="Valore Y (Segnale)" class="w-full p-2 border border-gray-300 rounded-md regression-input" value="${point.y ?? ''}">
-            <button data-index="${index}" class="btn-remove-regression-row text-red-500 hover:text-red-700 font-bold px-2" title="Rimuovi riga">&times;</button>
+            <div class="w-2/5">
+                <label class="block text-xs font-medium text-gray-500">Conc. (X)</label>
+                <input type="number" data-id="${point.id}" data-field="x" class="w-full p-2 border border-gray-300 rounded-md regression-input" value="${point.x ?? ''}">
+            </div>
+            <div class="w-1/5">
+                <label class="block text-xs font-medium text-gray-500">Unità</label>
+                <select data-id="${point.id}" data-field="unit" class="w-full p-2 border border-gray-300 rounded-md regression-input bg-gray-50 text-sm h-[42px]">
+                    <option value="µg/L" ${point.unit === 'µg/L' ? 'selected' : ''}>µg/L</option>
+                    <option value="mg/L" ${point.unit === 'mg/L' ? 'selected' : ''}>mg/L</option>
+                </select>
+            </div>
+            <div class="w-2/5">
+                <label class="block text-xs font-medium text-gray-500">Segnale (Y)</label>
+                <input type="number" data-id="${point.id}" data-field="y" class="w-full p-2 border border-gray-300 rounded-md regression-input" value="${point.y ?? ''}">
+            </div>
+            <button data-id="${point.id}" class="btn-remove-regression-row self-end text-red-500 hover:text-red-700 font-bold px-2 pb-2" title="Rimuovi riga">&times;</button>
         `;
         container.appendChild(row);
     });
@@ -2049,21 +2254,34 @@ function actionSaveData() {
 
 // --- AZIONI PER LA SEZIONE TARATURA ---
 function actionAddRegressionRow() {
-    appState.calibration.points.push({ x: null, y: null });
+    const newId = `cal-point-${Date.now()}`;
+    appState.calibration.points.push({ id: newId, x: null, y: null, unit: 'µg/L' });
     renderCalibrationTab();
     renderDebugInfo();
 }
 
-function actionRemoveRegressionRow(index) {
-    appState.calibration.points.splice(index, 1);
-    renderCalibrationTab();
-    renderDebugInfo();
+function actionRemoveRegressionRow(id) {
+    appState.calibration.points = appState.calibration.points.filter(p => p.id !== id);
+    // Also remove any associated uncertainty calculation data
+    if (appState.calibrationSolutionUncertainty[id]) {
+        delete appState.calibrationSolutionUncertainty[id];
+    }
+    render(); // Use full render to update all dependent sections
 }
 
-function actionUpdateRegressionPoint(index, field, value) {
-    const numValue = value === '' ? null : parseFloat(value);
-    appState.calibration.points[index][field] = numValue;
-    renderDebugInfo(); // Aggiorna la vista di debug
+function actionUpdateRegressionPoint(id, field, value) {
+    const point = appState.calibration.points.find(p => p.id === id);
+    if (!point) return;
+
+    if (field === 'unit') {
+        point[field] = value;
+    } else {
+        const numValue = value === '' ? null : parseFloat(value);
+        point[field] = numValue;
+    }
+
+    // When a calibration point value changes, we should also re-render the dependent sections
+    render();
 }
 
 function actionUpdateManualCalibrationSample(field, value) {
@@ -2345,6 +2563,66 @@ function _get_pipette_uncertainty_contribution(pipetteId, volume, libraries) {
 }
 
 
+function actionAddCalSolStep(pointId) {
+    const pointState = appState.calibrationSolutionUncertainty[pointId];
+    if (!pointState) return;
+    const newStepId = `calsol-step-${Date.now()}`;
+    pointState.steps.push({
+        id: newStepId,
+        dilutionFlask: null,
+        withdrawals: [
+            { id: `calsol-w-${Date.now()}`, pipette: null, volume: null }
+        ]
+    });
+    render();
+    actionCalculateCalibrationSolutionUncertainty(pointId);
+}
+
+function actionRemoveCalSolStep(pointId, stepId) {
+    const pointState = appState.calibrationSolutionUncertainty[pointId];
+    if (!pointState) return;
+    pointState.steps = pointState.steps.filter(s => s.id !== stepId);
+    render();
+    actionCalculateCalibrationSolutionUncertainty(pointId);
+}
+
+function actionAddCalSolWithdrawal(pointId, stepId) {
+    const step = appState.calibrationSolutionUncertainty[pointId]?.steps.find(s => s.id === stepId);
+    if (!step) return;
+    step.withdrawals.push({ id: `calsol-w-${Date.now()}`, pipette: null, volume: null });
+    render();
+    actionCalculateCalibrationSolutionUncertainty(pointId);
+}
+
+function actionRemoveCalSolWithdrawal(pointId, stepId, withdrawalId) {
+    const step = appState.calibrationSolutionUncertainty[pointId]?.steps.find(s => s.id === stepId);
+    if (!step) return;
+    step.withdrawals = step.withdrawals.filter(w => w.id !== withdrawalId);
+    render();
+    actionCalculateCalibrationSolutionUncertainty(pointId);
+}
+
+function actionUpdateCalSolState({ pointId, stepId, withdrawalId, field, value }) {
+    const pointState = appState.calibrationSolutionUncertainty[pointId];
+    if (!pointState) return;
+
+    if (stepId && withdrawalId) {
+        const step = pointState.steps.find(s => s.id === stepId);
+        const withdrawal = step?.withdrawals.find(w => w.id === withdrawalId);
+        if (withdrawal) {
+            withdrawal[field] = value;
+        }
+    } else if (stepId) {
+        const step = pointState.steps.find(s => s.id === stepId);
+        if (step) {
+            step[field] = value;
+        }
+    } else {
+        pointState[field] = value;
+    }
+    actionCalculateCalibrationSolutionUncertainty(pointId);
+}
+
 function actionCalculateSpikeUncertainty(sampleId) {
     const sampleState = appState.spikeUncertainty[sampleId];
     const resultsContainer = document.getElementById(`spike-results-container-${sampleId}`);
@@ -2553,6 +2831,101 @@ function actionCalculateSpikeUncertainty(sampleId) {
         console.error("Errore nel calcolo dello spike:", e);
     }
 }
+
+function actionCalculateCalibrationSolutionUncertainty(pointId) {
+    const pointState = appState.calibrationSolutionUncertainty[pointId];
+    const point = appState.calibration.points.find(p => p.id === pointId);
+    if (!pointState || !point) return;
+
+    // Funzione di utilità per pulire i risultati
+    const resetResults = () => {
+        pointState.results = null;
+        pointState.initialUncertaintyRelPerc = null;
+        pointState.steps.forEach(step => {
+            step.intermediateConcentration = null;
+            step.intermediateUncertaintyRelPerc = null;
+            step.flaskUncertaintyRelPerc = null;
+            step.withdrawals.forEach(w => {
+                w.pipetteUncertaintyRelPerc = null;
+                w.pipetteUncertainty_U_perc = null;
+            });
+        });
+    };
+
+    try {
+        resetResults();
+
+        if (pointState.initialConcentration === null || pointState.initialConcentration <= 0) {
+            render(); // Rirenderizza per pulire l'UI ma non mostra errori
+            return;
+        }
+
+        const targetUnit = point.unit;
+        const sourceUnit = pointState.unit;
+        const convertedInitialConcentration = convertConcentration(pointState.initialConcentration, sourceUnit, targetUnit);
+
+        let currentConcentration = convertedInitialConcentration;
+        let sum_u_rel_sq = 0;
+
+        if (pointState.initialUncertainty !== null && pointState.initialUncertainty > 0) {
+            const u_rel_initial = pointState.initialUncertainty / (200 * Math.sqrt(2));
+            sum_u_rel_sq += Math.pow(u_rel_initial, 2);
+            pointState.initialUncertaintyRelPerc = u_rel_initial * 100;
+        }
+
+        for (const step of pointState.steps) {
+            if (step.withdrawals.length === 0) throw new Error(`Nessun prelievo nel passaggio.`);
+            if (step.withdrawals.some(w => !w.pipette || w.volume === null || w.volume <= 0)) {
+                throw new Error(`Dati di prelievo incompleti o non validi.`);
+            }
+            if (!step.dilutionFlask) throw new Error(`Matraccio non selezionato.`);
+
+            let totalWithdrawalVolume = 0;
+            let sum_u_abs_sq_withdrawals = 0;
+
+            for (const w of step.withdrawals) {
+                totalWithdrawalVolume += w.volume;
+                const contrib = _get_pipette_uncertainty_contribution(w.pipette, w.volume, appState.libraries);
+                w.pipetteUncertainty_U_perc = contrib.U_perc;
+                w.pipetteUncertaintyRelPerc = contrib.u_rel_perc;
+                sum_u_abs_sq_withdrawals += Math.pow(contrib.u_abs, 2);
+            }
+            const u_abs_total_withdrawal = Math.sqrt(sum_u_abs_sq_withdrawals);
+            const u_rel_sq_total_withdrawal = totalWithdrawalVolume > 0 ? Math.pow(u_abs_total_withdrawal / totalWithdrawalVolume, 2) : 0;
+
+            const flask = appState.libraries.glassware[step.dilutionFlask];
+            const u_rel_flask = (flask.uncertainty / flask.volume / Math.sqrt(3));
+            step.flaskUncertaintyRelPerc = u_rel_flask * 100;
+            const u_rel_sq_flask = Math.pow(u_rel_flask, 2);
+
+            sum_u_rel_sq += u_rel_sq_total_withdrawal + u_rel_sq_flask;
+            currentConcentration = currentConcentration * (totalWithdrawalVolume / flask.volume);
+
+            step.intermediateConcentration = currentConcentration;
+            step.intermediateUncertaintyRelPerc = Math.sqrt(sum_u_rel_sq) * 100;
+        }
+
+        const final_u_rel = Math.sqrt(sum_u_rel_sq);
+        const final_u_abs = final_u_rel * currentConcentration;
+        const final_u_rel_perc = final_u_rel * 100;
+
+        pointState.results = {
+            finalConcentration: currentConcentration,
+            u_comp: final_u_abs,
+            u_comp_rel_perc: final_u_rel_perc,
+        };
+
+        render();
+
+    } catch (e) {
+        console.error("Errore nel calcolo della soluzione di taratura:", e);
+        // Non mostriamo un errore popup, ma l'assenza di risultati indicherà il problema.
+        // L'errore viene loggato in console per il debug.
+        resetResults();
+        render();
+    }
+}
+
 
 // --- Automated Tests ---
 const assert = (condition, message) => {
@@ -2836,59 +3209,66 @@ function main() {
     // --- Event Listeners Scheda Incertezza di Preparazione ---
     const prepContainer = document.getElementById('content-preparazione');
     prepContainer.addEventListener('click', e => {
-        const addStepBtn = e.target.closest('.btn-add-step');
-        const removeStepBtn = e.target.closest('.btn-remove-step');
-        const addWithdrawalBtn = e.target.closest('.btn-add-withdrawal');
-        const removeWithdrawalBtn = e.target.closest('.btn-remove-withdrawal');
-        const dilutionTypeBtn = e.target.closest('.dilution-type-btn');
+        const target = e.target;
+        // Spike listeners
+        const addStepBtn = target.closest('.btn-add-step');
+        const removeStepBtn = target.closest('.btn-remove-step');
+        const addWithdrawalBtn = target.closest('.btn-add-withdrawal');
+        const removeWithdrawalBtn = target.closest('.btn-remove-withdrawal');
+        const dilutionTypeBtn = target.closest('.dilution-type-btn');
+        // Calibration solution listeners
+        const addCalSolStepBtn = target.closest('.btn-add-calsol-step');
+        const removeCalSolStepBtn = target.closest('.btn-remove-calsol-step');
+        const addCalSolWithdrawalBtn = target.closest('.btn-add-calsol-withdrawal');
+        const removeCalSolWithdrawalBtn = target.closest('.btn-remove-calsol-withdrawal');
 
-        if (addStepBtn) {
-            actionAddSpikeStep(addStepBtn.dataset.sampleId);
-        } else if (removeStepBtn) {
-            actionRemoveSpikeStep(removeStepBtn.dataset.sampleId, removeStepBtn.dataset.stepId);
-        } else if (addWithdrawalBtn) {
-            actionAddSpikeWithdrawal(addWithdrawalBtn.dataset.sampleId, addWithdrawalBtn.dataset.stepId);
-        } else if (removeWithdrawalBtn) {
-            actionRemoveSpikeWithdrawal(removeWithdrawalBtn.dataset.sampleId, removeWithdrawalBtn.dataset.stepId, removeWithdrawalBtn.dataset.withdrawalId);
-        } else if (dilutionTypeBtn) {
-            const { sampleId, stepId, field, value } = dilutionTypeBtn.dataset;
-            actionUpdateSpikeState({ sampleId, stepId, field, value });
-        }
+        if (addStepBtn) actionAddSpikeStep(addStepBtn.dataset.sampleId);
+        else if (removeStepBtn) actionRemoveSpikeStep(removeStepBtn.dataset.sampleId, removeStepBtn.dataset.stepId);
+        else if (addWithdrawalBtn) actionAddSpikeWithdrawal(addWithdrawalBtn.dataset.sampleId, addWithdrawalBtn.dataset.stepId);
+        else if (removeWithdrawalBtn) actionRemoveSpikeWithdrawal(removeWithdrawalBtn.dataset.sampleId, removeWithdrawalBtn.dataset.stepId, removeWithdrawalBtn.dataset.withdrawalId);
+        else if (dilutionTypeBtn) actionUpdateSpikeState({ ...dilutionTypeBtn.dataset });
+        else if (addCalSolStepBtn) actionAddCalSolStep(addCalSolStepBtn.dataset.pointId);
+        else if (removeCalSolStepBtn) actionRemoveCalSolStep(removeCalSolStepBtn.dataset.pointId, removeCalSolStepBtn.dataset.stepId);
+        else if (addCalSolWithdrawalBtn) actionAddCalSolWithdrawal(addCalSolWithdrawalBtn.dataset.pointId, addCalSolWithdrawalBtn.dataset.stepId);
+        else if (removeCalSolWithdrawalBtn) actionRemoveCalSolWithdrawal(removeCalSolWithdrawalBtn.dataset.pointId, removeCalSolWithdrawalBtn.dataset.stepId, removeCalSolWithdrawalBtn.dataset.withdrawalId);
     });
 
-    prepContainer.addEventListener('input', e => { // Changed from 'change' to 'input' for better responsiveness
+    prepContainer.addEventListener('input', e => {
         const target = e.target;
-        const { sampleId, stepId, withdrawalId, field: dataField } = target.dataset;
+        const { sampleId, stepId, withdrawalId, field: dataField, pointId } = target.dataset;
 
-        if (!target.matches('.spike-input')) return;
-
-        const field = dataField;
-        const value = target.type === 'number' ? (target.value === '' ? null : parseFloat(target.value)) : target.value;
-
-        if (field) {
-             _updateSpikeStateFromInput({ sampleId, stepId, withdrawalId, field, value });
-        }
-    });
-
-     prepContainer.addEventListener('change', e => { // Keep a change listener for selects
-        const target = e.target;
-        const { sampleId, stepId, withdrawalId, field: dataField } = target.dataset;
-
-        // Handle SELECTS - these need a full re-render and calculation
-        const isSpikeSelect = target.matches('.spike-input-withdrawal-pipette, [data-field=dilutionFlask], [data-field=addedSolventPipette]');
-        if (isSpikeSelect) {
-            const field = dataField;
-            const value = target.value;
-            if (field) {
-                actionUpdateSpikeState({ sampleId, stepId, withdrawalId, field, value });
-            }
-            return; // Stop further execution
-        }
-
-        // Handle number INPUTS - these only need calculation, state is already updated by 'input' listener
         if (target.matches('.spike-input')) {
-            if (sampleId) {
-                actionCalculateSpikeUncertainty(sampleId);
+            const field = dataField;
+            const value = target.type === 'number' ? (target.value === '' ? null : parseFloat(target.value)) : target.value;
+            if (field) _updateSpikeStateFromInput({ sampleId, stepId, withdrawalId, field, value });
+        }
+        // No need for a separate cal-sol listener here, as 'change' will handle the final update and calculation
+    });
+
+     prepContainer.addEventListener('change', e => {
+        const target = e.target;
+        const { sampleId, stepId, withdrawalId, field: dataField, pointId } = target.dataset;
+
+        // --- Spike Logic ---
+        const isSpikeRelated = target.matches('.spike-input, .spike-input-withdrawal-pipette');
+        if (isSpikeRelated && sampleId) {
+            const field = dataField;
+            const value = target.type === 'number' ? (target.value === '' ? null : parseFloat(target.value)) : target.value;
+            if(field) {
+                actionUpdateSpikeState({ sampleId, stepId, withdrawalId, field, value });
+            } else if (target.matches('.spike-input')) { // Fallback for inputs without a specific field (like after 'input' event)
+                 actionCalculateSpikeUncertainty(sampleId);
+            }
+            return;
+        }
+
+        // --- Calibration Solution Logic ---
+        const isCalSolRelated = target.matches('.calsol-input, .calsol-input-withdrawal-pipette');
+        if (isCalSolRelated && pointId) {
+            const field = dataField;
+            const value = target.type === 'number' ? (target.value === '' ? null : parseFloat(target.value)) : target.value;
+            if (field) {
+                actionUpdateCalSolState({ pointId, stepId, withdrawalId, field, value });
             }
         }
      });
@@ -2900,15 +3280,18 @@ function main() {
     document.getElementById('btn-calculate-response-factor').addEventListener('click', actionCalculateResponseFactor);
 
     const regressionContainer = document.getElementById('regression-table-container');
-    regressionContainer.addEventListener('input', e => {
+    // Use 'change' to handle select dropdowns and when number inputs lose focus.
+    regressionContainer.addEventListener('change', e => {
         const target = e.target;
-        if (target.classList.contains('regression-input') && target.dataset.index) {
-            actionUpdateRegressionPoint(parseInt(target.dataset.index), target.dataset.field, target.value);
+        if (target.classList.contains('regression-input') && target.dataset.id) {
+            actionUpdateRegressionPoint(target.dataset.id, target.dataset.field, target.value);
         }
     });
+
     regressionContainer.addEventListener('click', e => {
-        if (e.target.classList.contains('btn-remove-regression-row')) {
-            actionRemoveRegressionRow(parseInt(e.target.dataset.index));
+        const target = e.target;
+        if (target.classList.contains('btn-remove-regression-row') && target.dataset.id) {
+            actionRemoveRegressionRow(target.dataset.id);
         }
     });
 
