@@ -3584,15 +3584,6 @@ function main() {
             }
         });
 
-        treatmentsContainer.addEventListener('input', e => {
-            const treatmentInput = e.target.closest('.treatment-input');
-             if (treatmentInput && treatmentInput.type === 'number') {
-                const { treatmentSampleId, treatmentId, withdrawalId, field } = treatmentInput.dataset;
-                let value = e.target.value === '' ? null : parseFloat(e.target.value);
-                actionUpdateTreatmentState({ treatmentSampleId, treatmentId, withdrawalId, field, value });
-            }
-        });
-
         treatmentsContainer.addEventListener('change', e => {
             const selectSample = e.target.closest('.select-treatment-sample');
             const treatmentInput = e.target.closest('.treatment-input');
@@ -3601,7 +3592,14 @@ function main() {
                 actionSelectTreatmentSample(selectSample.dataset.treatmentSampleId, e.target.value);
             } else if (treatmentInput) {
                 const { treatmentSampleId, treatmentId, withdrawalId, field } = treatmentInput.dataset;
-                let value = e.target.value;
+                let value;
+                if (treatmentInput.type === 'number') {
+                    // Converte in numero se il campo è di tipo numerico
+                    value = e.target.value === '' ? null : parseFloat(e.target.value);
+                } else {
+                    // Altrimenti, mantiene la stringa
+                    value = e.target.value;
+                }
                 actionUpdateTreatmentState({ treatmentSampleId, treatmentId, withdrawalId, field, value });
             }
         });
