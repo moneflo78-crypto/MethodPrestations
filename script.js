@@ -684,11 +684,11 @@ function renderTreatments() {
                             <div class="grid grid-cols-2 gap-2 mt-2">
                                 <div>
                                     <label class="block text-xs font-medium text-gray-600">Concentrazione</label>
-                                    <input type="number" data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-field="sourceManualConcentration" class="treatment-input w-full p-1 border-gray-300 rounded-md text-sm" value="${treatment.source.manualConcentration || ''}" placeholder="Conc. iniziale">
+                                    <input type="text" inputmode="decimal" data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-field="sourceManualConcentration" class="treatment-input w-full p-1 border-gray-300 rounded-md text-sm" value="${treatment.source.manualConcentration !== null ? String(treatment.source.manualConcentration).replace('.', ',') : ''}" placeholder="Conc. iniziale">
                                 </div>
                                 <div>
                                     <label class="block text-xs font-medium text-gray-600">U% (k=2)</label>
-                                    <input type="number" data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-field="sourceManualUncertainty" class="treatment-input w-full p-1 border-gray-300 rounded-md text-sm" value="${treatment.source.manualUncertainty || ''}" placeholder="Incertezza %">
+                                    <input type="text" inputmode="decimal" data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-field="sourceManualUncertainty" class="treatment-input w-full p-1 border-gray-300 rounded-md text-sm" value="${treatment.source.manualUncertainty !== null ? String(treatment.source.manualUncertainty).replace('.', ',') : ''}" placeholder="Incertezza %">
                                 </div>
                             </div>
                         ` : ''}
@@ -744,7 +744,7 @@ function renderTreatments() {
                                     <div class="flex items-end space-x-2">
                                         <div class="flex-grow">
                                             <label class="block text-xs font-medium text-gray-600">Volume (mL) <span class="text-gray-400 font-mono">${volHint}</span></label>
-                                            <input type="number" data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-withdrawal-id="${w.id}" data-field="volume" class="treatment-input w-full p-1 border border-gray-300 rounded-md text-sm" value="${w.volume || ''}" placeholder="Volume">
+                                            <input type="text" inputmode="decimal" data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-withdrawal-id="${w.id}" data-field="volume" class="treatment-input w-full p-1 border border-gray-300 rounded-md text-sm" value="${w.volume !== null ? String(w.volume).replace('.',',') : ''}" placeholder="Volume">
                                         </div>
                                         ${uncertaintyDisplayHTML}
                                     </div>
@@ -794,7 +794,7 @@ function renderTreatments() {
                             <div class="space-y-3 p-3 bg-gray-100 rounded-md border">
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700">Volume Solvente Aggiunto (mL)</label>
-                                    <input type="number" data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-field="addedSolventVolume" class="treatment-input mt-1 w-full p-2 border border-gray-300 rounded-md" value="${treatment.addedSolventVolume || ''}" placeholder="Es: 5">
+                                    <input type="text" inputmode="decimal" data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-field="addedSolventVolume" class="treatment-input mt-1 w-full p-2 border border-gray-300 rounded-md" value="${treatment.addedSolventVolume !== null ? String(treatment.addedSolventVolume).replace('.',',') : ''}" placeholder="Es: 5">
                                 </div>
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700">Pipetta per Solvente</label>
@@ -3650,12 +3650,29 @@ function main() {
             } else if (treatmentInput) {
                 const { treatmentSampleId, treatmentId, withdrawalId, field } = treatmentInput.dataset;
                 let value;
-                if (treatmentInput.type === 'number') {
-                    value = e.target.value === '' ? null : parseFloat(e.target.value);
+                let shouldUpdate = true;
+
+                if (treatmentInput.inputMode === 'decimal') {
+                    const rawValue = e.target.value;
+                    if (rawValue === '' || rawValue === '-') {
+                        value = null; // Set to null but still update to clear the state
+                    } else {
+                        const normalizedValue = rawValue.replace(',', '.');
+                        // Don't update state if the value is not a valid number or is a partial number
+                        // (e.g., "1,5" is fine, but "1," or "1." should wait for more input)
+                        if (isNaN(parseFloat(normalizedValue)) || normalizedValue.slice(-1) === '.' || normalizedValue.slice(-1) === ',') {
+                            shouldUpdate = false;
+                        } else {
+                            value = parseFloat(normalizedValue);
+                        }
+                    }
                 } else {
                     value = e.target.value;
                 }
-                actionUpdateTreatmentState({ treatmentSampleId, treatmentId, withdrawalId, field, value });
+
+                if (shouldUpdate) {
+                    actionUpdateTreatmentState({ treatmentSampleId, treatmentId, withdrawalId, field, value });
+                }
             }
 
             // --- FOCUS RESTORING ---
