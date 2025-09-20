@@ -3623,67 +3623,29 @@ function main() {
             }
         });
 
-        treatmentsContainer.addEventListener('input', e => {
+        treatmentsContainer.addEventListener('change', e => {
             const selectSample = e.target.closest('.select-treatment-sample');
             const treatmentInput = e.target.closest('.treatment-input');
 
-            // --- FOCUS SAVING ---
-            const focusedElement = document.activeElement;
-            let focusedSelector = null;
-            let selectionStart = null;
-            if (focusedElement && (focusedElement.closest('.treatment-input') || focusedElement.closest('.select-treatment-sample'))) {
-                const ds = focusedElement.dataset;
-                // Build a unique selector from data attributes
-                focusedSelector = `[data-field="${ds.field}"]`;
-                if (ds.withdrawalId) focusedSelector += `[data-withdrawal-id="${ds.withdrawalId}"]`;
-                if (ds.treatmentId) focusedSelector += `[data-treatment-id="${ds.treatmentId}"]`;
-                if (ds.treatmentSampleId) focusedSelector += `[data-treatment-sample-id="${ds.treatmentSampleId}"]`;
-
-                if (focusedElement.selectionStart !== undefined) {
-                    selectionStart = focusedElement.selectionStart;
-                }
-            }
-
-            // --- STATE UPDATE ---
             if (selectSample) {
                 actionSelectTreatmentSample(selectSample.dataset.treatmentSampleId, e.target.value);
             } else if (treatmentInput) {
                 const { treatmentSampleId, treatmentId, withdrawalId, field } = treatmentInput.dataset;
                 let value;
-                let shouldUpdate = true;
 
                 if (treatmentInput.inputMode === 'decimal') {
                     const rawValue = e.target.value;
-                    if (rawValue === '' || rawValue === '-') {
-                        value = null; // Set to null but still update to clear the state
-                    } else {
-                        const normalizedValue = rawValue.replace(',', '.');
-                        // Don't update state if the value is not a valid number or is a partial number
-                        // (e.g., "1,5" is fine, but "1," or "1." should wait for more input)
-                        if (isNaN(parseFloat(normalizedValue)) || normalizedValue.slice(-1) === '.' || normalizedValue.slice(-1) === ',') {
-                            shouldUpdate = false;
-                        } else {
-                            value = parseFloat(normalizedValue);
-                        }
+                    // Replace comma and parse. If empty, it becomes null.
+                    value = rawValue ? parseFloat(rawValue.replace(',', '.')) : null;
+                    // If parsing fails (e.g., for "abc"), result is NaN. Treat as null.
+                    if (isNaN(value)) {
+                        value = null;
                     }
                 } else {
                     value = e.target.value;
                 }
 
-                if (shouldUpdate) {
-                    actionUpdateTreatmentState({ treatmentSampleId, treatmentId, withdrawalId, field, value });
-                }
-            }
-
-            // --- FOCUS RESTORING ---
-            if (focusedSelector) {
-                const elementToFocus = document.querySelector(focusedSelector);
-                if (elementToFocus) {
-                    elementToFocus.focus();
-                    if (selectionStart !== null && elementToFocus.selectionStart !== undefined) {
-                        elementToFocus.selectionStart = elementToFocus.selectionEnd = selectionStart;
-                    }
-                }
+                actionUpdateTreatmentState({ treatmentSampleId, treatmentId, withdrawalId, field, value });
             }
         });
     }
