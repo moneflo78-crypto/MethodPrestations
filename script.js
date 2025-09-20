@@ -714,6 +714,21 @@ function renderTreatments() {
                     if (treatment.withdrawals && treatment.withdrawals.length > 0) {
                         treatment.withdrawals.forEach(w => {
                             const pipetteOptions = Object.keys(appState.libraries.pipettes).map(key => `<option value="${key}" ${w.pipette === key ? 'selected' : ''}>${key}</option>`).join('');
+
+                            let volHint = '';
+                            if (w.pipette && appState.libraries.pipettes[w.pipette]) {
+                                const points = appState.libraries.pipettes[w.pipette].calibrationPoints.map(p => p.volume);
+                                if (points.length > 0) volHint = `(min: ${Math.min(...points)}, max: ${Math.max(...points)})`;
+                            }
+
+                            const uncertaintyValue = w.pipetteUncertainty_U_perc !== undefined && w.pipetteUncertainty_U_perc !== null ? w.pipetteUncertainty_U_perc.toFixed(2) : '';
+                            const uncertaintyDisplayHTML = `
+                                <div class="w-1/3">
+                                    <label class="block text-xs font-medium text-gray-600">U (%)</label>
+                                    <input type="text" class="w-full p-1 border-gray-200 bg-gray-100 rounded-md text-sm text-center" value="${uncertaintyValue}" readonly title="Incertezza estesa (U%) calcolata per la pipetta e il volume selezionati.">
+                                </div>
+                            `;
+
                             withdrawalsHTML += `
                                 <div class="bg-gray-100 p-3 rounded-md border border-gray-200">
                                     <div class="flex justify-between items-start mb-2">
@@ -726,9 +741,12 @@ function renderTreatments() {
                                         </div>
                                         <button data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-withdrawal-id="${w.id}" class="btn-remove-treatment-withdrawal text-red-500 hover:text-red-700 font-bold text-xl leading-none mt-1" title="Rimuovi Prelievo">&times;</button>
                                     </div>
-                                    <div>
-                                        <label class="block text-xs font-medium text-gray-600">Volume (mL)</label>
-                                        <input type="number" data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-withdrawal-id="${w.id}" data-field="volume" class="treatment-input w-full p-1 border border-gray-300 rounded-md text-sm" value="${w.volume || ''}" placeholder="Volume">
+                                    <div class="flex items-end space-x-2">
+                                        <div class="flex-grow">
+                                            <label class="block text-xs font-medium text-gray-600">Volume (mL) <span class="text-gray-400 font-mono">${volHint}</span></label>
+                                            <input type="number" data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-withdrawal-id="${w.id}" data-field="volume" class="treatment-input w-full p-1 border border-gray-300 rounded-md text-sm" value="${w.volume || ''}" placeholder="Volume">
+                                        </div>
+                                        ${uncertaintyDisplayHTML}
                                     </div>
                                     ${w.pipetteUncertaintyRelPerc ? `<div class="text-xs text-gray-500 mt-1" title="Incertezza tipo relativa del prelievo (u_rel)">u_rel(pipetta): <strong>${w.pipetteUncertaintyRelPerc.toFixed(3)} %</strong></div>` : ''}
                                 </div>
@@ -759,7 +777,11 @@ function renderTreatments() {
                                 <label class="block text-sm font-medium text-gray-700">Matraccio di diluizione finale</label>
                                 <select data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-field="dilutionFlask" class="treatment-input mt-1 w-full p-2 border border-gray-300 rounded-md">
                                     <option value="">-- Seleziona un matraccio --</option>
-                                    ${Object.keys(appState.libraries.glassware).map(key => `<option value="${key}" ${treatment.dilutionFlask === key ? 'selected' : ''}>${key}</option>`).join('')}
+                                    ${Object.keys(appState.libraries.glassware).map(key => {
+                                        const flask = appState.libraries.glassware[key];
+                                        const isSelected = key === treatment.dilutionFlask ? 'selected' : '';
+                                        return `<option value="${key}" ${isSelected}>${key} (Vol: ${flask.volume} mL, Tol: ±${flask.uncertainty} mL)</option>`;
+                                    }).join('')}
                                 </select>
                                 ${flaskUncertaintyNote}
                             </div>
@@ -816,7 +838,11 @@ function renderTreatments() {
                                 <label class="block text-sm font-medium text-gray-700">Volume Iniziale (Matraccio)</label>
                                 <select data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-field="initialVolumeFlask" class="treatment-input w-full p-1 border-gray-300 rounded-md text-sm">
                                     <option value="">-- Seleziona --</option>
-                                    ${Object.keys(appState.libraries.glassware).map(key => `<option value="${key}" ${treatment.initialVolumeFlask === key ? 'selected' : ''}>${key}</option>`).join('')}
+                                    ${Object.keys(appState.libraries.glassware).map(key => {
+                                        const flask = appState.libraries.glassware[key];
+                                        const isSelected = key === treatment.initialVolumeFlask ? 'selected' : '';
+                                        return `<option value="${key}" ${isSelected}>${key} (Vol: ${flask.volume} mL, Tol: ±${flask.uncertainty} mL)</option>`;
+                                    }).join('')}
                                 </select>
                                 ${initialFlaskUncertaintyNote_est}
                             </div>
@@ -824,7 +850,11 @@ function renderTreatments() {
                                 <label class="block text-sm font-medium text-gray-700">Volume Finale (Matraccio)</label>
                                 <select data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-field="finalVolumeFlask" class="treatment-input w-full p-1 border-gray-300 rounded-md text-sm">
                                     <option value="">-- Seleziona --</option>
-                                    ${Object.keys(appState.libraries.glassware).map(key => `<option value="${key}" ${treatment.finalVolumeFlask === key ? 'selected' : ''}>${key}</option>`).join('')}
+                                    ${Object.keys(appState.libraries.glassware).map(key => {
+                                        const flask = appState.libraries.glassware[key];
+                                        const isSelected = key === treatment.finalVolumeFlask ? 'selected' : '';
+                                        return `<option value="${key}" ${isSelected}>${key} (Vol: ${flask.volume} mL, Tol: ±${flask.uncertainty} mL)</option>`;
+                                    }).join('')}
                                 </select>
                                 ${finalFlaskUncertaintyNote_est}
                             </div>
@@ -841,7 +871,11 @@ function renderTreatments() {
                                 <label class="block text-sm font-medium text-gray-700">Volume Iniziale (Matraccio)</label>
                                 <select data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-field="initialVolumeFlask" class="treatment-input w-full p-1 border-gray-300 rounded-md text-sm">
                                     <option value="">-- Seleziona --</option>
-                                    ${Object.keys(appState.libraries.glassware).map(key => `<option value="${key}" ${treatment.initialVolumeFlask === key ? 'selected' : ''}>${key}</option>`).join('')}
+                                    ${Object.keys(appState.libraries.glassware).map(key => {
+                                        const flask = appState.libraries.glassware[key];
+                                        const isSelected = key === treatment.initialVolumeFlask ? 'selected' : '';
+                                        return `<option value="${key}" ${isSelected}>${key} (Vol: ${flask.volume} mL, Tol: ±${flask.uncertainty} mL)</option>`;
+                                    }).join('')}
                                 </select>
                                 ${initialFlaskUncertaintyNote_conc}
                             </div>
@@ -849,7 +883,11 @@ function renderTreatments() {
                                 <label class="block text-sm font-medium text-gray-700">Volume Finale (Matraccio)</label>
                                 <select data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-field="finalVolumeFlask" class="treatment-input w-full p-1 border-gray-300 rounded-md text-sm">
                                     <option value="">-- Seleziona --</option>
-                                    ${Object.keys(appState.libraries.glassware).map(key => `<option value="${key}" ${treatment.finalVolumeFlask === key ? 'selected' : ''}>${key}</option>`).join('')}
+                                    ${Object.keys(appState.libraries.glassware).map(key => {
+                                        const flask = appState.libraries.glassware[key];
+                                        const isSelected = key === treatment.finalVolumeFlask ? 'selected' : '';
+                                        return `<option value="${key}" ${isSelected}>${key} (Vol: ${flask.volume} mL, Tol: ±${flask.uncertainty} mL)</option>`;
+                                    }).join('')}
                                 </select>
                                 ${finalFlaskUncertaintyNote_conc}
                             </div>
@@ -3430,7 +3468,7 @@ function main() {
         }
 
         actionCalculateTreatmentChain(treatmentSampleId);
-        render();
+    // render() is called inside actionCalculateTreatmentChain's finally block, so this one is redundant.
         renderDebugInfo();
     }
 
@@ -3486,6 +3524,7 @@ function main() {
                     treatment.withdrawals.forEach(w => {
                         totalWithdrawalVolume += w.volume;
                         const contrib = _get_pipette_uncertainty_contribution(w.pipette, w.volume, appState.libraries);
+                        w.pipetteUncertainty_U_perc = contrib.U_perc;
                         w.pipetteUncertaintyRelPerc = contrib.u_rel_perc;
                         sum_u_abs_sq_withdrawals += Math.pow(contrib.u_abs, 2);
                     });
@@ -3584,23 +3623,50 @@ function main() {
             }
         });
 
-        treatmentsContainer.addEventListener('change', e => {
+        treatmentsContainer.addEventListener('input', e => {
             const selectSample = e.target.closest('.select-treatment-sample');
             const treatmentInput = e.target.closest('.treatment-input');
 
+            // --- FOCUS SAVING ---
+            const focusedElement = document.activeElement;
+            let focusedSelector = null;
+            let selectionStart = null;
+            if (focusedElement && (focusedElement.closest('.treatment-input') || focusedElement.closest('.select-treatment-sample'))) {
+                const ds = focusedElement.dataset;
+                // Build a unique selector from data attributes
+                focusedSelector = `[data-field="${ds.field}"]`;
+                if (ds.withdrawalId) focusedSelector += `[data-withdrawal-id="${ds.withdrawalId}"]`;
+                if (ds.treatmentId) focusedSelector += `[data-treatment-id="${ds.treatmentId}"]`;
+                if (ds.treatmentSampleId) focusedSelector += `[data-treatment-sample-id="${ds.treatmentSampleId}"]`;
+
+                if (focusedElement.selectionStart !== undefined) {
+                    selectionStart = focusedElement.selectionStart;
+                }
+            }
+
+            // --- STATE UPDATE ---
             if (selectSample) {
                 actionSelectTreatmentSample(selectSample.dataset.treatmentSampleId, e.target.value);
             } else if (treatmentInput) {
                 const { treatmentSampleId, treatmentId, withdrawalId, field } = treatmentInput.dataset;
                 let value;
                 if (treatmentInput.type === 'number') {
-                    // Converte in numero se il campo è di tipo numerico
                     value = e.target.value === '' ? null : parseFloat(e.target.value);
                 } else {
-                    // Altrimenti, mantiene la stringa
                     value = e.target.value;
                 }
                 actionUpdateTreatmentState({ treatmentSampleId, treatmentId, withdrawalId, field, value });
+            }
+
+            // --- FOCUS RESTORING ---
+            if (focusedSelector) {
+                const elementToFocus = document.querySelector(focusedSelector);
+                if (elementToFocus) {
+                    elementToFocus.focus();
+                    if (selectionStart !== null && elementToFocus.selectionStart !== undefined) {
+                        elementToFocus.selectionStart = elementToFocus.selectionEnd = selectionStart;
+                    }
+                }
             }
         });
     }
