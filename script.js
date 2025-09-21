@@ -960,6 +960,33 @@ function renderTreatments() {
                     ${treatmentsHTML}
                 </div>
 
+                <!-- Riepilogo Finale Trattamento -->
+                ${(() => {
+                    if (!treatmentSample.results) return '';
+                    const results = treatmentSample.results;
+                    const sample = appState.samples.find(s => s.id === treatmentSample.sampleId);
+                    const unit = sample ? (sample.unit || 'µg/L') : 'µg/L';
+                    return `
+                        <div class="mt-6 pt-4 border-t-2 border-gray-300">
+                            <h4 class="text-lg font-semibold text-gray-800 mb-3">Riepilogo Finale Trattamento</h4>
+                            ${results.summary ? `<div class="text-sm p-3 mb-4 bg-gray-100 rounded-md border text-gray-600">${results.summary}</div>` : ''}
+                            <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                                <div class="text-gray-600">Concentrazione Iniziale:</div>
+                                <div class="font-bold text-right">${results.initialConcentration.toPrecision(4)} ${unit}</div>
+
+                                <div class="text-gray-600">Concentrazione Finale:</div>
+                                <div class="font-bold text-right text-lg text-blue-700">${results.finalConcentration.toPrecision(4)} ${unit}</div>
+
+                                <div class="text-gray-600">Incertezza tipo composta (u_c):</div>
+                                <div class="font-bold text-right">${results.u_comp.toPrecision(3)}</div>
+
+                                <div class="text-gray-600">Incertezza tipo composta relativa (u_c %):</div>
+                                <div class="font-bold text-right">${results.u_comp_rel_perc.toFixed(2)} %</div>
+                            </div>
+                        </div>
+                    `;
+                })()}
+
                 <div class="mt-6 pt-4 border-t flex items-center space-x-3">
                     <span class="text-sm font-medium">Aggiungi Trattamento:</span>
                     <button data-treatment-sample-id="${treatmentSample.id}" data-treatment-type="diluizione" class="btn-add-treatment text-xs bg-blue-100 text-blue-800 font-semibold py-1 px-3 rounded-md hover:bg-blue-200">Diluizione</button>
@@ -3513,31 +3540,38 @@ function main() {
         const treatmentSample = appState.treatments.find(ts => ts.id === treatmentSampleId);
         if (!treatmentSample) return;
 
+        // Pulisce i risultati precedenti prima di iniziare
+        treatmentSample.results = null;
+
         let currentConcentration = 0;
         let sum_u_rel_sq = 0;
+        let initialConcentrationForSummary = null;
+        const summaryLines = [];
+        const sample = appState.samples.find(s => s.id === treatmentSample.sampleId);
+        const unit = sample ? (sample.unit || 'µg/L') : 'µg/L';
 
         try {
             for (const [index, treatment] of treatmentSample.treatments.entries()) {
-             // Resetta i risultati e le incertezze intermedie per questo step
+                // Resetta i risultati e le incertezze intermedie per questo step
                 treatment.results = null;
-            treatment.flaskUncertaintyRelPerc = null;
-            treatment.addedSolventPipetteUncertaintyRelPerc = null;
-            treatment.addedSolventPipette_U_perc = null;
-            treatment.initialFlaskUncertaintyRelPerc = null;
-            treatment.finalFlaskUncertaintyRelPerc = null;
-            if(treatment.withdrawals) {
-                treatment.withdrawals.forEach(w => w.pipetteUncertaintyRelPerc = null);
-            }
-
+                treatment.flaskUncertaintyRelPerc = null;
+                treatment.addedSolventPipetteUncertaintyRelPerc = null;
+                treatment.addedSolventPipette_U_perc = null;
+                treatment.initialFlaskUncertaintyRelPerc = null;
+                treatment.finalFlaskUncertaintyRelPerc = null;
+                if (treatment.withdrawals) {
+                    treatment.withdrawals.forEach(w => w.pipetteUncertaintyRelPerc = null);
+                }
 
                 if (index === 0) {
                     // Gestione della sorgente per il primo trattamento
                     if (treatment.source.type === 'manual') {
-                        const sourceConc = parseFloat(treatment.source.manualConcentration);
-                        const sourceUnc = parseFloat(treatment.source.manualUncertainty);
+                        const sourceConc = parseFloat(String(treatment.source.manualConcentration).replace(',', '.'));
+                        const sourceUnc = parseFloat(String(treatment.source.manualUncertainty).replace(',', '.'));
                         if (isNaN(sourceConc) || isNaN(sourceUnc)) throw new Error("Dati manuali incompleti o non validi.");
 
                         currentConcentration = sourceConc;
+                        initialConcentrationForSummary = sourceConc;
                         // U% (k=2) -> u_rel
                         const u_rel_initial = (sourceUnc / 100) / 2 / Math.sqrt(2);
                         sum_u_rel_sq = Math.pow(u_rel_initial, 2);
@@ -3546,6 +3580,7 @@ function main() {
                         const spikeData = appState.spikeUncertainty[treatment.source.spikeSampleId];
                         if (!spikeData || !spikeData.results) throw new Error("Dati dello spike selezionato non disponibili.");
                         currentConcentration = spikeData.results.finalConcentration;
+                        initialConcentrationForSummary = currentConcentration;
                         // u_c % -> u_rel
                         const u_rel_initial = spikeData.results.u_comp_rel_perc / 100;
                         sum_u_rel_sq = Math.pow(u_rel_initial, 2);
@@ -3553,6 +3588,10 @@ function main() {
                         throw new Error("Tipo di sorgente non valido per il primo trattamento.");
                     }
                 }
+
+                const concentrationBeforeStep = (index === 0) ?
+                    initialConcentrationForSummary :
+                    treatmentSample.treatments[index - 1].results.finalConcentration;
 
                 // Calcolo specifico per tipo di trattamento
                 if (treatment.type === 'diluizione') {
@@ -3563,7 +3602,7 @@ function main() {
                     let sum_u_abs_sq_withdrawals = 0;
 
                     treatment.withdrawals.forEach(w => {
-                        const withdrawalVolume = parseFloat(w.volume);
+                        const withdrawalVolume = parseFloat(String(w.volume).replace(',', '.'));
                         if (isNaN(withdrawalVolume) || withdrawalVolume <= 0) throw new Error("Diluizione: Volume di prelievo non valido.");
                         totalWithdrawalVolume += withdrawalVolume;
                         const contrib = _get_pipette_uncertainty_contribution(w.pipette, withdrawalVolume, appState.libraries);
@@ -3574,7 +3613,7 @@ function main() {
                     const u_abs_total_withdrawal = Math.sqrt(sum_u_abs_sq_withdrawals);
 
                     if (treatment.dilutionType === 'addSolvent') {
-                        const addedSolventVolume = parseFloat(treatment.addedSolventVolume);
+                        const addedSolventVolume = parseFloat(String(treatment.addedSolventVolume).replace(',', '.'));
                         if (!treatment.addedSolventPipette || isNaN(addedSolventVolume) || addedSolventVolume <= 0) throw new Error("Diluizione: Dati per l'aggiunta di solvente incompleti o non validi.");
 
                         const Vi = totalWithdrawalVolume;
@@ -3617,10 +3656,24 @@ function main() {
                     treatment.initialFlaskUncertaintyRelPerc = u_rel_initial_flask * 100;
                     treatment.finalFlaskUncertaintyRelPerc = u_rel_final_flask * 100;
 
-
                     sum_u_rel_sq += Math.pow(u_rel_initial_flask, 2) + Math.pow(u_rel_final_flask, 2);
                     currentConcentration = currentConcentration * (initialFlask.volume / finalFlask.volume);
                 }
+
+                // --- Generazione del riepilogo per il passaggio ---
+                let summaryLine = `<b>Passaggio ${index + 1} (${treatment.type}):</b> `;
+                if (treatment.type === 'diluizione') {
+                    const withdrawalsText = treatment.withdrawals.map(w => `${parseFloat(String(w.volume).replace(',','.'))} mL (pipetta: ${w.pipette})`).join(' e ');
+                    const finalVolumeText = treatment.dilutionType === 'bringToVolume' ?
+                        `a ${appState.libraries.glassware[treatment.dilutionFlask].volume} mL` :
+                        `aggiungendo ${parseFloat(String(treatment.addedSolventVolume).replace(',','.'))} mL di solvente`;
+                    summaryLine += `Prelievo di ${withdrawalsText} da soluzione a ${concentrationBeforeStep.toPrecision(4)} ${unit}. Diluizione ${finalVolumeText} per una concentrazione finale di ${currentConcentration.toPrecision(4)} ${unit}.`;
+                } else if (treatment.type === 'estrazione' || treatment.type === 'concentrazione') {
+                    const initialFlask = appState.libraries.glassware[treatment.initialVolumeFlask];
+                    const finalFlask = appState.libraries.glassware[treatment.finalVolumeFlask];
+                    summaryLine += `La soluzione è stata processata da un volume di ${initialFlask.volume} mL a ${finalFlask.volume} mL, portando la concentrazione da ${concentrationBeforeStep.toPrecision(4)} a ${currentConcentration.toPrecision(4)} ${unit}.`;
+                }
+                summaryLines.push(summaryLine);
 
                 // Salva i risultati del trattamento corrente
                 treatment.results = {
@@ -3628,9 +3681,24 @@ function main() {
                     finalUncertaintyRelPerc: Math.sqrt(sum_u_rel_sq) * 100,
                 };
             }
+
+            // Dopo il ciclo, se non ci sono stati errori, salva i risultati finali
+            const lastTreatment = treatmentSample.treatments[treatmentSample.treatments.length - 1];
+            if (lastTreatment && lastTreatment.results && initialConcentrationForSummary !== null) {
+                const final_u_rel = Math.sqrt(sum_u_rel_sq);
+                treatmentSample.results = {
+                    initialConcentration: initialConcentrationForSummary,
+                    finalConcentration: currentConcentration,
+                    u_comp: final_u_rel * currentConcentration,
+                    u_comp_rel_perc: final_u_rel * 100,
+                    summary: summaryLines.join('<br>')
+                };
+            }
+
         } catch (e) {
             console.warn(`Calculation error in treatment chain ${treatmentSampleId}: ${e.message}`);
             // L'errore interrompe il ciclo, i trattamenti successivi non avranno risultati.
+            treatmentSample.results = null; // Assicura che i risultati vengano cancellati in caso di errore
         } finally {
             render(); // Aggiorna l'UI per mostrare i risultati calcolati o la loro assenza
         }
