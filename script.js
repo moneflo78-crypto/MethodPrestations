@@ -2437,11 +2437,44 @@ async function processSample(sample) {
     }
 }
 function actionResetData() { appState = getInitialAppState(); actionAddSample(); }
-function actionSave() {
+async function actionSaveProject() {
+    // If it's the first time saving, prompt for a name.
     if (!appState.ui.currentFileName) {
-        actionSaveAs();
-        return;
+        const confirmed = await formModal.show({
+            title: 'Salva Progetto con Nome',
+            bodyHTML: `
+                <p class="text-sm text-gray-600 mb-4">È il primo salvataggio per questo progetto. Inserisci un nome per il file.</p>
+                <div>
+                    <label for="form-field-project-name" class="block text-sm font-medium text-gray-700">Nome del Progetto</label>
+                    <input type="text" id="form-field-project-name" class="mt-1 w-full p-2 border border-gray-300 rounded-md" value="${appState.project.projectName}">
+                </div>
+            `,
+            buttons: [
+                { text: 'Annulla', isConfirm: false, class: secondaryBtnClass },
+                { text: 'Salva', isConfirm: true, class: primaryBtnClass }
+            ]
+        });
+
+        if (!confirmed) {
+            return; // User cancelled
+        }
+
+        const modalBody = document.getElementById('form-modal-body');
+        const newName = modalBody.querySelector('#form-field-project-name').value.trim();
+
+        if (!newName) {
+            alert("Il nome del progetto non può essere vuoto.");
+            return;
+        }
+
+        appState.project.projectName = newName;
+        const sanitizedProjectName = newName.replace(/[^a-z0-9_-\s.]/gi, '').trim();
+        const fileName = `${sanitizedProjectName.replace(/\s/g, '_')}.json`;
+        appState.ui.currentFileName = fileName;
+        render(); // Update the UI with the new project name
     }
+
+    // Proceed with saving the file
     const stateString = JSON.stringify(appState, null, 2);
     const blob = new Blob([stateString], { type: 'application/json' });
     const link = document.createElement('a');
@@ -2451,27 +2484,6 @@ function actionSave() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(link.href);
-}
-
-function actionSaveAs() {
-    const sanitizedProjectName = (appState.project.projectName || 'dati_analisi').replace(/[^a-z0-9_-\s.]/gi, '').trim();
-    const fileName = `${sanitizedProjectName.replace(/\s/g, '_')}.json`;
-
-    appState.ui.currentFileName = fileName;
-
-    const stateString = JSON.stringify(appState, null, 2);
-    const blob = new Blob([stateString], { type: 'application/json' });
-
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(link.href);
-
-    document.getElementById('btn-save-overwrite').disabled = false;
-    renderDebugInfo();
 }
 
 // --- AZIONI PER LA SEZIONE TARATURA ---
@@ -2660,6 +2672,7 @@ async function actionRenameProject() {
         if (newName) {
             appState.project.projectName = newName;
             render(); // Re-render to show the new name in the input
+            renderDebugInfo();
         } else {
             alert("Il nome del progetto non può essere vuoto.");
         }
@@ -2685,9 +2698,6 @@ function actionLoadData(event) {
                 const fileNameWithoutExt = file.name.endsWith('.json') ? file.name.slice(0, -5) : file.name;
                 appState.project.projectName = fileNameWithoutExt.replace(/_/g, ' ');
             }
-
-            // Abilita il pulsante Salva dopo il caricamento
-            document.getElementById('btn-save-overwrite').disabled = false;
 
             render();
             alert("Dati caricati con successo!");
@@ -3484,8 +3494,7 @@ function main() {
     document.getElementById('btn-add-sample').addEventListener('click', actionAddSample);
     document.getElementById('btn-load-data').addEventListener('click', () => document.getElementById('load-data-input').click());
     document.getElementById('load-data-input').addEventListener('change', actionLoadData);
-    document.getElementById('btn-save-data').addEventListener('click', actionSaveAs); // This is now "Save As"
-    document.getElementById('btn-save-overwrite').addEventListener('click', actionSave); // This is the new "Save"
+    document.getElementById('btn-save-project').addEventListener('click', actionSaveProject);
 
     // Attach the robust error-handling event listener for the calculate button
     document.getElementById('calculate-btn').addEventListener('click', () => {
