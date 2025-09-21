@@ -790,20 +790,38 @@ function renderTreatments() {
                         const solventPipetteOptions = Object.keys(appState.libraries.pipettes).map(key => `<option value="${key}" ${treatment.addedSolventPipette === key ? 'selected' : ''}>${key}</option>`).join('');
                         const solventPipetteUncertaintyNote = treatment.addedSolventPipetteUncertaintyRelPerc ?
                             `<div class="text-xs text-gray-500 mt-1" title="Incertezza tipo relativa della pipetta per l'aggiunta di solvente (u_rel)">u_rel(pipetta solv.): <strong>${treatment.addedSolventPipetteUncertaintyRelPerc.toFixed(3)} %</strong></div>` : '';
+
+                        let volHint = '';
+                        if (treatment.addedSolventPipette && appState.libraries.pipettes[treatment.addedSolventPipette]) {
+                            const points = appState.libraries.pipettes[treatment.addedSolventPipette].calibrationPoints.map(p => p.volume);
+                            if (points.length > 0) volHint = `(min: ${Math.min(...points)}, max: ${Math.max(...points)})`;
+                        }
+
+                        const uncertaintyValue = treatment.addedSolventPipette_U_perc !== undefined && treatment.addedSolventPipette_U_perc !== null ? treatment.addedSolventPipette_U_perc.toFixed(2) : '';
+                        const uncertaintyDisplayHTML = `
+                            <div class="w-1/3">
+                                <label class="block text-xs font-medium text-gray-600">U (%)</label>
+                                <input type="text" class="w-full p-1 border-gray-200 bg-gray-100 rounded-md text-sm text-center" value="${uncertaintyValue}" readonly title="Incertezza estesa (U%) calcolata per la pipetta e il volume selezionati.">
+                            </div>
+                        `;
+
                         dilutionInputsHTML = `
                             <div class="space-y-3 p-3 bg-gray-100 rounded-md border">
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700">Volume Solvente Aggiunto (mL)</label>
-                                    <input type="text" inputmode="decimal" data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-field="addedSolventVolume" class="treatment-input mt-1 w-full p-2 border border-gray-300 rounded-md" value="${treatment.addedSolventVolume !== null ? String(treatment.addedSolventVolume).replace('.',',') : ''}" placeholder="Es: 5">
-                                </div>
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700">Pipetta per Solvente</label>
                                     <select data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-field="addedSolventPipette" class="treatment-input mt-1 w-full p-2 border border-gray-300 rounded-md">
                                         <option value="">-- Seleziona pipetta --</option>
                                         ${solventPipetteOptions}
                                     </select>
-                                    ${solventPipetteUncertaintyNote}
                                 </div>
+                                <div class="flex items-end space-x-2">
+                                    <div class="flex-grow">
+                                        <label class="block text-sm font-medium text-gray-700">Volume Solvente (mL) <span class="text-gray-400 font-mono">${volHint}</span></label>
+                                        <input type="text" inputmode="decimal" data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-field="addedSolventVolume" class="treatment-input mt-1 w-full p-1 border border-gray-300 rounded-md text-sm" value="${treatment.addedSolventVolume !== null ? String(treatment.addedSolventVolume).replace('.',',') : ''}" placeholder="Volume">
+                                    </div>
+                                    ${uncertaintyDisplayHTML}
+                                </div>
+                                ${solventPipetteUncertaintyNote}
                             </div>
                         `;
                     }
@@ -1286,20 +1304,37 @@ function renderSpikeUncertainty() {
                     const solventPipetteUncertaintyNote = step.addedSolventPipetteUncertaintyRelPerc ?
                         `<div class="text-xs text-gray-500 mt-1" title="Incertezza tipo relativa della pipetta per l'aggiunta di solvente (u_rel)">u_rel(pipetta solv.): <strong>${step.addedSolventPipetteUncertaintyRelPerc.toFixed(3)} %</strong></div>` : '';
 
+                    let volHint = '';
+                    if (step.addedSolventPipette && appState.libraries.pipettes[step.addedSolventPipette]) {
+                        const points = appState.libraries.pipettes[step.addedSolventPipette].calibrationPoints.map(p => p.volume);
+                        if (points.length > 0) volHint = `(min: ${Math.min(...points)}, max: ${Math.max(...points)})`;
+                    }
+
+                    const uncertaintyValue = step.addedSolventPipette_U_perc !== undefined && step.addedSolventPipette_U_perc !== null ? step.addedSolventPipette_U_perc.toFixed(2) : '';
+                    const uncertaintyDisplayHTML = `
+                        <div class="w-1/3">
+                            <label class="block text-xs font-medium text-gray-600">U (%)</label>
+                            <input type="text" class="w-full p-1 border-gray-200 bg-gray-100 rounded-md text-sm text-center" value="${uncertaintyValue}" readonly title="Incertezza estesa (U%) calcolata per la pipetta e il volume selezionati.">
+                        </div>
+                    `;
+
                     dilutionInputsHTML = `
                         <div class="space-y-3 p-3 bg-gray-100 rounded-md border">
-                            <div>
-                                <label for="solvent-volume-${step.id}" class="block text-sm font-medium text-gray-700">Volume Solvente Aggiunto (mL)</label>
-                                <input type="number" id="solvent-volume-${step.id}" data-sample-id="${sample.id}" data-step-id="${step.id}" data-field="addedSolventVolume" class="spike-input mt-1 w-full p-2 border border-gray-300 rounded-md" value="${step.addedSolventVolume !== null ? step.addedSolventVolume : ''}" placeholder="Es: 5">
-                            </div>
                             <div>
                                 <label for="solvent-pipette-${step.id}" class="block text-sm font-medium text-gray-700">Pipetta per Solvente</label>
                                 <select id="solvent-pipette-${step.id}" data-sample-id="${sample.id}" data-step-id="${step.id}" data-field="addedSolventPipette" class="spike-input mt-1 w-full p-2 border border-gray-300 rounded-md">
                                     <option value="">-- Seleziona pipetta --</option>
                                     ${solventPipetteOptions}
                                 </select>
-                                ${solventPipetteUncertaintyNote}
                             </div>
+                            <div class="flex items-end space-x-2">
+                                <div class="flex-grow">
+                                    <label for="solvent-volume-${step.id}" class="block text-xs font-medium text-gray-700">Volume Solvente (mL) <span class="text-gray-400 font-mono">${volHint}</span></label>
+                                    <input type="number" id="solvent-volume-${step.id}" data-sample-id="${sample.id}" data-step-id="${step.id}" data-field="addedSolventVolume" class="spike-input mt-1 w-full p-1 border border-gray-300 rounded-md text-sm" value="${step.addedSolventVolume !== null ? step.addedSolventVolume : ''}" placeholder="Volume">
+                                </div>
+                                ${uncertaintyDisplayHTML}
+                            </div>
+                            ${solventPipetteUncertaintyNote}
                         </div>
                     `;
                 }
@@ -2677,6 +2712,7 @@ function actionCalculateSpikeUncertainty(sampleId) {
             step.intermediateUncertaintyRelPerc = null;
             step.flaskUncertaintyRelPerc = null;
             step.addedSolventPipetteUncertaintyRelPerc = null;
+            step.addedSolventPipette_U_perc = null;
             step.withdrawals.forEach(w => {
                 w.pipetteUncertaintyRelPerc = null;
                 w.pipetteUncertainty_U_perc = null;
@@ -2748,6 +2784,7 @@ function actionCalculateSpikeUncertainty(sampleId) {
                 const Va = step.addedSolventVolume;
                 const u_abs_Va = solvent_contrib.u_abs;
                 step.addedSolventPipetteUncertaintyRelPerc = solvent_contrib.u_rel_perc;
+                step.addedSolventPipette_U_perc = solvent_contrib.U_perc;
 
                 const Vf = Vi + Va;
                 const u_abs_Vf = Math.sqrt(Math.pow(u_abs_Vi, 2) + Math.pow(u_abs_Va, 2));
@@ -3485,6 +3522,7 @@ function main() {
                 treatment.results = null;
             treatment.flaskUncertaintyRelPerc = null;
             treatment.addedSolventPipetteUncertaintyRelPerc = null;
+            treatment.addedSolventPipette_U_perc = null;
             treatment.initialFlaskUncertaintyRelPerc = null;
             treatment.finalFlaskUncertaintyRelPerc = null;
             if(treatment.withdrawals) {
@@ -3538,6 +3576,7 @@ function main() {
 
                         const solvent_contrib = _get_pipette_uncertainty_contribution(treatment.addedSolventPipette, treatment.addedSolventVolume, appState.libraries);
                         treatment.addedSolventPipetteUncertaintyRelPerc = solvent_contrib.u_rel_perc;
+                        treatment.addedSolventPipette_U_perc = solvent_contrib.U_perc;
                         const Va = treatment.addedSolventVolume;
                         const u_abs_Va = solvent_contrib.u_abs;
 
