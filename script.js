@@ -354,9 +354,15 @@ function getInitialAppState() {
         version: '3.0.0',
         ui: {
             activeTab: 'frontespizio',
-            activeLibrarySubTab: 'vetreria' // 'vetreria' or 'pipette'
+            activeLibrarySubTab: 'vetreria', // 'vetreria' or 'pipette'
+            currentFileName: null
         },
-        project: { objective: '', method: '', component: '' },
+        project: {
+            projectName: 'Nuovo Progetto',
+            objective: '',
+            method: '',
+            component: ''
+        },
         samples: [],
         results: {}, // keyed by sample.id
         spikeUncertainty: {
@@ -1510,6 +1516,7 @@ function renderTabs() {
     document.querySelectorAll('[id^="content-"]').forEach(content => content.classList.toggle('hidden', content.id !== `content-${appState.ui.activeTab}`));
 }
 function renderProjectInfo() {
+    document.getElementById('project-name').value = appState.project.projectName;
     document.getElementById('project-objective').value = appState.project.objective;
     document.getElementById('project-method').value = appState.project.method;
     document.getElementById('project-component').value = appState.project.component;
@@ -2430,11 +2437,31 @@ async function processSample(sample) {
     }
 }
 function actionResetData() { appState = getInitialAppState(); actionAddSample(); }
-function actionSaveData() {
+function actionSave() {
+    if (!appState.ui.currentFileName) {
+        actionSaveAs();
+        return;
+    }
     const stateString = JSON.stringify(appState, null, 2);
     const blob = new Blob([stateString], { type: 'application/json' });
-    const now = new Date();
-    const fileName = `dati_analisi_${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}_${now.getHours().toString().padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}${now.getSeconds().toString().padStart(2, '0')}.json`;
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = appState.ui.currentFileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
+}
+
+function actionSaveAs() {
+    const sanitizedProjectName = (appState.project.projectName || 'dati_analisi').replace(/[^a-z0-9_-\s.]/gi, '').trim();
+    const fileName = `${sanitizedProjectName.replace(/\s/g, '_')}.json`;
+
+    appState.ui.currentFileName = fileName;
+
+    const stateString = JSON.stringify(appState, null, 2);
+    const blob = new Blob([stateString], { type: 'application/json' });
+
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = fileName;
@@ -2442,6 +2469,9 @@ function actionSaveData() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(link.href);
+
+    document.getElementById('btn-save-overwrite').disabled = false;
+    renderDebugInfo();
 }
 
 // --- AZIONI PER LA SEZIONE TARATURA ---
@@ -2609,6 +2639,33 @@ function actionCalculateResponseFactor() {
 }
 
 
+async function actionRenameProject() {
+    const confirmed = await formModal.show({
+        title: 'Rinomina Progetto',
+        bodyHTML: `
+            <div>
+                <label for="form-field-new-name" class="block text-sm font-medium text-gray-700">Nuovo Nome del Progetto</label>
+                <input type="text" id="form-field-new-name" class="mt-1 w-full p-2 border border-gray-300 rounded-md" value="${appState.project.projectName}">
+            </div>
+        `,
+        buttons: [
+            { text: 'Annulla', isConfirm: false, class: secondaryBtnClass },
+            { text: 'Salva', isConfirm: true, class: primaryBtnClass }
+        ]
+    });
+
+    if (confirmed) {
+        const modalBody = document.getElementById('form-modal-body');
+        const newName = modalBody.querySelector('#form-field-new-name').value.trim();
+        if (newName) {
+            appState.project.projectName = newName;
+            render(); // Re-render to show the new name in the input
+        } else {
+            alert("Il nome del progetto non può essere vuoto.");
+        }
+    }
+}
+
 function actionLoadData(event) {
     const file = event.target.files[0];
     if (!file) return;
@@ -2616,12 +2673,29 @@ function actionLoadData(event) {
     reader.onload = (e) => {
         try {
             const loadedState = JSON.parse(e.target.result);
-            if (!loadedState.version || !loadedState.project) throw new Error("File non valido.");
+            if (!loadedState.version || !loadedState.project) throw new Error("File non valido o corrotto.");
+
             appState = loadedState;
+
+            // Assicura che i nuovi campi esistano per compatibilità
+            if (typeof appState.ui.currentFileName === 'undefined') {
+                appState.ui.currentFileName = file.name;
+            }
+             if (typeof appState.project.projectName === 'undefined' || !appState.project.projectName) {
+                const fileNameWithoutExt = file.name.endsWith('.json') ? file.name.slice(0, -5) : file.name;
+                appState.project.projectName = fileNameWithoutExt.replace(/_/g, ' ');
+            }
+
+            // Abilita il pulsante Salva dopo il caricamento
+            document.getElementById('btn-save-overwrite').disabled = false;
+
             render();
             alert("Dati caricati con successo!");
-        } catch (error) { alert(`Errore nel caricamento: ${error.message}`); }
-        finally { event.target.value = null; }
+        } catch (error) {
+            alert(`Errore nel caricamento: ${error.message}`);
+        } finally {
+            event.target.value = null;
+        }
     };
     reader.readAsText(file);
 }
@@ -3410,7 +3484,8 @@ function main() {
     document.getElementById('btn-add-sample').addEventListener('click', actionAddSample);
     document.getElementById('btn-load-data').addEventListener('click', () => document.getElementById('load-data-input').click());
     document.getElementById('load-data-input').addEventListener('change', actionLoadData);
-    document.getElementById('btn-save-data').addEventListener('click', actionSaveData);
+    document.getElementById('btn-save-data').addEventListener('click', actionSaveAs); // This is now "Save As"
+    document.getElementById('btn-save-overwrite').addEventListener('click', actionSave); // This is the new "Save"
 
     // Attach the robust error-handling event listener for the calculate button
     document.getElementById('calculate-btn').addEventListener('click', () => {
@@ -3500,9 +3575,11 @@ function main() {
         }
     });
 
-    document.getElementById('project-objective').addEventListener('input', e => { appState.project.objective = e.target.value; });
-    document.getElementById('project-method').addEventListener('input', e => { appState.project.method = e.target.value; });
-    document.getElementById('project-component').addEventListener('input', e => { appState.project.component = e.target.value; });
+    document.getElementById('project-name').addEventListener('input', e => { appState.project.projectName = e.target.value; renderDebugInfo(); });
+    document.getElementById('btn-rename-project').addEventListener('click', actionRenameProject);
+    document.getElementById('project-objective').addEventListener('input', e => { appState.project.objective = e.target.value; renderDebugInfo(); });
+    document.getElementById('project-method').addEventListener('input', e => { appState.project.method = e.target.value; renderDebugInfo(); });
+    document.getElementById('project-component').addEventListener('input', e => { appState.project.component = e.target.value; renderDebugInfo(); });
 
     // --- Automated Tests Event Listener ---
     const testRunnerButton = document.getElementById('btn-run-tests');
