@@ -178,6 +178,28 @@ const secondaryBtnClass = "bg-gray-200 text-gray-800 font-semibold py-2 px-4 rou
 function deepCopy(obj) { return JSON.parse(JSON.stringify(obj)); }
 
 /**
+ * Trova il valore t di Student per un dato numero di gradi di libertà (dof).
+ * Per dof non interi, usa il valore del dof intero immediatamente inferiore (approccio conservativo).
+ * @param {number} dof - Gradi di libertà (può essere un numero con virgola).
+ * @returns {number} Il valore t di Student per un'intervallo di confidenza del 95%.
+ */
+function getStudentTValue(dof) {
+    if (isNaN(dof) || dof < 1) {
+        return NaN; // Non definito per dof < 1
+    }
+    if (dof === Infinity) {
+        return STUDENT_T_95_TWO_TAILED.infinity;
+    }
+    // Approccio conservativo: arrotonda per difetto all'intero più vicino.
+    const effectiveDof = Math.floor(dof);
+
+    if (effectiveDof >= 30) {
+        return STUDENT_T_95_TWO_TAILED.infinity; // Usa 1.96 per dof >= 30
+    }
+    return STUDENT_T_95_TWO_TAILED[effectiveDof] || STUDENT_T_95_TWO_TAILED.infinity; // Fallback per sicurezza
+}
+
+/**
  * Converte un valore di concentrazione da un'unità di misura a un'altra.
  * @param {number|null} value - Il valore numerico da convertire.
  * @param {string} fromUnit - L'unità di misura di partenza ('mg/L' o 'µg/L').
@@ -381,6 +403,7 @@ function render() {
     renderSpikeUncertainty();
     renderCalibrationSolutionUncertainty();
     renderTreatments(); // <-- Aggiunta nuova funzione di rendering
+    renderExpandedUncertainty(); // <-- AGGIUNTA
     renderLibraryTabs(); // <-- Funzione per le librerie
     renderLibraries(); // <-- Funzione per le tabelle delle librerie
     renderDebugInfo();
@@ -1497,6 +1520,77 @@ function renderDebugInfo() {
         debugView.textContent = JSON.stringify(appState, null, 2);
     }
 }
+
+function renderExpandedUncertainty() {
+    const container = document.getElementById('extended-uncertainty-container');
+    if (!container) return;
+
+    const processedSamples = appState.samples.filter(s => appState.results[s.id]?.statistics);
+
+    if (processedSamples.length === 0) {
+        container.innerHTML = `<p class="text-center text-gray-500 italic p-8">Nessun campione con analisi statistiche valide trovato. Esegui prima i calcoli nella scheda "Analisi Statistica".</p>`;
+        return;
+    }
+
+    let content = '';
+    processedSamples.forEach(sample => {
+        const result = calculateExpandedUncertainty(sample.id);
+        const sampleUnit = sample.unit || 'µg/L';
+
+        content += `<div class="bg-white p-5 rounded-lg shadow-md border-l-4 ${result.error ? 'border-red-500' : 'border-green-500'} mb-6">`;
+        content += `<h4 class="text-lg font-bold ${result.error ? 'text-red-700' : 'text-gray-900'} mb-4">${sample.name} - Incertezza Estesa</h4>`;
+
+        if (result.error) {
+            content += `<p class="text-red-600 font-semibold">${result.error}</p>`;
+        } else {
+            const contributionsHTML = result.contributions.map(c => `
+                <tr class="border-b">
+                    <td class="p-2">${c.name}</td>
+                    <td class="p-2 font-mono text-right">${(c.value * 100).toFixed(3)} %</td>
+                    <td class="p-2 font-mono text-right">${c.dof === Infinity ? '∞' : c.dof.toFixed(2)}</td>
+                </tr>
+            `).join('');
+
+            content += `
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                    <div>
+                        <h5 class="font-semibold text-gray-700 text-md mb-2">Riepilogo Contributi</h5>
+                        <div class="overflow-x-auto rounded-md border">
+                            <table class="w-full text-sm data-table">
+                                <thead class="bg-gray-100">
+                                    <tr>
+                                        <th class="p-2 text-left">Fonte di Incertezza</th>
+                                        <th class="p-2 text-right">u_rel (%)</th>
+                                        <th class="p-2 text-right">Gradi di Libertà (v)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>${contributionsHTML}</tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div>
+                        <h5 class="font-semibold text-gray-700 text-md mb-2">Risultati Finali</h5>
+                        <div class="overflow-x-auto rounded-md border bg-gray-50">
+                            <table class="w-full text-sm data-table">
+                               <tbody>
+                                    <tr><td class="p-2 font-medium">Gradi di Libertà Effettivi (ν_eff)</td><td class="p-2 font-mono text-right">${result.v_eff === Infinity ? '∞' : result.v_eff.toFixed(2)}</td></tr>
+                                    <tr><td class="p-2 font-medium">Fattore di Copertura (k)</td><td class="p-2 font-mono text-right">${result.k.toFixed(3)}</td></tr>
+                                    <tr class="border-t-2 border-gray-300"><td class="p-2 font-bold text-lg">Incertezza Estesa Assoluta (U)</td><td class="p-2 font-mono text-right text-lg font-bold">${result.U_abs.toPrecision(3)} ${sampleUnit}</td></tr>
+                                    <tr><td class="p-2 font-bold text-lg">Incertezza Estesa Relativa (U%)</td><td class="p-2 font-mono text-right text-lg font-bold">${result.U_rel_perc.toFixed(2)} %</td></tr>
+                               </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        content += `</div>`;
+    });
+
+    container.innerHTML = content;
+}
+
 function renderResultsOnly() {
     const resultsContainer = document.getElementById('results-container');
     if (!resultsContainer) return;
@@ -3193,6 +3287,121 @@ async function runAllTests() {
         return `Test failed: ${e.message}`;
     }
 }
+
+// --- CORE CALCULATION LOGIC FOR EXPANDED UNCERTAINTY ---
+
+function calculateExpandedUncertainty(sampleId) {
+    try {
+        const sample = appState.samples.find(s => s.id === sampleId);
+        if (!sample) return { error: "Campione non trovato." };
+
+        const stats = appState.results[sampleId]?.statistics;
+        if (!stats) return { error: "Statistiche di base non calcolate." };
+
+        const contributions = [];
+
+        // 1. Contributo da Ripetibilità (CV%)
+        if (stats.cv_percent > 0 && stats.n > 1) {
+            contributions.push({
+                name: 'Ripetibilità (CV%)',
+                value: stats.cv_percent / 100,
+                dof: stats.n - 1
+            });
+        }
+
+        // Trova il 'treatmentSample' corrispondente, che è il link a tutte le altre preparazioni
+        const treatmentSample = appState.treatments.find(ts => ts.sampleId === sampleId);
+
+        if (treatmentSample) {
+            // 2. Contributo da Trattamento Campione
+            if (treatmentSample.results?.u_comp_rel_perc > 0) {
+                contributions.push({
+                    name: 'Trattamento Campione',
+                    value: treatmentSample.results.u_comp_rel_perc / 100,
+                    dof: Infinity // Tipo B
+                });
+            }
+
+            // 3. Contributo da Preparazione Spike (se il test di accuratezza fallisce)
+            const spikeData = appState.spikeUncertainty[sampleId];
+            if (spikeData?.results?.accuracyCheck && spikeData.results.accuracyCheck.isAccurate === false) {
+                if (spikeData.results.u_comp_rel_perc > 0) {
+                    contributions.push({
+                        name: 'Preparazione Spike (Bias)',
+                        value: spikeData.results.u_comp_rel_perc / 100,
+                        dof: Infinity // Tipo B
+                    });
+                }
+            }
+
+            // 4. Contributo da Taratura
+            let calibrationFound = false;
+            // Cerca prima nella retta di taratura
+            const regResults = appState.calibration.results;
+            if (regResults?.samples) {
+                const regSampleResult = regResults.samples.find(s => s.sampleName === sample.name);
+                if (regSampleResult && regSampleResult.ux_rel_perc > 0) {
+                    contributions.push({
+                        name: 'Taratura (Retta)',
+                        value: regSampleResult.ux_rel_perc / 100,
+                        dof: regResults.line.n_cal - 2
+                    });
+                    calibrationFound = true;
+                }
+            }
+
+            // Se non trovato nella retta, cerca nel fattore di risposta
+            if (!calibrationFound) {
+                const rfResults = appState.rfCalibration.results;
+                if (rfResults?.samples) {
+                    const rfSampleResult = rfResults.samples.find(s => s.sampleName === sample.name);
+                    if (rfSampleResult && rfResults.utaratura_perc > 0) {
+                         contributions.push({
+                            name: 'Taratura (Fattore Risposta)',
+                            value: rfResults.utaratura_perc / 100,
+                            dof: Infinity // Tipo B
+                        });
+                    }
+                }
+            }
+        }
+
+        if (contributions.length === 0) {
+            return { error: "Nessun contributo di incertezza trovato." };
+        }
+
+        // Calcolo incertezza combinata
+        const u_c_rel = Math.sqrt(contributions.reduce((sum, c) => sum + Math.pow(c.value, 2), 0));
+
+        // Calcolo Gradi di Libertà Effettivi (Welch-Satterthwaite)
+        const numerator = Math.pow(u_c_rel, 4);
+        const denominator = contributions.reduce((sum, c) => {
+            if (c.dof === Infinity || c.dof === 0) return sum;
+            return sum + (Math.pow(c.value, 4) / c.dof);
+        }, 0);
+
+        const v_eff = (denominator > 0) ? (numerator / denominator) : Infinity;
+
+        // Calcolo Incertezza Estesa
+        const k = getStudentTValue(v_eff);
+        const U_rel_perc = k * u_c_rel * 100;
+        const U_abs = (U_rel_perc / 100) * stats.mean;
+
+        return {
+            U_abs,
+            U_rel_perc,
+            k: k,
+            v_eff: v_eff,
+            contributions,
+            error: null
+        };
+
+    } catch (e) {
+        console.error(`Errore in calculateExpandedUncertainty per sampleId ${sampleId}:`, e);
+        return { error: e.message };
+    }
+}
+
 
 // --- MAIN APP SETUP ---
 function main() {
