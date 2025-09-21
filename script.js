@@ -1005,55 +1005,53 @@ function renderAnalysisChecklists() {
     const rfChecklist = document.getElementById('rf-sample-checklist');
     if (!regressionChecklist || !rfChecklist) return;
 
-    // Preserve checked state
+    // Preserve checked state using the treatment sample ID
     const currentlyCheckedReg = new Set();
     regressionChecklist.querySelectorAll('input:checked').forEach(input => currentlyCheckedReg.add(input.value));
     const currentlyCheckedRf = new Set();
     rfChecklist.querySelectorAll('input:checked').forEach(input => currentlyCheckedRf.add(input.value));
 
-
     regressionChecklist.innerHTML = '';
     rfChecklist.innerHTML = '';
 
-    const eligibleSamples = appState.samples.filter(sample => {
-        const result = appState.results[sample.id];
-        return result && result.statistics && !result.error && (sample.expectedValue !== null && sample.expectedValue !== '');
-    });
+    // NEW LOGIC: Use treatments as the source
+    const eligibleTreatedSamples = appState.treatments.filter(ts => ts.results && ts.sampleId !== null);
 
-    if (eligibleSamples.length === 0) {
-        const placeholder = `<p class="text-sm text-gray-500 italic px-2">Nessun campione con "Valore Atteso" è stato analizzato con successo.</p>`;
+    if (eligibleTreatedSamples.length === 0) {
+        const placeholder = `<p class="text-sm text-gray-500 italic px-2">Nessun campione trattato con risultati validi trovato. Per procedere, definire e calcolare un trattamento nella sezione 'Incertezza di Preparazione'.</p>`;
         regressionChecklist.innerHTML = placeholder;
         rfChecklist.innerHTML = placeholder;
         return;
     }
 
     let regChecklistHTML = '';
-    eligibleSamples.forEach(sample => {
-        const result = appState.results[sample.id];
-        const isChecked = currentlyCheckedReg.has(String(sample.id)) ? 'checked' : '';
+    let rfChecklistHTML = '';
+
+    eligibleTreatedSamples.forEach(ts => {
+        const originalSample = appState.samples.find(s => s.id === ts.sampleId);
+        const sampleName = originalSample ? originalSample.name : `Campione trattato ${ts.id}`;
+        const concentration = ts.results.finalConcentration;
+
+        const regIsChecked = currentlyCheckedReg.has(ts.id);
         regChecklistHTML += `
             <div class="flex items-center p-1 rounded-md hover:bg-gray-100">
-                <input id="cal-sample-reg-${sample.id}" name="calibration_sample_reg" type="checkbox" value="${sample.id}" ${isChecked} class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
-                <label for="cal-sample-reg-${sample.id}" class="ml-3 block text-sm font-medium text-gray-700 cursor-pointer">
-                    ${sample.name} <span class="text-xs text-gray-500 font-mono">(x=${sample.expectedValue})</span>
+                <input id="cal-sample-reg-${ts.id}" name="calibration_sample_reg" type="checkbox" value="${ts.id}" ${regIsChecked ? 'checked' : ''} class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                <label for="cal-sample-reg-${ts.id}" class="ml-3 block text-sm font-medium text-gray-700 cursor-pointer">
+                    ${sampleName} <span class="text-xs text-gray-500 font-mono">(x=${concentration.toPrecision(4)})</span>
                 </label>
             </div>
         `;
-    });
-     let rfChecklistHTML = '';
-      eligibleSamples.forEach(sample => {
-        const result = appState.results[sample.id];
-        const isChecked = currentlyCheckedRf.has(String(sample.id)) ? 'checked' : '';
+
+        const rfIsChecked = currentlyCheckedRf.has(ts.id);
         rfChecklistHTML += `
             <div class="flex items-center p-1 rounded-md hover:bg-gray-100">
-                <input id="cal-sample-rf-${sample.id}" name="calibration_sample_rf" type="checkbox" value="${sample.id}" ${isChecked} class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
-                <label for="cal-sample-rf-${sample.id}" class="ml-3 block text-sm font-medium text-gray-700 cursor-pointer">
-                    ${sample.name} <span class="text-xs text-gray-500 font-mono">(x=${sample.expectedValue})</span>
+                <input id="cal-sample-rf-${ts.id}" name="calibration_sample_rf" type="checkbox" value="${ts.id}" ${rfIsChecked ? 'checked' : ''} class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                <label for="cal-sample-rf-${ts.id}" class="ml-3 block text-sm font-medium text-gray-700 cursor-pointer">
+                    ${sampleName} <span class="text-xs text-gray-500 font-mono">(x=${concentration.toPrecision(4)})</span>
                 </label>
             </div>
         `;
     });
-
 
     regressionChecklist.innerHTML = regChecklistHTML;
     rfChecklist.innerHTML = rfChecklistHTML;
@@ -2411,16 +2409,17 @@ function actionCalculateRegression() {
         const lineParams = calculateRegressionLine(cal_x, cal_y);
 
         const tasks = [];
-        const selectedSampleIds = Array.from(document.querySelectorAll('input[name="calibration_sample_reg"]:checked')).map(cb => cb.value);
+        const selectedTreatmentIds = Array.from(document.querySelectorAll('input[name="calibration_sample_reg"]:checked')).map(cb => cb.value);
 
-        selectedSampleIds.forEach(id => {
-            const sample = appState.samples.find(s => s.id == id);
-            const result = appState.results[id];
-            if (sample && result && result.statistics && sample.expectedValue !== null) {
+        selectedTreatmentIds.forEach(id => {
+            const treatmentSample = appState.treatments.find(ts => ts.id === id);
+            if (treatmentSample && treatmentSample.results) {
+                const originalSample = appState.samples.find(s => s.id === treatmentSample.sampleId);
+                const sampleName = originalSample ? originalSample.name : `Campione trattato ${id}`;
                 tasks.push({
-                    name: sample.name,
-                    xk: parseFloat(sample.expectedValue),
-                    p: result.statistics.n
+                    name: sampleName,
+                    xk: treatmentSample.results.finalConcentration,
+                    p: 1 // Each treated sample is a single data point
                 });
             }
         });
@@ -2470,15 +2469,16 @@ function actionCalculateResponseFactor() {
         const utaratura_perc = criterion / Math.sqrt(3);
 
         const tasks = [];
-        const selectedSampleIds = Array.from(document.querySelectorAll('input[name="calibration_sample_rf"]:checked')).map(cb => cb.value);
+        const selectedTreatmentIds = Array.from(document.querySelectorAll('input[name="calibration_sample_rf"]:checked')).map(cb => cb.value);
 
-        selectedSampleIds.forEach(id => {
-            const sample = appState.samples.find(s => s.id == id);
-            const result = appState.results[id];
-            if (sample && result && result.statistics && sample.expectedValue !== null) {
+        selectedTreatmentIds.forEach(id => {
+            const treatmentSample = appState.treatments.find(ts => ts.id === id);
+            if (treatmentSample && treatmentSample.results) {
+                const originalSample = appState.samples.find(s => s.id === treatmentSample.sampleId);
+                const sampleName = originalSample ? originalSample.name : `Campione trattato ${id}`;
                 tasks.push({
-                    name: sample.name,
-                    xk: parseFloat(sample.expectedValue)
+                    name: sampleName,
+                    xk: treatmentSample.results.finalConcentration
                 });
             }
         });
