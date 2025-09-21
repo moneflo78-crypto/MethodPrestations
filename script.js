@@ -3497,8 +3497,8 @@ function main() {
             }
         } else if (field.startsWith('source')) {
             if (field === 'sourceType') treatment.source.type = value;
-            if (field === 'sourceManualConcentration') treatment.source.manualConcentration = value === '' ? null : parseFloat(value);
-            if (field === 'sourceManualUncertainty') treatment.source.manualUncertainty = value === '' ? null : parseFloat(value);
+            if (field === 'sourceManualConcentration') treatment.source.manualConcentration = value;
+            if (field === 'sourceManualUncertainty') treatment.source.manualUncertainty = value;
             if (field === 'sourceSpikeSampleId') treatment.source.spikeSampleId = value === '' ? null : parseInt(value, 10);
         } else {
              treatment[field] = value;
@@ -3533,10 +3533,13 @@ function main() {
                 if (index === 0) {
                     // Gestione della sorgente per il primo trattamento
                     if (treatment.source.type === 'manual') {
-                        if (treatment.source.manualConcentration === null || treatment.source.manualUncertainty === null) throw new Error("Dati manuali incompleti.");
-                        currentConcentration = treatment.source.manualConcentration;
+                        const sourceConc = parseFloat(treatment.source.manualConcentration);
+                        const sourceUnc = parseFloat(treatment.source.manualUncertainty);
+                        if (isNaN(sourceConc) || isNaN(sourceUnc)) throw new Error("Dati manuali incompleti o non validi.");
+
+                        currentConcentration = sourceConc;
                         // U% (k=2) -> u_rel
-                        const u_rel_initial = (treatment.source.manualUncertainty / 100) / 2 / Math.sqrt(2);
+                        const u_rel_initial = (sourceUnc / 100) / 2 / Math.sqrt(2);
                         sum_u_rel_sq = Math.pow(u_rel_initial, 2);
                     } else if (treatment.source.type === 'spike') {
                         if (treatment.source.spikeSampleId === null) throw new Error("Matrix spike non selezionato.");
@@ -3560,8 +3563,10 @@ function main() {
                     let sum_u_abs_sq_withdrawals = 0;
 
                     treatment.withdrawals.forEach(w => {
-                        totalWithdrawalVolume += w.volume;
-                        const contrib = _get_pipette_uncertainty_contribution(w.pipette, w.volume, appState.libraries);
+                        const withdrawalVolume = parseFloat(w.volume);
+                        if (isNaN(withdrawalVolume) || withdrawalVolume <= 0) throw new Error("Diluizione: Volume di prelievo non valido.");
+                        totalWithdrawalVolume += withdrawalVolume;
+                        const contrib = _get_pipette_uncertainty_contribution(w.pipette, withdrawalVolume, appState.libraries);
                         w.pipetteUncertainty_U_perc = contrib.U_perc;
                         w.pipetteUncertaintyRelPerc = contrib.u_rel_perc;
                         sum_u_abs_sq_withdrawals += Math.pow(contrib.u_abs, 2);
@@ -3569,15 +3574,16 @@ function main() {
                     const u_abs_total_withdrawal = Math.sqrt(sum_u_abs_sq_withdrawals);
 
                     if (treatment.dilutionType === 'addSolvent') {
-                        if (!treatment.addedSolventPipette || !treatment.addedSolventVolume || treatment.addedSolventVolume <= 0) throw new Error("Diluizione: Dati per l'aggiunta di solvente incompleti.");
+                        const addedSolventVolume = parseFloat(treatment.addedSolventVolume);
+                        if (!treatment.addedSolventPipette || isNaN(addedSolventVolume) || addedSolventVolume <= 0) throw new Error("Diluizione: Dati per l'aggiunta di solvente incompleti o non validi.");
 
                         const Vi = totalWithdrawalVolume;
                         const u_abs_Vi = u_abs_total_withdrawal;
 
-                        const solvent_contrib = _get_pipette_uncertainty_contribution(treatment.addedSolventPipette, treatment.addedSolventVolume, appState.libraries);
+                        const solvent_contrib = _get_pipette_uncertainty_contribution(treatment.addedSolventPipette, addedSolventVolume, appState.libraries);
                         treatment.addedSolventPipetteUncertaintyRelPerc = solvent_contrib.u_rel_perc;
                         treatment.addedSolventPipette_U_perc = solvent_contrib.U_perc;
-                        const Va = treatment.addedSolventVolume;
+                        const Va = addedSolventVolume;
                         const u_abs_Va = solvent_contrib.u_abs;
 
                         const Vf = Vi + Va;
@@ -3689,29 +3695,15 @@ function main() {
             } else if (treatmentInput) {
                 const { treatmentSampleId, treatmentId, withdrawalId, field } = treatmentInput.dataset;
                 let value;
-                let shouldUpdate = true;
 
                 if (treatmentInput.inputMode === 'decimal') {
-                    const rawValue = e.target.value;
-                    if (rawValue === '' || rawValue === '-') {
-                        value = null; // Set to null but still update to clear the state
-                    } else {
-                        const normalizedValue = rawValue.replace(',', '.');
-                        // Don't update state if the value is not a valid number or is a partial number
-                        // (e.g., "1,5" is fine, but "1," or "1." should wait for more input)
-                        if (isNaN(parseFloat(normalizedValue)) || normalizedValue.slice(-1) === '.' || normalizedValue.slice(-1) === ',') {
-                            shouldUpdate = false;
-                        } else {
-                            value = parseFloat(normalizedValue);
-                        }
-                    }
+                    // For decimal inputs, we store the raw string (with comma normalized to period)
+                    // to allow for inputs like "5,0". Parsing happens only during calculation.
+                    value = e.target.value.replace(',', '.');
                 } else {
                     value = e.target.value;
                 }
-
-                if (shouldUpdate) {
-                    actionUpdateTreatmentState({ treatmentSampleId, treatmentId, withdrawalId, field, value });
-                }
+                actionUpdateTreatmentState({ treatmentSampleId, treatmentId, withdrawalId, field, value });
             }
 
             // --- FOCUS RESTORING ---
