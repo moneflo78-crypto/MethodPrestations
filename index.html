@@ -25,8 +25,9 @@
                 <p class="text-lg text-gray-600 mt-1">Strumenti per l'analisi statistica e il calcolo dell'incertezza.</p>
             </div>
             <div class="flex space-x-2">
+                <button id="btn-save-overwrite" class="bg-green-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-green-700 transition disabled:bg-gray-400" disabled>Salva</button>
                 <button id="btn-load-data" class="bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-gray-700 transition">Carica Dati</button>
-                <button id="btn-save-data" class="bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-blue-700 transition">Salva Dati</button>
+                <button id="btn-save-data" class="bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-blue-700 transition">Salva con Nome</button>
             </div>
         </header>
 
@@ -66,6 +67,16 @@
                 <div class="bg-white p-6 rounded-lg shadow-md border border-gray-200">
                     <h2 class="text-2xl font-bold text-gray-700 mb-4">Informazioni Generali del Progetto</h2>
                     <div class="space-y-4">
+                        <div>
+                            <label for="project-name" class="block text-sm font-medium text-gray-700">Nome Progetto</label>
+                            <div class="mt-1 flex rounded-md shadow-sm">
+                                <input type="text" id="project-name" class="flex-1 min-w-0 block w-full px-3 py-2 rounded-none rounded-l-md focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border-gray-300" placeholder="Nuovo Progetto">
+                                <button id="btn-rename-project" type="button" class="-ml-px relative inline-flex items-center space-x-2 px-4 py-2 border border-gray-300 text-sm font-medium rounded-r-md text-gray-700 bg-gray-50 hover:bg-gray-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500">
+                                    <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg>
+                                    <span>Rinomina</span>
+                                </button>
+                            </div>
+                        </div>
                         <div>
                             <label for="project-objective" class="block text-sm font-medium text-gray-700">Obiettivo</label>
                             <textarea id="project-objective" rows="3" class="mt-1 w-full p-2 border border-gray-300 rounded-md" placeholder="Descrivi lo scopo dell'analisi..."></textarea>
