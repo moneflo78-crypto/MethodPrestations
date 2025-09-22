@@ -3933,36 +3933,98 @@ function gatherReportData() {
     if (settings.representation === 'compact') {
         const componentName = appState.project.component || 'N/D';
 
-        const paramDefinitions = [
-            { check: () => settings.selections.statistica.statistiche_descrittive, displayName: 'Media', getValue: (id) => appState.results[id]?.statistics?.mean },
-            { check: () => settings.selections.statistica.statistiche_descrittive, displayName: 'Dev. Std.', getValue: (id) => appState.results[id]?.statistics?.stdDev },
-            { check: () => settings.selections.statistica.statistiche_descrittive, displayName: 'CV %', getValue: (id) => appState.results[id]?.statistics?.cv_percent },
-            { check: () => settings.selections.preparazione.trattamenti, displayName: 'Conc. Finale Tratt.', getValue: (id) => appState.treatments.find(t=>t.sampleId === id)?.results?.finalConcentration },
-            { check: () => settings.selections.preparazione.trattamenti, displayName: 'u_c % Tratt.', getValue: (id) => appState.treatments.find(t=>t.sampleId === id)?.results?.u_comp_rel_perc },
-            { check: () => settings.selections['taratura-retta'].incertezza_livello, displayName: 'u_rel % Retta', getValue: (id) => appState.calibration.results?.samples.find(s=>s.sampleName === appState.samples.find(x=>x.id===id)?.name)?.ux_rel_perc },
-            { check: () => settings.selections['taratura-fr'].incertezza_livello, displayName: 'u_x FR', getValue: (id) => appState.rfCalibration.results?.samples.find(s=>s.sampleName === appState.samples.find(x=>x.id===id)?.name)?.ux },
-            { check: () => settings.selections.estesa.risultati, displayName: 'U% Estesa', getValue: (id) => calculateExpandedUncertainty(id)?.U_rel_perc },
+        // Definizione di tutti i parametri possibili come specificato dall'utente
+        const paramDefinitions = {
+            'Nome campione': {
+                section: 'statistica',
+                selection: 'dati_grezzi',
+                getValue: (sample, id) => sample.name,
+            },
+            'Unità di misura': {
+                section: 'statistica',
+                selection: 'dati_grezzi',
+                getValue: (sample, id) => sample.unit,
+            },
+            'Valore nominale': {
+                section: 'statistica',
+                selection: 'dati_grezzi',
+                getValue: (sample, id) => sample.expectedValue,
+            },
+            'Media': {
+                section: 'statistica',
+                selection: 'statistiche_descrittive',
+                getValue: (sample, id) => appState.results[id]?.statistics?.mean,
+            },
+            'Scarto tipo': {
+                section: 'statistica',
+                selection: 'statistiche_descrittive',
+                getValue: (sample, id) => appState.results[id]?.statistics?.stdDev,
+            },
+            'CV%': {
+                section: 'statistica',
+                selection: 'statistiche_descrittive',
+                getValue: (sample, id) => appState.results[id]?.statistics?.cv_percent,
+            },
+            'r': {
+                section: 'statistica',
+                selection: 'statistiche_descrittive',
+                getValue: (sample, id) => appState.results[id]?.statistics?.repeatability_limit_r,
+            },
+            'r%': {
+                section: 'statistica',
+                selection: 'statistiche_descrittive',
+                getValue: (sample, id) => appState.results[id]?.statistics?.repeatability_limit_r_percent,
+            },
+             'R%': { // Campo non implementato, come discusso
+                section: 'statistica',
+                selection: 'statistiche_descrittive',
+                getValue: (sample, id) => 'N/A',
+            },
+            'U': {
+                section: 'estesa',
+                selection: 'risultati',
+                getValue: (sample, id) => calculateExpandedUncertainty(id)?.U_abs,
+            },
+            'U%': {
+                section: 'estesa',
+                selection: 'risultati',
+                getValue: (sample, id) => calculateExpandedUncertainty(id)?.U_rel_perc,
+            },
+        };
+
+        const orderedParamNames = [
+            'Nome campione', 'Unità di misura', 'Valore nominale', 'Media',
+            'Scarto tipo', 'CV%', 'r', 'r%', 'R%', 'U', 'U%'
         ];
 
-        const activeParams = paramDefinitions.filter(p => p.check());
+        const activeParams = orderedParamNames.filter(name => {
+            const param = paramDefinitions[name];
+            // La sezione 'estesa' non ha un trattino nel nome dello stato.
+            const sectionNameInState = param.section.replace(/-/g, '');
+            return settings.selections[param.section]?.[param.selection];
+        });
 
         if (activeParams.length === 0) {
-            alert("Per il report compatto, selezionare almeno un parametro numerico dalle sezioni (es. 'Statistiche descrittive', 'Risultati finali', etc.).");
+            alert("Per il report compatto, selezionare almeno una voce dalle sezioni indicate (es. 'Dati grezzi', 'Statistiche descrittive', 'Risultati finali').");
             return null;
         }
 
         const formatValue = (value) => {
             if (value === null || typeof value === 'undefined') return '-';
-            if (typeof value === 'number') return value.toPrecision(3);
+            if (typeof value === 'number') {
+                 if (Math.abs(value) < 1e-4 && Math.abs(value) > 0) return value.toExponential(2);
+                 return value.toPrecision(3);
+            }
             return value;
         };
 
         if (settings.grouping === 'sample') {
-            const headers = ['Componente', 'Campione', ...activeParams.map(p => p.displayName)];
+            const headers = ['Componente', ...activeParams];
             const rows = appState.samples.map(sample => {
-                const row = [componentName, sample.name];
-                activeParams.forEach(paramDef => {
-                    const value = paramDef.getValue(sample.id);
+                const row = [componentName];
+                activeParams.forEach(paramName => {
+                    const paramDef = paramDefinitions[paramName];
+                    const value = paramDef.getValue(sample, sample.id);
                     row.push(formatValue(value));
                 });
                 return row;
@@ -3973,10 +4035,11 @@ function gatherReportData() {
             });
         } else { // grouping by feature
             const headers = ['Componente', 'Caratteristica', ...appState.samples.map(s => s.name)];
-            const rows = activeParams.map(paramDef => {
-                const row = [componentName, paramDef.displayName];
+            const rows = activeParams.map(paramName => {
+                const row = [componentName, paramName];
                 appState.samples.forEach(sample => {
-                    const value = paramDef.getValue(sample.id);
+                    const paramDef = paramDefinitions[paramName];
+                    const value = paramDef.getValue(sample, sample.id);
                     row.push(formatValue(value));
                 });
                 return row;
