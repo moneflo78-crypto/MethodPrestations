@@ -358,17 +358,34 @@
                     </div>
 
                     <!-- Selettori principali e pulsanti di esportazione -->
-                    <div class="flex justify-between items-center mb-8 p-4 bg-gray-100 rounded-lg border">
-                        <div>
-                            <h3 class="font-semibold text-gray-700 mb-2">Organizza report per:</h3>
-                            <div class="flex space-x-6">
-                                <div class="flex items-center">
-                                    <input id="report-group-by-sample" name="report-grouping" type="radio" value="sample" class="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500" checked>
-                                    <label for="report-group-by-sample" class="ml-2 block text-sm font-medium text-gray-700">Campione</label>
+                    <div class="flex justify-between items-start mb-8 p-4 bg-gray-100 rounded-lg border">
+                        <div class="flex items-start space-x-10">
+                            <!-- Organizzazione -->
+                            <div>
+                                <h3 class="font-semibold text-gray-700 mb-2">Organizza report per:</h3>
+                                <div class="flex space-x-6">
+                                    <div class="flex items-center">
+                                        <input id="report-group-by-sample" name="report-grouping" type="radio" value="sample" class="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500" checked>
+                                        <label for="report-group-by-sample" class="ml-2 block text-sm font-medium text-gray-700">Campione</label>
+                                    </div>
+                                    <div class="flex items-center">
+                                        <input id="report-group-by-feature" name="report-grouping" type="radio" value="feature" class="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500">
+                                        <label for="report-group-by-feature" class="ml-2 block text-sm font-medium text-gray-700">Caratteristica</label>
+                                    </div>
                                 </div>
-                                <div class="flex items-center">
-                                    <input id="report-group-by-feature" name="report-grouping" type="radio" value="feature" class="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500">
-                                    <label for="report-group-by-feature" class="ml-2 block text-sm font-medium text-gray-700">Caratteristica</label>
+                            </div>
+                            <!-- Rappresentazione -->
+                            <div>
+                                <h3 class="font-semibold text-gray-700 mb-2">Scegli la rappresentazione:</h3>
+                                <div class="flex space-x-6">
+                                    <div class="flex items-center">
+                                        <input id="report-representation-extended" name="report-representation" type="radio" value="extended" class="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500" checked>
+                                        <label for="report-representation-extended" class="ml-2 block text-sm font-medium text-gray-700">Estesa</label>
+                                    </div>
+                                    <div class="flex items-center">
+                                        <input id="report-representation-compact" name="report-representation" type="radio" value="compact" class="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500">
+                                        <label for="report-representation-compact" class="ml-2 block text-sm font-medium text-gray-700">Compatta</label>
+                                    </div>
                                 </div>
                             </div>
                         </div>
