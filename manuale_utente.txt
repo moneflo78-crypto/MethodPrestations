@@ -1,0 +1,196 @@
+###################################################
+# MANUALE UTENTE - APPLICAZIONE DI CALCOLO INCERTEZZA #
+###################################################
+
+## INDICE
+1.  Introduzione e Frontespizio
+2.  Analisi Statistica di Base
+3.  Flussi di Lavoro per la Preparazione dei Campioni
+    3.1. Incertezza di Preparazione (Spike)
+    3.2. Incertezza Preparazione Soluzioni di Taratura
+    3.3. Trattamento Campioni
+4.  Calcolo dell'Incertezza di Taratura
+    4.1. Metodo della Regressione Lineare
+    4.2. Metodo del Fattore di Risposta
+5.  Incertezza Estesa: Il Risultato Finale
+6.  Gestione delle Librerie (Vetreria e Pipette)
+7.  Gestione dei File di Progetto
+
+---------------------------------------------------
+
+### CAPITOLO 1: INTRODUZIONE E FRONTESPIZIO
+
+Questo manuale guida l'utente attraverso tutte le funzionalità dell'applicazione, seguendo un flusso di lavoro logico che va dall'inserimento dei dati grezzi al calcolo finale dell'incertezza estesa.
+
+#### 1.1 Scopo dell'Applicazione
+L'applicazione è progettata per assistere i chimici analitici nel calcolo dell'incertezza di misura associata a un risultato analitico. Automatizza calcoli complessi, tra cui:
+- Statistiche descrittive e test per dati anomali.
+- Incertezza derivante dalla preparazione dei campioni (diluizioni, estrazioni).
+- Incertezza derivante dalla taratura strumentale.
+- Combinazione di tutte le fonti di incertezza per calcolare un'incertezza estesa finale.
+
+#### 1.2 La Scheda "Frontespizio"
+Questa è la prima scheda che si incontra. Serve a documentare le informazioni generali del progetto.
+
+**Come si usa:**
+1.  **Nome Progetto:** Fare clic sul pulsante "Rinomina Progetto" per assegnare un nome significativo al file di lavoro. Questo nome verrà utilizzato per il salvataggio del file.
+2.  **Obiettivo, Metodo, Componente:** Compilare i campi di testo per fornire un contesto all'analisi. Queste informazioni sono puramente descrittive e verranno salvate nel file di progetto.
+
+---------------------------------------------------
+
+### CAPITOLO 2: ANALISI STATISTICA DI BASE
+
+La scheda **"Analisi Statistica"** è il punto di partenza per l'inserimento dei dati sperimentali. Qui si inseriscono le misure grezze e si eseguono le analisi statistiche preliminari.
+
+#### 2.1 Aggiungere Campioni e Dati
+1.  **Aggiungi Campione:** Fare clic su **"+ Aggiungi Campione"** per creare una nuova scheda campione. È possibile aggiungere più campioni per analizzarli in parallelo.
+2.  **Inserimento Dati:** Nel campo di testo "Dati", inserire le misure numeriche ripetute per quel campione. I numeri possono essere separati da spazi, virgole o andando a capo. L'applicazione gestisce automaticamente sia il punto che la virgola come separatore decimale.
+3.  **Nome e Valore Atteso:**
+    - **Nome:** Assegnare un nome univoco al campione (es. "QC Basso", "Campione A").
+    - **Valore Atteso:** Se il campione è uno standard di controllo o uno spike a concentrazione nota, inserire qui il suo valore nominale. Questo è FONDAMENTALE per i calcoli di Recupero % e per le verifiche di accuratezza nelle sezioni successive. Lasciare vuoto per campioni incogniti.
+    - **Unità:** Selezionare l'unità di misura corretta per il valore atteso.
+
+#### 2.2 Esecuzione dell'Analisi
+1.  Fare clic sul pulsante **"Esegui Calcolo"**. L'applicazione eseguirà un'analisi sequenziale per ogni campione.
+2.  I risultati appaiono nella parte inferiore della scheda e nella scheda **"Report Risultati"**.
+
+#### 2.3 Il Flusso di Analisi e le Scelte dell'Utente
+L'applicazione segue un flusso intelligente per garantire la validità statistica dei dati.
+
+1.  **Test di Normalità (Shapiro-Wilk):**
+    - L'analisi inizia sempre con un test di Shapiro-Wilk per verificare se i dati seguono una distribuzione normale.
+    - **Se il test è superato:** L'applicazione chiederà all'utente di scegliere quali test per dati anomali (outlier) eseguire (Huber, Grubbs, Dixon).
+    - **Se il test fallisce:** I dati non sono normali. I test di Grubbs e Dixon non sono applicabili. L'applicazione chiederà se si desidera procedere utilizzando solo il test di Huber, che è robusto e non richiede la normalità.
+
+2.  **Gestione dei Dati Anomali (Outlier):**
+    - Se vengono trovati uno o più dati anomali, l'applicazione lo segnalerà e chiederà all'utente se desidera **rimuoverli** o **mantenerli**.
+    - **Se si sceglie di rimuoverli:** L'analisi (incluso il test di normalità) viene eseguita nuovamente sui dati puliti.
+    - **Se si sceglie di mantenerli:** I calcoli procederanno con i dati originali, ma i risultati potrebbero non essere statisticamente validi, specialmente se i dati non sono normali.
+
+#### 2.4 Interpretazione dei Risultati
+- **Log di Analisi:** Mostra passo dopo passo le decisioni prese (dall'utente e dall'applicazione) durante l'analisi. È utile per tracciare il percorso che ha portato al risultato finale.
+- **Statistiche Descrittive:** Fornisce i valori calcolati come Media, Deviazione Standard, CV%, Limite di Ripetibilità (r) e Recupero % (se è stato fornito un valore atteso).
+
+---------------------------------------------------
+
+### CAPITOLO 3: FLUSSI DI LAVORO PER LA PREPARAZIONE DEI CAMPIONI
+
+Questa è la sezione più importante per il calcolo dell'incertezza. L'applicazione offre tre schede distinte nella sezione **"Incertezza di Preparazione"** per gestire diversi scenari. È fondamentale capire quale usare.
+
+#### 3.1 Scheda "Incertezza di Preparazione (Spike)"
+- **Scopo:** Usare questa scheda per calcolare l'incertezza derivante dalla **preparazione di un singolo standard di controllo qualità (QC) o di un campione fortificato (spike)**.
+- **Quando si usa:** Si usa quando si prepara uno standard da un materiale di riferimento certificato e si vuole verificare se il valore misurato sperimentalmente è compatibile con il valore teorico, tenendo conto di tutte le incertezze di preparazione.
+
+**Flusso di lavoro:**
+1.  **Selezione del Campione:** La scheda mostra automaticamente i campioni per cui è stato inserito un "Valore Atteso" nella scheda "Analisi Statistica".
+2.  **Dati Iniziali:**
+    - **Concentrazione Materiale di Riferimento:** Inserire la concentrazione del materiale di riferimento certificato (es. 1000 mg/L).
+    - **Incertezza del certificato (U %):** Inserire l'incertezza estesa riportata sul certificato (es. 0.5%).
+3.  **Aggiungi Passaggio:** Fare clic su "+ Aggiungi Passaggio" per descrivere una fase di diluizione.
+4.  **Configura Passaggio:**
+    - **Prelievi:** Aggiungere uno o più prelievi, specificando la **pipetta** usata e il **volume** prelevato. L'incertezza della pipetta viene calcolata automaticamente.
+    - **Preparazione (Diluizione):** Scegliere il metodo di diluizione:
+        - **Porta a Volume:** Selezionare il **matraccio** in cui il prelievo è stato diluito.
+        - **Aggiungi Solvente:** Selezionare la **pipetta** e il **volume** di solvente aggiunto al prelievo.
+5.  **Calcolo Automatico:** L'applicazione calcola e mostra in tempo reale:
+    - L'incertezza relativa di ogni strumento.
+    - La concentrazione e l'incertezza composita relativa dopo ogni passaggio.
+    - Il risultato finale di concentrazione calcolata e incertezza tipo composita (u_c %).
+6.  **Verifiche Finali:** Nel riquadro dei risultati finali, l'applicazione esegue due test cruciali:
+    - **Verifica Preparazione:** Confronta la concentrazione finale calcolata con il "Valore Atteso". Un fallimento indica un potenziale errore nell'inserimento dei dati di diluizione.
+    - **Verifica Esattezza Metodo:** Confronta la media misurata (dalla scheda "Analisi Statistica") con il "Valore Atteso", usando l'incertezza di preparazione. Un fallimento suggerisce la presenza di un errore sistematico (bias) nel metodo analitico.
+
+#### 3.2 Scheda "Incertezza Preparazione Soluzioni di Taratura"
+- **Scopo:** Usare questa scheda per calcolare l'incertezza di preparazione di **ciascun punto della curva di taratura**.
+- **Quando si usa:** Si usa quando gli standard di taratura non sono pronti all'uso ma vengono preparati tramite diluizioni a partire da uno standard madre.
+
+**Flusso di lavoro:**
+1.  **Sincronizzazione:** Questa scheda si popola automaticamente con i punti di taratura inseriti nella scheda "Incertezza di Taratura".
+2.  **Processo Identico a 3.1:** Per ogni punto di taratura, il processo di definizione dei passaggi di preparazione è identico a quello descritto per gli Spike (vedere sezione 3.1). Si inserisce la concentrazione dello standard madre e si definiscono i passaggi di diluizione per arrivare alla concentrazione nominale di quel punto.
+
+#### 3.3 Scheda "Trattamento Campioni"
+- **Scopo:** Usare questa scheda per calcolare la concentrazione e l'incertezza di un **campione REALE** che ha subito uno o più trattamenti pre-analitici (es. diluizione, estrazione, concentrazione).
+- **Quando si usa:** Questo è il flusso di lavoro per i campioni incogniti.
+
+**Flusso di lavoro:**
+1.  **Aggiungi Campione da Trattare:** Inizia facendo clic su questo pulsante.
+2.  **Associa Campione:** Selezionare dal menu a tendina il campione (precedentemente inserito in "Analisi Statistica") che si sta trattando.
+3.  **Aggiungi Trattamento:** Aggiungere uno o più passaggi premendo i pulsanti: **Diluizione, Estrazione, Concentrazione**. I passaggi possono essere riordinati con le frecce.
+4.  **Configura Sorgente Dati (Solo per il primo passaggio):**
+    - **Inserimento Manuale:** Se si conosce la concentrazione e l'incertezza del campione prima del trattamento, si possono inserire manualmente.
+    - **Da Matrix Spike:** È possibile usare i risultati di un calcolo dalla scheda "Incertezza di Preparazione (Spike)" come punto di partenza.
+5.  **Configura Passaggi:**
+    - **Diluizione:** Funziona esattamente come descritto nella sezione 3.1.
+    - **Estrazione / Concentrazione:** Selezionare il **Volume Iniziale** e il **Volume Finale** (tramite matracci dalla libreria) per calcolare il fattore di concentrazione/diluizione.
+6.  **Risultato Finale:** L'applicazione calcola la concentrazione finale del campione trattato e la sua incertezza tipo composita, che verranno poi usate nelle schede successive ("Incertezza di Taratura" e "Incertezza Estesa").
+
+---------------------------------------------------
+
+### CAPITOLO 4: CALCOLO DELL'INCERTEZZA DI TARATURA
+
+La scheda **"Incertezza di Taratura"** serve a calcolare l'incertezza derivante dalla relazione tra la concentrazione e il segnale strumentale. L'applicazione offre due metodi distinti.
+
+#### 4.1 Metodo della Regressione Lineare
+Questo è il metodo classico basato sulla retta dei minimi quadrati.
+
+**Flusso di lavoro:**
+1.  **Inserisci Punti di Taratura:** Aggiungere righe e compilare i valori di **Concentrazione (X)** e **Segnale (Y)** per ogni punto della curva.
+2.  **Seleziona Campioni da Analizzare:**
+    - Nel riquadro "Campioni da Analizzare", appariranno i campioni che hanno un'incertezza di preparazione calcolata (dalla scheda "Trattamento Campioni").
+    - Selezionare la casella di controllo accanto ai campioni per cui si desidera calcolare l'incertezza di taratura.
+    - È anche possibile inserire una concentrazione manualmente nel campo "Concentrazione Manuale".
+3.  **Esegui Calcolo:** Fare clic su **"Calcola Incertezza con Retta di Regressione"**.
+4.  **Interpretazione dei Risultati:**
+    - Vengono mostrati i parametri della retta (pendenza, intercetta), R² e la deviazione standard residua (s_yx).
+    - Una tabella elenca, per ogni campione selezionato, la sua incertezza tipo (u_x) e l'incertezza tipo relativa percentuale.
+
+#### 4.2 Metodo del Fattore di Risposta (RF)
+Questo metodo non costruisce una retta, ma calcola l'incertezza basandosi su un criterio di variabilità massimo accettato.
+
+**Flusso di lavoro:**
+1.  **Inserisci Criterio di Accettabilità:** Definire la massima deviazione standard relativa (in %) consentita per i fattori di risposta del metodo (es. 20%).
+2.  **Seleziona Campioni:** Il processo di selezione dei campioni è identico a quello della regressione lineare.
+3.  **Esegui Calcolo:** Fare clic su **"Calcola Incertezza con Fattore di Risposta"**.
+4.  **Interpretazione dei Risultati:** L'applicazione mostra l'incertezza di taratura relativa calcolata e la applica a tutti i campioni selezionati.
+
+---------------------------------------------------
+
+### CAPITOLO 5: INCERTEZZA ESTESA: IL RISULTATO FINALE
+
+La scheda **"Incertezza Estesa"** è l'ultima fase del calcolo. Qui, tutte le fonti di incertezza calcolate nelle schede precedenti vengono combinate per produrre il risultato finale.
+
+**Come funziona:**
+1.  **Calcolo Automatico:** Questa scheda è di sola lettura. Esegue automaticamente i calcoli non appena ci sono dati sufficienti.
+2.  **Riepilogo dei Contributi:** Per ogni campione, viene mostrata una tabella che elenca tutte le fonti di incertezza che contribuiscono al totale:
+    - **Ripetibilità (CV%):** Dall'analisi statistica.
+    - **Trattamento Campione:** Dall'incertezza di preparazione.
+    - **Taratura:** Dalla retta di regressione o dal fattore di risposta.
+    - **Preparazione Spike (Bias):** Aggiunta solo se il test di esattezza è fallito.
+3.  **Risultati Finali:** Vengono visualizzati i valori chiave:
+    - **Gradi di Libertà Effettivi (ν_eff):** Calcolati con la formula di Welch-Satterthwaite.
+    - **Fattore di Copertura (k):** Il valore t di Student basato su ν_eff.
+    - **Incertezza Estesa (U e U%):** Il risultato finale che rappresenta l'intervallo di confidenza al 95% del risultato.
+
+---------------------------------------------------
+
+### CAPITOLO 6: GESTIONE DELLE LIBRERIE
+
+La scheda **"Gestione Librerie"** permette di personalizzare gli elenchi di vetreria e pipette disponibili in tutta l'applicazione.
+
+**Flusso di lavoro:**
+1.  **Navigazione:** Usare le sotto-schede "Vetreria" e "Pipette" per visualizzare le rispettive librerie.
+2.  **Aggiungi:** Fare clic su **"+ Aggiungi Vetreria"** o **"+ Aggiungi Pipetta"** per aprire una finestra in cui inserire i dati del nuovo strumento.
+3.  **Modifica / Duplica / Rimuovi:** Ogni riga ha dei pulsanti per modificare i dati di uno strumento, crearne una copia o eliminarlo definitivamente.
+4.  **Importa / Esporta:**
+    - **Esporta Librerie:** Salva le librerie correnti (vetreria e pipette) in un unico file `.json`. Utile per backup o condivisione.
+    - **Importa Librerie:** Carica un file `.json` precedentemente esportato per sostituire le librerie attuali.
+
+---------------------------------------------------
+
+### CAPITOLO 7: GESTIONE DEI FILE DI PROGETTO
+
+L'applicazione consente di salvare e ricaricare l'intero stato del lavoro.
+
+- **Salva con Nome:** Apre una finestra di dialogo per salvare l'intera sessione di lavoro (dati, calcoli, impostazioni del progetto) in un file `.json`. È buona norma usarlo la prima volta che si salva un progetto.
+- **Salva:** Se un progetto è già stato salvato, questo pulsante sovrascrive il file esistente con le modifiche correnti. Il pulsante è disabilitato finché non si esegue il primo "Salva con Nome".
+- **Carica Dati:** Permette di aprire un file di progetto `.json` precedentemente salvato, ripristinando completamente lo stato dell'applicazione a quel punto.
