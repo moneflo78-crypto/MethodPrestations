@@ -396,6 +396,7 @@ function getInitialAppState() {
         treatments: [],
         reportSettings: {
             grouping: 'sample', // 'sample' or 'feature'
+            representation: 'extended', // 'extended' or 'compact'
             selections: {
                 statistica: {
                     dati_grezzi: false,
@@ -3717,7 +3718,7 @@ function gatherReportData() {
         groups: []
     };
 
-    // Helper functions to generate data blocks for each section
+    // Helper functions to generate data blocks for each section (for extended view)
     const getStatisticaBlocks = (sampleId, selections) => {
         const blocks = [];
         const result = appState.results[sampleId];
@@ -3929,49 +3930,108 @@ function gatherReportData() {
         return blocks;
     };
 
-    const featureMap = {
-        'Analisi Statistica': (sampleId) => getStatisticaBlocks(sampleId, settings.selections.statistica),
-        'Incertezza di Preparazione': (sampleId) => getPreparazioneBlocks(sampleId, settings.selections.preparazione),
-        'Incertezza di Taratura da Retta': (sampleId) => getTaraturaRettaBlocks(sampleId, settings.selections['taratura-retta']),
-        'Incertezza di Taratura da FR': (sampleId) => getTaraturaFrBlocks(sampleId, settings.selections['taratura-fr']),
-        'Incertezza Estesa': (sampleId) => getEstesaBlocks(sampleId, settings.selections.estesa)
-    };
-    const featureNames = Object.keys(featureMap);
+    if (settings.representation === 'compact') {
+        const componentName = appState.project.component || 'N/D';
 
-    if (settings.grouping === 'sample') {
-        appState.samples.forEach(sample => {
-            const items = [];
-            featureNames.forEach(featureName => {
-                const blocks = featureMap[featureName](sample.id);
-                if (blocks.length > 0) {
-                    items.push({ itemTitle: featureName, blocks: blocks });
-                }
-            });
+        const paramDefinitions = [
+            { check: () => settings.selections.statistica.statistiche_descrittive, displayName: 'Media', getValue: (id) => appState.results[id]?.statistics?.mean },
+            { check: () => settings.selections.statistica.statistiche_descrittive, displayName: 'Dev. Std.', getValue: (id) => appState.results[id]?.statistics?.stdDev },
+            { check: () => settings.selections.statistica.statistiche_descrittive, displayName: 'CV %', getValue: (id) => appState.results[id]?.statistics?.cv_percent },
+            { check: () => settings.selections.preparazione.trattamenti, displayName: 'Conc. Finale Tratt.', getValue: (id) => appState.treatments.find(t=>t.sampleId === id)?.results?.finalConcentration },
+            { check: () => settings.selections.preparazione.trattamenti, displayName: 'u_c % Tratt.', getValue: (id) => appState.treatments.find(t=>t.sampleId === id)?.results?.u_comp_rel_perc },
+            { check: () => settings.selections['taratura-retta'].incertezza_livello, displayName: 'u_rel % Retta', getValue: (id) => appState.calibration.results?.samples.find(s=>s.sampleName === appState.samples.find(x=>x.id===id)?.name)?.ux_rel_perc },
+            { check: () => settings.selections['taratura-fr'].incertezza_livello, displayName: 'u_x FR', getValue: (id) => appState.rfCalibration.results?.samples.find(s=>s.sampleName === appState.samples.find(x=>x.id===id)?.name)?.ux },
+            { check: () => settings.selections.estesa.risultati, displayName: 'U% Estesa', getValue: (id) => calculateExpandedUncertainty(id)?.U_rel_perc },
+        ];
 
-            if (items.length > 0) {
-                reportData.groups.push({
-                    groupTitle: sample.name,
-                    items: items
+        const activeParams = paramDefinitions.filter(p => p.check());
+
+        if (activeParams.length === 0) {
+            alert("Per il report compatto, selezionare almeno un parametro numerico dalle sezioni (es. 'Statistiche descrittive', 'Risultati finali', etc.).");
+            return null;
+        }
+
+        const formatValue = (value) => {
+            if (value === null || typeof value === 'undefined') return '-';
+            if (typeof value === 'number') return value.toPrecision(3);
+            return value;
+        };
+
+        if (settings.grouping === 'sample') {
+            const headers = ['Componente', 'Campione', ...activeParams.map(p => p.displayName)];
+            const rows = appState.samples.map(sample => {
+                const row = [componentName, sample.name];
+                activeParams.forEach(paramDef => {
+                    const value = paramDef.getValue(sample.id);
+                    row.push(formatValue(value));
                 });
-            }
-        });
-    } else { // grouping by feature
-        featureNames.forEach(featureName => {
-            const items = [];
+                return row;
+            });
+            reportData.groups.push({
+                groupTitle: 'Report Compatto per Campione',
+                items: [{ itemTitle: 'Tabella Riassuntiva', blocks: [{ type: 'table', content: { headers, rows } }] }]
+            });
+        } else { // grouping by feature
+            const headers = ['Componente', 'Caratteristica', ...appState.samples.map(s => s.name)];
+            const rows = activeParams.map(paramDef => {
+                const row = [componentName, paramDef.displayName];
+                appState.samples.forEach(sample => {
+                    const value = paramDef.getValue(sample.id);
+                    row.push(formatValue(value));
+                });
+                return row;
+            });
+            reportData.groups.push({
+                groupTitle: 'Report Compatto per Caratteristica',
+                items: [{ itemTitle: 'Tabella Riassuntiva', blocks: [{ type: 'table', content: { headers, rows } }] }]
+            });
+        }
+
+    } else { // 'extended' representation (original logic)
+        const featureMap = {
+            'Analisi Statistica': (sampleId) => getStatisticaBlocks(sampleId, settings.selections.statistica),
+            'Incertezza di Preparazione': (sampleId) => getPreparazioneBlocks(sampleId, settings.selections.preparazione),
+            'Incertezza di Taratura da Retta': (sampleId) => getTaraturaRettaBlocks(sampleId, settings.selections['taratura-retta']),
+            'Incertezza di Taratura da FR': (sampleId) => getTaraturaFrBlocks(sampleId, settings.selections['taratura-fr']),
+            'Incertezza Estesa': (sampleId) => getEstesaBlocks(sampleId, settings.selections.estesa)
+        };
+        const featureNames = Object.keys(featureMap);
+
+        if (settings.grouping === 'sample') {
             appState.samples.forEach(sample => {
-                const blocks = featureMap[featureName](sample.id);
-                if (blocks.length > 0) {
-                    items.push({ itemTitle: sample.name, blocks: blocks });
+                const items = [];
+                featureNames.forEach(featureName => {
+                    const blocks = featureMap[featureName](sample.id);
+                    if (blocks.length > 0) {
+                        items.push({ itemTitle: featureName, blocks: blocks });
+                    }
+                });
+
+                if (items.length > 0) {
+                    reportData.groups.push({
+                        groupTitle: sample.name,
+                        items: items
+                    });
                 }
             });
-
-            if (items.length > 0) {
-                 reportData.groups.push({
-                    groupTitle: featureName,
-                    items: items
+        } else { // grouping by feature
+            featureNames.forEach(featureName => {
+                const items = [];
+                appState.samples.forEach(sample => {
+                    const blocks = featureMap[featureName](sample.id);
+                    if (blocks.length > 0) {
+                        items.push({ itemTitle: sample.name, blocks: blocks });
+                    }
                 });
-            }
-        });
+
+                if (items.length > 0) {
+                     reportData.groups.push({
+                        groupTitle: featureName,
+                        items: items
+                    });
+                }
+            });
+        }
     }
 
     return reportData;
@@ -4005,6 +4065,11 @@ function setupReportEventListeners() {
 
         if (target.name === 'report-grouping') {
             appState.reportSettings.grouping = target.value;
+            return;
+        }
+
+        if (target.name === 'report-representation') {
+            appState.reportSettings.representation = target.value;
             return;
         }
 
