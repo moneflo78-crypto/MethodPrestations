@@ -355,6 +355,7 @@ function getInitialAppState() {
         ui: {
             activeTab: 'frontespizio',
             activeLibrarySubTab: 'vetreria', // 'vetreria' or 'pipette'
+            activeReportSubTab: 'report-progetto', // 'report-progetto' or 'report-multiprogetto'
             currentFileName: null
         },
         project: {
@@ -426,6 +427,7 @@ function getInitialAppState() {
     };
 }
 let appState = getInitialAppState();
+let loadedProjectsData = []; // Dati per il report multiprogetto
 
 
 // --- RENDER FUNCTIONS ---
@@ -440,6 +442,7 @@ function render() {
     renderTreatments(); // <-- Aggiunta nuova funzione di rendering
     renderExpandedUncertainty(); // <-- AGGIUNTA
     renderLibraryTabs(); // <-- Funzione per le librerie
+    renderReportSubTabs();
     renderLibraries(); // <-- Funzione per le tabelle delle librerie
 }
 
@@ -684,6 +687,27 @@ function renderLibraryTabs() {
     // Gestisce la visibilità dei contenuti
     document.getElementById('subcontent-vetreria').classList.toggle('hidden', activeSubTab !== 'vetreria');
     document.getElementById('subcontent-pipette').classList.toggle('hidden', activeSubTab !== 'pipette');
+}
+
+function renderReportSubTabs() {
+    const activeSubTab = appState.ui.activeReportSubTab;
+    if (!activeSubTab) return; // Guard clause
+
+    // Gestisce i pulsanti delle sotto-schede del report
+    document.querySelectorAll('.report-subtab-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.subtabName === activeSubTab);
+    });
+
+    // Gestisce la visibilità dei contenuti del report
+    const reportProgettoContent = document.getElementById('subcontent-report-progetto');
+    const reportMultiProgettoContent = document.getElementById('subcontent-report-multiprogetto');
+
+    if (reportProgettoContent) {
+        reportProgettoContent.classList.toggle('hidden', activeSubTab !== 'report-progetto');
+    }
+    if (reportMultiProgettoContent) {
+        reportMultiProgettoContent.classList.toggle('hidden', activeSubTab !== 'report-multiprogetto');
+    }
 }
 
 function renderTreatments() {
@@ -1563,7 +1587,7 @@ function renderExpandedUncertainty() {
 
     let content = '';
     processedSamples.forEach(sample => {
-        const result = calculateExpandedUncertainty(sample.id);
+        const result = calculateExpandedUncertainty(sample.id, appState);
         const sampleUnit = sample.unit || 'µg/L';
 
         content += `<div class="bg-white p-5 rounded-lg shadow-md border-l-4 ${result.error ? 'border-red-500' : 'border-green-500'} mb-6">`;
@@ -1728,6 +1752,7 @@ function renderSamplesAndResults() {
 // --- ACTIONS ---
 function actionSwitchTab(tabName) { appState.ui.activeTab = tabName; render(); }
 function actionSwitchLibrarySubTab(subTabName) { appState.ui.activeLibrarySubTab = subTabName; render(); }
+function actionSwitchReportSubTab(subTabName) { appState.ui.activeReportSubTab = subTabName; render(); }
 
 async function actionAddGlassware() {
     const confirmed = await formModal.show({
@@ -2687,6 +2712,75 @@ async function actionRenameProject() {
     }
 }
 
+async function actionLoadMultipleProjects(event) {
+    const files = event.target.files;
+    if (!files || files.length === 0) {
+        return; // No files selected
+    }
+
+    loadedProjectsData = []; // Reset the array
+    const filePromises = [];
+
+    for (const file of files) {
+        const promise = new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const loadedState = JSON.parse(e.target.result);
+                    if (!loadedState.version || !loadedState.project) {
+                        reject(new Error(`File ${file.name} non è un file di progetto valido.`));
+                        return;
+                    }
+                    // Add filename for reference
+                    loadedState.fileName = file.name;
+                    resolve(loadedState);
+                } catch (error) {
+                    reject(new Error(`Errore nel parsing del file ${file.name}: ${error.message}`));
+                }
+            };
+            reader.onerror = () => {
+                reject(new Error(`Errore nella lettura del file ${file.name}.`));
+            };
+            reader.readAsText(file);
+        });
+        filePromises.push(promise);
+    }
+
+    try {
+        const allProjectStates = await Promise.all(filePromises);
+        loadedProjectsData = allProjectStates;
+
+        // Update UI to show loaded projects
+        const loadedFilesP = document.getElementById('multi-project-loaded-files');
+        if (loadedFilesP) {
+            if (loadedProjectsData.length > 0) {
+                const projectNames = loadedProjectsData.map(p => p.project.projectName || p.fileName).join(', ');
+                loadedFilesP.textContent = `Progetti caricati: ${loadedProjectsData.length}. (${projectNames})`;
+                loadedFilesP.classList.remove('italic', 'text-gray-600');
+                loadedFilesP.classList.add('font-semibold', 'text-green-700');
+            } else {
+                loadedFilesP.textContent = 'Nessun progetto caricato.';
+                loadedFilesP.classList.remove('font-semibold', 'text-green-700');
+                loadedFilesP.classList.add('italic', 'text-gray-600');
+            }
+        }
+        alert(`${loadedProjectsData.length} progetti caricati con successo!`);
+    } catch (error) {
+        alert(`Errore durante il caricamento dei progetti: ${error.message}`);
+        // Reset in case of error
+        loadedProjectsData = [];
+        const loadedFilesP = document.getElementById('multi-project-loaded-files');
+         if (loadedFilesP) {
+            loadedFilesP.textContent = 'Errore nel caricamento. Riprova.';
+            loadedFilesP.classList.remove('font-semibold', 'text-green-700');
+            loadedFilesP.classList.add('italic', 'text-red-600');
+        }
+    } finally {
+        // Reset the file input so the same files can be loaded again
+        event.target.value = null;
+    }
+}
+
 function actionLoadData(event) {
     const file = event.target.files[0];
     if (!file) return;
@@ -3389,12 +3483,12 @@ async function runAllTests() {
 
 // --- CORE CALCULATION LOGIC FOR EXPANDED UNCERTAINTY ---
 
-function calculateExpandedUncertainty(sampleId) {
+function calculateExpandedUncertainty(sampleId, projectState) {
     try {
-        const sample = appState.samples.find(s => s.id === sampleId);
+        const sample = projectState.samples.find(s => s.id === sampleId);
         if (!sample) return { error: "Campione non trovato." };
 
-        const stats = appState.results[sampleId]?.statistics;
+        const stats = projectState.results[sampleId]?.statistics;
         if (!stats) return { error: "Statistiche di base non calcolate." };
 
         const contributions = [];
@@ -3409,7 +3503,7 @@ function calculateExpandedUncertainty(sampleId) {
         }
 
         // Trova il 'treatmentSample' corrispondente, che è il link a tutte le altre preparazioni
-        const treatmentSample = appState.treatments.find(ts => ts.sampleId === sampleId);
+        const treatmentSample = projectState.treatments.find(ts => ts.sampleId === sampleId);
 
         if (treatmentSample) {
             // 2. Contributo da Trattamento Campione
@@ -3422,7 +3516,7 @@ function calculateExpandedUncertainty(sampleId) {
             }
 
             // 3. Contributo da Preparazione Spike (se il test di accuratezza fallisce)
-            const spikeData = appState.spikeUncertainty[sampleId];
+            const spikeData = projectState.spikeUncertainty[sampleId];
             if (spikeData?.results?.accuracyCheck && spikeData.results.accuracyCheck.isAccurate === false) {
                 if (spikeData.results.u_comp_rel_perc > 0) {
                     contributions.push({
@@ -3436,7 +3530,7 @@ function calculateExpandedUncertainty(sampleId) {
             // 4. Contributo da Taratura
             let calibrationFound = false;
             // Cerca prima nella retta di taratura
-            const regResults = appState.calibration.results;
+            const regResults = projectState.calibration.results;
             if (regResults?.samples) {
                 const regSampleResult = regResults.samples.find(s => s.sampleName === sample.name);
                 if (regSampleResult && regSampleResult.ux_rel_perc > 0) {
@@ -3451,7 +3545,7 @@ function calculateExpandedUncertainty(sampleId) {
 
             // Se non trovato nella retta, cerca nel fattore di risposta
             if (!calibrationFound) {
-                const rfResults = appState.rfCalibration.results;
+                const rfResults = projectState.rfCalibration.results;
                 if (rfResults?.samples) {
                     const rfSampleResult = rfResults.samples.find(s => s.sampleName === sample.name);
                     if (rfSampleResult && rfResults.utaratura_perc > 0) {
@@ -3505,6 +3599,165 @@ function calculateExpandedUncertainty(sampleId) {
 //=================================================
 // --- REPORT GENERATION ---
 //=================================================
+
+function gatherMultiProjectReportData({ grouping }) {
+    const reportData = {
+        title: `Report Multi-Progetto`,
+        subtitle: `Analisi comparativa di ${loadedProjectsData.length} progetti`,
+        groupedBy: grouping,
+        groups: []
+    };
+
+    const formatValue = (value) => {
+        if (value === null || typeof value === 'undefined') return '-';
+        if (value === 'Livello non presente' || value === 'N/A') return value;
+        if (typeof value === 'number') {
+             if (Math.abs(value) < 1e-4 && Math.abs(value) > 0) return value.toExponential(2);
+             return value.toPrecision(3);
+        }
+        return String(value);
+    };
+
+    if (grouping === 'sample') {
+        loadedProjectsData.forEach(projectState => {
+            const projectGroup = {
+                groupTitle: `Progetto: ${projectState.project.projectName || projectState.fileName}`,
+                items: []
+            };
+
+            projectState.samples.forEach(sample => {
+                const result = projectState.results[sample.id];
+                const estesaResult = result ? calculateExpandedUncertainty(sample.id, projectState) : null; // FIX: Pass the correct projectState
+
+                const content = [
+                    { key: 'Nome campione', value: sample.name },
+                    { key: 'Unità di misura', value: sample.unit },
+                    { key: 'Valore nominale', value: result?.statistics?.nominalValue },
+                    { key: 'Media', value: result?.statistics?.mean },
+                    { key: 'Scarto tipo', value: result?.statistics?.stdDev },
+                    { key: 'CV%', value: result?.statistics?.cv_percent },
+                    { key: 'r', value: result?.statistics?.repeatability_limit_r },
+                    { key: 'r%', value: result?.statistics?.repeatability_limit_r_percent },
+                    { key: 'R%', value: 'N/A' }, // As per previous implementation
+                    { key: 'U', value: estesaResult && !estesaResult.error ? estesaResult.U_abs : null },
+                    { key: 'U%', value: estesaResult && !estesaResult.error ? estesaResult.U_rel_perc : null }
+                ].map(item => ({ key: item.key, value: formatValue(item.value) }));
+
+                projectGroup.items.push({
+                    itemTitle: `Campione: ${sample.name}`,
+                    blocks: [{ type: 'keyValue', content }]
+                });
+            });
+            reportData.groups.push(projectGroup);
+        });
+    } else { // grouping === 'feature'
+        const allSampleNames = [...new Set(loadedProjectsData.flatMap(p => p.samples.map(s => s.name)))].sort();
+        const featureGroup = {
+            groupTitle: "Report Comparativo per Caratteristica",
+            items: []
+        };
+
+        loadedProjectsData.forEach(projectState => {
+            const projectName = projectState.project.projectName || projectState.fileName;
+            const projectSamples = projectState.samples;
+            const projectResults = projectState.results;
+
+            const headers = ['Caratteristica', ...allSampleNames];
+
+            const paramDefinitions = {
+                'Unità di misura': (sampleName) => projectSamples.find(s => s.name === sampleName)?.unit,
+                'Valore nominale': (sampleName) => {
+                    const sample = projectSamples.find(s => s.name === sampleName);
+                    return sample ? projectResults[sample.id]?.statistics?.nominalValue : 'Livello non presente';
+                },
+                'Media': (sampleName) => {
+                    const sample = projectSamples.find(s => s.name === sampleName);
+                    return sample ? projectResults[sample.id]?.statistics?.mean : 'Livello non presente';
+                },
+                'Scarto tipo': (sampleName) => {
+                    const sample = projectSamples.find(s => s.name === sampleName);
+                    return sample ? projectResults[sample.id]?.statistics?.stdDev : 'Livello non presente';
+                },
+                'CV%': (sampleName) => {
+                    const sample = projectSamples.find(s => s.name === sampleName);
+                    return sample ? projectResults[sample.id]?.statistics?.cv_percent : 'Livello non presente';
+                },
+                'r': (sampleName) => {
+                    const sample = projectSamples.find(s => s.name === sampleName);
+                    return sample ? projectResults[sample.id]?.statistics?.repeatability_limit_r : 'Livello non presente';
+                },
+                'r%': (sampleName) => {
+                    const sample = projectSamples.find(s => s.name === sampleName);
+                    return sample ? projectResults[sample.id]?.statistics?.repeatability_limit_r_percent : 'Livello non presente';
+                },
+                'R%': (sampleName) => projectSamples.find(s => s.name === sampleName) ? 'N/A' : 'Livello non presente',
+                'U': (sampleName) => {
+                    const sample = projectSamples.find(s => s.name === sampleName);
+                    if (!sample) return 'Livello non presente';
+                    const estesaResult = calculateExpandedUncertainty(sample.id, projectState);
+                    return estesaResult && !estesaResult.error ? estesaResult.U_abs : null;
+                },
+                'U%': (sampleName) => {
+                    const sample = projectSamples.find(s => s.name === sampleName);
+                    if (!sample) return 'Livello non presente';
+                    const estesaResult = calculateExpandedUncertainty(sample.id, projectState);
+                    return estesaResult && !estesaResult.error ? estesaResult.U_rel_perc : null;
+                }
+            };
+
+            const orderedParamNames = Object.keys(paramDefinitions);
+
+            const rows = orderedParamNames.map(paramName => {
+                const rowData = [paramName];
+                allSampleNames.forEach(sampleName => {
+                    rowData.push(formatValue(paramDefinitions[paramName](sampleName)));
+                });
+                return rowData;
+            });
+
+            featureGroup.items.push({
+                itemTitle: `Dati Progetto: ${projectName}`,
+                blocks: [{ type: 'table', content: { headers, rows } }]
+            });
+        });
+
+        reportData.groups.push(featureGroup);
+    }
+
+    return reportData;
+}
+
+
+function actionGenerateMultiProjectReport(format) {
+    const grouping = document.querySelector('input[name="multireport-grouping"]:checked').value;
+
+    if (loadedProjectsData.length === 0) {
+        alert("Nessun progetto caricato. Caricare i file di progetto prima di generare un report.");
+        return;
+    }
+
+    // The issue with calculateExpandedUncertainty has been fixed by passing the project state.
+    // The warning alert is no longer needed.
+    const reportData = gatherMultiProjectReportData({ grouping });
+
+    if (!reportData || reportData.groups.length === 0) {
+        alert("Nessun dato valido da esportare per i progetti caricati.");
+        return;
+    }
+
+    try {
+        if (format === 'pdf') {
+            generatePdfReport(reportData);
+        } else if (format === 'excel') {
+            generateXlsxReport(reportData);
+        } else if (format === 'word') {
+            generateDocxReport(reportData).catch(e => { throw e; });
+        }
+    } catch (e) {
+        console.error(`Error generating multi-project ${format} report:`, e);
+        alert(`Si è verificato un errore durante la generazione del report ${format}. Controlla la console per i dettagli.`);
+    }
+}
 
 function generatePdfReport(reportData) {
     const { jsPDF } = window.jspdf;
@@ -3897,7 +4150,7 @@ function gatherReportData() {
 
     const getEstesaBlocks = (sampleId, selections) => {
         const blocks = [];
-        const result = calculateExpandedUncertainty(sampleId);
+        const result = calculateExpandedUncertainty(sampleId, appState);
         if (!result || result.error) return blocks;
 
         if (selections.riepilogo && result.contributions) {
@@ -3983,12 +4236,12 @@ function gatherReportData() {
             'U': {
                 section: 'estesa',
                 selection: 'risultati',
-                getValue: (sample, id) => calculateExpandedUncertainty(id)?.U_abs,
+                getValue: (sample, id) => calculateExpandedUncertainty(id, appState)?.U_abs,
             },
             'U%': {
                 section: 'estesa',
                 selection: 'risultati',
-                getValue: (sample, id) => calculateExpandedUncertainty(id)?.U_rel_perc,
+                getValue: (sample, id) => calculateExpandedUncertainty(id, appState)?.U_rel_perc,
             },
         };
 
@@ -4198,6 +4451,21 @@ function main() {
     document.getElementById('btn-export-excel').addEventListener('click', () => actionGenerateReport('excel'));
     document.getElementById('btn-export-word').addEventListener('click', () => actionGenerateReport('word'));
 
+    // --- Event Listeners per Report Multi-Progetto ---
+    const btnLoadMulti = document.getElementById('btn-load-multi-project');
+    if (btnLoadMulti) {
+        btnLoadMulti.addEventListener('click', () => {
+            document.getElementById('load-multi-data-input').click();
+        });
+    }
+    const multiDataInput = document.getElementById('load-multi-data-input');
+    if (multiDataInput) {
+        multiDataInput.addEventListener('change', actionLoadMultipleProjects);
+    }
+    document.getElementById('btn-export-multiproject-pdf')?.addEventListener('click', () => actionGenerateMultiProjectReport('pdf'));
+    document.getElementById('btn-export-multiproject-excel')?.addEventListener('click', () => actionGenerateMultiProjectReport('excel'));
+    document.getElementById('btn-export-multiproject-word')?.addEventListener('click', () => actionGenerateMultiProjectReport('word'));
+
     // --- Event Listeners Scheda Analisi Statistica ---
     document.getElementById('btn-add-sample').addEventListener('click', actionAddSample);
     document.getElementById('btn-load-data').addEventListener('click', () => document.getElementById('load-data-input').click());
@@ -4248,13 +4516,33 @@ function main() {
 
     document.querySelector('nav[aria-label="Tabs"]').addEventListener('click', e => { if (e.target.closest('button.tab-btn')) actionSwitchTab(e.target.closest('button.tab-btn').dataset.tabName); });
 
-    // Listener per le sotto-schede della libreria
-    document.querySelector('nav[aria-label="Sub-tabs"]').addEventListener('click', e => {
-        const subtabButton = e.target.closest('button.subtab-btn');
-        if (subtabButton) {
-            actionSwitchLibrarySubTab(subtabButton.dataset.subtabName);
+    // Listener per le sotto-schede della libreria (più specifico)
+    const libraryContainer = document.getElementById('content-librerie');
+    if(libraryContainer) {
+        const subtabNav = libraryContainer.querySelector('nav[aria-label="Sub-tabs"]');
+        if (subtabNav) {
+            subtabNav.addEventListener('click', e => {
+                const subtabButton = e.target.closest('button.subtab-btn');
+                if (subtabButton) {
+                    actionSwitchLibrarySubTab(subtabButton.dataset.subtabName);
+                }
+            });
         }
-    });
+    }
+
+    // Listener per le sotto-schede del Report
+    const reportContainer = document.getElementById('content-report-progetto');
+    if (reportContainer) {
+        const subtabNav = reportContainer.querySelector('nav[aria-label="Sub-tabs"]');
+        if (subtabNav) {
+            subtabNav.addEventListener('click', e => {
+                const subtabButton = e.target.closest('button.report-subtab-btn');
+                if (subtabButton) {
+                    actionSwitchReportSubTab(subtabButton.dataset.subtabName);
+                }
+            });
+        }
+    }
 
     // --- Event Listeners Scheda Gestione Librerie ---
     document.getElementById('btn-export-libraries').addEventListener('click', actionExportLibraries);
