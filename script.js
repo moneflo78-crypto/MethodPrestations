@@ -2698,6 +2698,10 @@ function actionLoadData(event) {
             appState = loadedState;
 
             // Assicura che i nuovi campi esistano per compatibilità
+            if (!appState.reportSettings) {
+                const defaultInitialState = getInitialAppState();
+                appState.reportSettings = defaultInitialState.reportSettings;
+            }
             if (typeof appState.ui.currentFileName === 'undefined') {
                 appState.ui.currentFileName = file.name;
             }
