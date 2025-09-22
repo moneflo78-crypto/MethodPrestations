@@ -3728,6 +3728,140 @@ function gatherMultiProjectReportData({ grouping }) {
 }
 
 
+function gatherMultiProjectExcelData({ grouping }) {
+    const formatValue = (value) => {
+        if (value === null || typeof value === 'undefined' || value === 'N/A') return 'N/A';
+        if (value === 'Livello non presente') return value;
+        if (typeof value === 'number') {
+            if (Number.isInteger(value)) {
+                return value;
+            }
+            // Smartly format decimals, up to 2 places, removing trailing zeros
+            return parseFloat(value.toFixed(2));
+        }
+        return String(value);
+    };
+
+    if (grouping === 'feature') {
+        const allSampleNames = [...new Set(loadedProjectsData.flatMap(p => p.samples.map(s => s.name)))].sort();
+        const headers = ['Nome progetto', 'Componente', 'Caratteristica', ...allSampleNames];
+        const allRows = [];
+
+        loadedProjectsData.forEach(projectState => {
+            const projectName = projectState.project.projectName || projectState.fileName;
+            // From the image, component seems to be derived from project name, e.g. 'Crisene' from 'Crisene_20250921'
+            const component = (projectState.project.component || projectName.split('_')[0]) || 'N/D';
+
+            const paramDefinitions = {
+                'Unità di misura': (sampleName) => projectState.samples.find(s => s.name === sampleName)?.unit,
+                'Valore nominale': (sampleName) => {
+                    const sample = projectState.samples.find(s => s.name === sampleName);
+                    return sample ? projectState.results[sample.id]?.statistics?.nominalValue : 'Livello non presente';
+                },
+                'Media': (sampleName) => {
+                    const sample = projectState.samples.find(s => s.name === sampleName);
+                    return sample ? projectState.results[sample.id]?.statistics?.mean : 'Livello non presente';
+                },
+                'Scarto tipo': (sampleName) => {
+                    const sample = projectState.samples.find(s => s.name === sampleName);
+                    return sample ? projectState.results[sample.id]?.statistics?.stdDev : 'Livello non presente';
+                },
+                'CV%': (sampleName) => {
+                    const sample = projectState.samples.find(s => s.name === sampleName);
+                    return sample ? projectState.results[sample.id]?.statistics?.cv_percent : 'Livello non presente';
+                },
+                'r': (sampleName) => {
+                    const sample = projectState.samples.find(s => s.name === sampleName);
+                    return sample ? projectState.results[sample.id]?.statistics?.repeatability_limit_r : 'Livello non presente';
+                },
+                'r%': (sampleName) => {
+                    const sample = projectState.samples.find(s => s.name === sampleName);
+                    return sample ? projectState.results[sample.id]?.statistics?.repeatability_limit_r_percent : 'Livello non presente';
+                },
+                'R%': (sampleName) => projectState.samples.find(s => s.name === sampleName) ? 'N/A' : 'Livello non presente',
+                'U': (sampleName) => {
+                    const sample = projectState.samples.find(s => s.name === sampleName);
+                    if (!sample) return 'Livello non presente';
+                    const estesaResult = calculateExpandedUncertainty(sample.id, projectState);
+                    return estesaResult && !estesaResult.error ? estesaResult.U_abs : null;
+                },
+                'U%': (sampleName) => {
+                    const sample = projectState.samples.find(s => s.name === sampleName);
+                    if (!sample) return 'Livello non presente';
+                    const estesaResult = calculateExpandedUncertainty(sample.id, projectState);
+                    return estesaResult && !estesaResult.error ? estesaResult.U_rel_perc : null;
+                }
+            };
+            const orderedParamNames = ['Unità di misura', 'Valore nominale', 'Media', 'Scarto tipo', 'CV%', 'r', 'r%', 'R%', 'U', 'U%'];
+
+            orderedParamNames.forEach(paramName => {
+                const newRow = [projectName, component, paramName];
+                allSampleNames.forEach(sampleName => {
+                    const value = paramDefinitions[paramName](sampleName);
+                    newRow.push(formatValue(value));
+                });
+                allRows.push(newRow);
+            });
+        });
+        return { headers, rows: allRows };
+
+    } else { // grouping === 'sample'
+        const headers = ['Nome progetto', 'Componente', 'Nome campione', 'Unità di misura', 'Valore nominale', 'Media', 'Scarto tipo', 'CV%', 'r', 'r%', 'R%', 'U', 'U%'];
+        const allRows = [];
+
+        loadedProjectsData.forEach(projectState => {
+            const projectName = projectState.project.projectName || projectState.fileName;
+            const component = (projectState.project.component || projectName.split('_')[0]) || 'N/D';
+
+            projectState.samples.forEach(sample => {
+                const result = projectState.results[sample.id];
+                const estesaResult = result ? calculateExpandedUncertainty(sample.id, projectState) : null;
+
+                const newRow = [
+                    projectName,
+                    component,
+                    sample.name,
+                    sample.unit,
+                    result?.statistics?.nominalValue,
+                    result?.statistics?.mean,
+                    result?.statistics?.stdDev,
+                    result?.statistics?.cv_percent,
+                    result?.statistics?.repeatability_limit_r,
+                    result?.statistics?.repeatability_limit_r_percent,
+                    'N/A', // R%
+                    estesaResult && !estesaResult.error ? estesaResult.U_abs : null,
+                    estesaResult && !estesaResult.error ? estesaResult.U_rel_perc : null
+                ].map(formatValue);
+                allRows.push(newRow);
+            });
+        });
+        return { headers, rows: allRows };
+    }
+}
+
+function generateMultiProjectExcelReport({ grouping }) {
+    const { headers, rows } = gatherMultiProjectExcelData({ grouping });
+
+    if (!rows || rows.length === 0) {
+        alert("Nessun dato valido da esportare per i progetti caricati.");
+        return;
+    }
+
+    const wb = XLSX.utils.book_new();
+    const ws_data = [headers, ...rows];
+    const ws = XLSX.utils.aoa_to_sheet(ws_data);
+
+    // Auto-fit columns
+    const cols = headers.map((header, i) => ({
+        wch: rows.reduce((w, r) => Math.max(w, String(r[i] || '').length), String(header).length)
+    }));
+    ws['!cols'] = cols;
+
+    XLSX.utils.book_append_sheet(wb, ws, 'Report Multi-progetto');
+    XLSX.writeFile(wb, `Report_Multi_Progetto_${grouping}.xlsx`);
+}
+
+
 function actionGenerateMultiProjectReport(format) {
     const grouping = document.querySelector('input[name="multireport-grouping"]:checked').value;
 
@@ -3736,22 +3870,24 @@ function actionGenerateMultiProjectReport(format) {
         return;
     }
 
-    // The issue with calculateExpandedUncertainty has been fixed by passing the project state.
-    // The warning alert is no longer needed.
-    const reportData = gatherMultiProjectReportData({ grouping });
-
-    if (!reportData || reportData.groups.length === 0) {
-        alert("Nessun dato valido da esportare per i progetti caricati.");
-        return;
-    }
-
     try {
-        if (format === 'pdf') {
-            generatePdfReport(reportData);
-        } else if (format === 'excel') {
-            generateXlsxReport(reportData);
-        } else if (format === 'word') {
-            generateDocxReport(reportData).catch(e => { throw e; });
+        if (format === 'excel') {
+            // New path for Excel, doesn't need the generic reportData
+            generateMultiProjectExcelReport({ grouping });
+        } else {
+            // Old path for PDF and Word
+            const reportData = gatherMultiProjectReportData({ grouping });
+
+            if (!reportData || reportData.groups.length === 0) {
+                alert("Nessun dato valido da esportare per i progetti caricati.");
+                return;
+            }
+
+            if (format === 'pdf') {
+                generatePdfReport(reportData);
+            } else if (format === 'word') {
+                generateDocxReport(reportData).catch(e => { throw e; });
+            }
         }
     } catch (e) {
         console.error(`Error generating multi-project ${format} report:`, e);
