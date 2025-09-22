@@ -3861,6 +3861,36 @@ function generateMultiProjectExcelReport({ grouping }) {
     XLSX.writeFile(wb, `Report_Multi_Progetto_${grouping}.xlsx`);
 }
 
+// Funzione helper per convertire i dati in formato tabella (usato da Excel)
+// nel formato gerarchico richiesto dai generatori di report PDF e Word.
+function convertExcelDataToReportData(excelData, grouping) {
+    const reportData = {
+        title: `Report Multi-Progetto`,
+        subtitle: `Dati aggregati per ${loadedProjectsData.length} progetti`,
+        groupedBy: grouping,
+        groups: []
+    };
+
+    const group = {
+        // Il titolo del gruppo principale nella pagina del report
+        groupTitle: grouping === 'feature' ? "Tabella Comparativa per Caratteristica" : "Tabella Riassuntiva per Campione",
+        items: [{
+            // Il titolo della singola tabella
+            itemTitle: `Dati raggruppati per: ${grouping}`,
+            blocks: [{
+                type: 'table',
+                content: {
+                    headers: excelData.headers,
+                    rows: excelData.rows
+                }
+            }]
+        }]
+    };
+
+    reportData.groups.push(group);
+    return reportData;
+}
+
 
 function actionGenerateMultiProjectReport(format) {
     const grouping = document.querySelector('input[name="multireport-grouping"]:checked').value;
@@ -3872,17 +3902,22 @@ function actionGenerateMultiProjectReport(format) {
 
     try {
         if (format === 'excel') {
-            // New path for Excel, doesn't need the generic reportData
+            // Il percorso per Excel rimane invariato, dato che ha già la logica corretta.
             generateMultiProjectExcelReport({ grouping });
         } else {
-            // Old path for PDF and Word
-            const reportData = gatherMultiProjectReportData({ grouping });
+            // PERCORSO UNIFICATO per PDF e WORD
+            // 1. Raccogliamo i dati usando la stessa funzione dell'export Excel.
+            const excelData = gatherMultiProjectExcelData({ grouping });
 
-            if (!reportData || reportData.groups.length === 0) {
-                alert("Nessun dato valido da esportare per i progetti caricati.");
-                return;
+            if (!excelData || excelData.rows.length === 0) {
+                 alert("Nessun dato valido da esportare per i progetti caricati.");
+                 return;
             }
 
+            // 2. Convertiamo i dati tabellari nel formato gerarchico atteso dai report.
+            const reportData = convertExcelDataToReportData(excelData, grouping);
+
+            // 3. Generiamo il report specifico.
             if (format === 'pdf') {
                 generatePdfReport(reportData);
             } else if (format === 'word') {
@@ -3897,7 +3932,17 @@ function actionGenerateMultiProjectReport(format) {
 
 function generatePdfReport(reportData) {
     const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+
+    // --- MODIFICA PER REPORT MULTIPROGETTO ---
+    const isMultiProjectReport = reportData.title.includes('Multi-Progetto');
+    const orientation = isMultiProjectReport ? 'l' : 'p'; // 'l' per landscape
+    const doc = new jsPDF({ orientation: orientation, unit: 'mm', format: 'a4' });
+    const tableFontSize = isMultiProjectReport ? 7 : 9; // Usa un font più piccolo per tabelle larghe
+    const tableCellPadding = isMultiProjectReport ? 1 : 1.5;
+    const pageHeight = orientation === 'l' ? 190 : 280; // Margini per landscape vs portrait
+    const pageWidth = orientation === 'l' ? 277 : 180; // Larghezza testo per landscape vs portrait
+    // --- FINE MODIFICA ---
+
 
     doc.setFontSize(18);
     doc.text(reportData.title, 14, 22);
@@ -3908,7 +3953,7 @@ function generatePdfReport(reportData) {
     let yPos = 45;
 
     const checkNewPage = (neededHeight) => {
-        if (yPos + neededHeight > 280) { // 297mm height A4, with margin
+        if (yPos + neededHeight > pageHeight) { // Usa altezza pagina dinamica
             doc.addPage();
             yPos = 20;
         }
@@ -3941,7 +3986,7 @@ function generatePdfReport(reportData) {
                             body: rows,
                             theme: 'grid',
                             headStyles: { fillColor: [75, 75, 75] },
-                            styles: { fontSize: 9, cellPadding: 1.5 },
+                            styles: { fontSize: tableFontSize, cellPadding: tableCellPadding }, // USA LE VARIABILI
                             margin: { left: 14, right: 14 }
                         });
                         yPos = doc.autoTable.previous.finalY + 8;
@@ -3950,7 +3995,7 @@ function generatePdfReport(reportData) {
                     checkNewPage(15);
                     doc.setFontSize(10);
                     const summaryText = block.content.replace(/<br>/g, '\n').replace(/<[^>]*>?/gm, '');
-                    const splitText = doc.splitTextToSize(summaryText, 180);
+                    const splitText = doc.splitTextToSize(summaryText, pageWidth); // Usa larghezza pagina dinamica
                     doc.text(splitText, 14, yPos);
                     yPos += (splitText.length * 4) + 5;
                 } else if (block.type === 'log') {
@@ -3966,7 +4011,7 @@ function generatePdfReport(reportData) {
                          if(logItem.type === 'error') color = [200,0,0];
                          if(logItem.type === 'warning') color = [200, 100, 0];
                          doc.setTextColor(...color);
-                         doc.text(`- ${logItem.message}`, 16, yPos, { maxWidth: 178 });
+                         doc.text(`- ${logItem.message}`, 16, yPos, { maxWidth: pageWidth }); // Usa larghezza pagina dinamica
                          yPos += 5;
                      });
                      yPos += 5;
