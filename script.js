@@ -393,7 +393,35 @@ function getInitialAppState() {
             manualSample: { xk: null },
             results: null
         },
-        treatments: []
+        treatments: [],
+        reportSettings: {
+            grouping: 'sample', // 'sample' or 'feature'
+            selections: {
+                statistica: {
+                    dati_grezzi: false,
+                    log_analisi: false,
+                    statistiche_descrittive: false,
+                },
+                preparazione: {
+                    matrix_spike: false,
+                    trattamenti: false,
+                },
+                'taratura-retta': {
+                    dati: false,
+                    risultati: false,
+                    incertezza_livello: false,
+                },
+                'taratura-fr': {
+                    criterio: false,
+                    risultati: false,
+                    incertezza_livello: false,
+                },
+                estesa: {
+                    riepilogo: false,
+                    risultati: false,
+                }
+            }
+        }
     };
 }
 let appState = getInitialAppState();
@@ -3469,9 +3497,575 @@ function calculateExpandedUncertainty(sampleId) {
 }
 
 
+//=================================================
+// --- REPORT GENERATION ---
+//=================================================
+
+function generatePdfReport(reportData) {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+
+    doc.setFontSize(18);
+    doc.text(reportData.title, 14, 22);
+    doc.setFontSize(11);
+    doc.setTextColor(100);
+    doc.text(reportData.subtitle, 14, 30);
+
+    let yPos = 45;
+
+    const checkNewPage = (neededHeight) => {
+        if (yPos + neededHeight > 280) { // 297mm height A4, with margin
+            doc.addPage();
+            yPos = 20;
+        }
+    };
+
+    reportData.groups.forEach(group => {
+        checkNewPage(20);
+        doc.setFontSize(16);
+        doc.setTextColor(0, 0, 0);
+        doc.text(group.groupTitle, 14, yPos);
+        yPos += 8;
+
+        group.items.forEach(item => {
+            checkNewPage(15);
+            doc.setFontSize(13);
+            doc.setTextColor(50, 50, 50);
+            doc.text(item.itemTitle, 14, yPos);
+            yPos += 7;
+
+            item.blocks.forEach(block => {
+                if (block.type === 'table' || block.type === 'keyValue') {
+                    const headers = (block.type === 'table') ? block.content.headers : [['Parametro', 'Valore']];
+                    const rows = (block.type === 'table') ? block.content.rows : block.content.map(kv => [kv.key, kv.value]);
+
+                    if (rows.length > 0) {
+                        checkNewPage(20); // Min height for a table
+                        doc.autoTable({
+                            startY: yPos,
+                            head: headers,
+                            body: rows,
+                            theme: 'grid',
+                            headStyles: { fillColor: [75, 75, 75] },
+                            styles: { fontSize: 9, cellPadding: 1.5 },
+                            margin: { left: 14, right: 14 }
+                        });
+                        yPos = doc.autoTable.previous.finalY + 8;
+                    }
+                } else if (block.type === 'summary') {
+                    checkNewPage(15);
+                    doc.setFontSize(10);
+                    const summaryText = block.content.replace(/<br>/g, '\n').replace(/<[^>]*>?/gm, '');
+                    const splitText = doc.splitTextToSize(summaryText, 180);
+                    doc.text(splitText, 14, yPos);
+                    yPos += (splitText.length * 4) + 5;
+                } else if (block.type === 'log') {
+                     checkNewPage(15);
+                     doc.setFontSize(11);
+                     doc.setTextColor(0, 0, 0);
+                     doc.text(block.title, 14, yPos);
+                     yPos += 5;
+                     doc.setFontSize(9);
+                     block.content.forEach(logItem => {
+                         checkNewPage(5);
+                         let color = [0,0,0]; // black
+                         if(logItem.type === 'error') color = [200,0,0];
+                         if(logItem.type === 'warning') color = [200, 100, 0];
+                         doc.setTextColor(...color);
+                         doc.text(`- ${logItem.message}`, 16, yPos, { maxWidth: 178 });
+                         yPos += 5;
+                     });
+                     yPos += 5;
+                }
+            });
+        });
+    });
+
+    doc.save(`Report_${reportData.title.replace(/[: ]/g, '_')}.pdf`);
+}
+
+function generateXlsxReport(reportData) {
+    const wb = XLSX.utils.book_new();
+
+    reportData.groups.forEach(group => {
+        const ws_data = [];
+
+        ws_data.push([reportData.title]);
+        ws_data.push([reportData.subtitle]);
+        ws_data.push([]); // Spacer
+
+        group.items.forEach(item => {
+            ws_data.push([item.itemTitle]);
+
+            item.blocks.forEach(block => {
+                if (block.type === 'table' || block.type === 'keyValue') {
+                    const headers = (block.type === 'table') ? block.content.headers : ['Parametro', 'Valore'];
+                    const rows = (block.type === 'table') ? block.content.rows : block.content.map(kv => [kv.key, kv.value]);
+                    ws_data.push(headers);
+                    rows.forEach(row => ws_data.push(row));
+                } else if (block.type === 'summary') {
+                    ws_data.push(['Riepilogo']);
+                    ws_data.push([block.content.replace(/<br>/g, '\n').replace(/<[^>]*>?/gm, '')]);
+                } else if (block.type === 'log') {
+                    ws_data.push([block.title]);
+                    block.content.forEach(logItem => ws_data.push([`[${logItem.type}]`, logItem.message]));
+                }
+                ws_data.push([]); // Spacer
+            });
+            ws_data.push([]);
+        });
+
+        const ws = XLSX.utils.aoa_to_sheet(ws_data);
+        const safeSheetName = group.groupTitle.replace(/[\*\[\]\:\/\\?\']+/g, "").substring(0, 31);
+        XLSX.utils.book_append_sheet(wb, ws, safeSheetName);
+    });
+
+    XLSX.writeFile(wb, `Report_${reportData.title.replace(/[: ]/g, '_')}.xlsx`);
+}
+
+async function generateDocxReport(reportData) {
+    const { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableCell, TableRow, WidthType } = docx;
+
+    const children = [
+        new Paragraph({ text: reportData.title, heading: HeadingLevel.TITLE }),
+        new Paragraph({ text: reportData.subtitle, heading: HeadingLevel.HEADING_1 }),
+        new Paragraph(""),
+    ];
+
+    reportData.groups.forEach(group => {
+        children.push(new Paragraph({ text: group.groupTitle, heading: HeadingLevel.HEADING_2 }));
+
+        group.items.forEach(item => {
+            children.push(new Paragraph({ text: item.itemTitle, heading: HeadingLevel.HEADING_3 }));
+
+            item.blocks.forEach(block => {
+                if (block.type === 'table' || block.type === 'keyValue') {
+                    const headers = (block.type === 'table') ? block.content.headers : ['Parametro', 'Valore'];
+                    const dataRows = (block.type === 'table') ? block.content.rows : block.content.map(kv => [kv.key, kv.value]);
+
+                    if (dataRows.length > 0) {
+                        const tableRows = [
+                            new TableRow({
+                                children: headers.map(header => new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: header, bold: true })] })] })),
+                                tableHeader: true,
+                            })
+                        ];
+                        dataRows.forEach(row => {
+                            tableRows.push(new TableRow({
+                                children: row.map(cell => new TableCell({ children: [new Paragraph(String(cell))] }))
+                            }));
+                        });
+                        const table = new Table({ rows: tableRows, width: { size: 100, type: WidthType.PERCENTAGE } });
+                        children.push(table);
+                    }
+                } else if (block.type === 'summary') {
+                    const summaryLines = block.content.replace(/<br>/g, '\n').replace(/<[^>]*>?/gm, '').split('\n');
+                    summaryLines.forEach(line => children.push(new Paragraph(line)));
+                } else if (block.type === 'log') {
+                     children.push(new Paragraph({children: [new TextRun({text: block.title, bold: true})]}));
+                     block.content.forEach(logItem => {
+                        children.push(new Paragraph(`- ${logItem.message}`));
+                    });
+                }
+                 children.push(new Paragraph("")); // Spacer
+            });
+        });
+    });
+
+    const doc = new Document({ sections: [{ children }] });
+
+    const blob = await Packer.toBlob(doc);
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `Report_${reportData.title.replace(/[: ]/g, '_')}.docx`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+}
+
+function actionGenerateReport(format) {
+    const reportData = gatherReportData();
+    if (!reportData || reportData.groups.length === 0) {
+        alert("Nessun dato da esportare. Selezionare almeno una voce per il report.");
+        return;
+    }
+
+    try {
+        if (format === 'pdf') {
+            generatePdfReport(reportData);
+        } else if (format === 'excel') {
+            generateXlsxReport(reportData);
+        } else if (format === 'word') {
+            generateDocxReport(reportData).catch(e => { throw e; }); // Propagate async errors
+        }
+    } catch (e) {
+        console.error(`Error generating ${format} report:`, e);
+        alert(`Si è verificato un errore durante la generazione del report ${format}. Controlla la console per i dettagli.`);
+    }
+}
+
+function gatherReportData() {
+    const settings = appState.reportSettings;
+    const reportData = {
+        title: `Report di Progetto: ${appState.project.projectName}`,
+        subtitle: `Metodo: ${appState.project.method || 'N/D'}, Componente: ${appState.project.component || 'N/D'}`,
+        groupedBy: settings.grouping,
+        groups: []
+    };
+
+    // Helper functions to generate data blocks for each section
+    const getStatisticaBlocks = (sampleId, selections) => {
+        const blocks = [];
+        const result = appState.results[sampleId];
+        if (!result) return blocks;
+
+        if (selections.dati_grezzi && result.originalData && result.originalData.length > 0) {
+            blocks.push({
+                title: 'Dati Grezzi',
+                type: 'table',
+                content: {
+                    headers: ['Valore'],
+                    rows: result.originalData.map(d => [d])
+                }
+            });
+        }
+        if (selections.log_analisi && result.log && result.log.length > 0) {
+             blocks.push({
+                title: 'Log di Analisi',
+                type: 'log',
+                content: result.log
+            });
+        }
+        if (selections.statistiche_descrittive && result.statistics) {
+            const stats = result.statistics;
+            const format = (value, precision = 6) => (value !== null && !isNaN(value)) ? value.toPrecision(precision) : 'N/A';
+            const formatPercent = (value) => (value !== null && !isNaN(value)) ? `${value.toFixed(2)} %` : 'N/A';
+            blocks.push({
+                title: 'Statistiche Descrittive',
+                type: 'keyValue',
+                content: [
+                    { key: 'Valore Nominale', value: format(stats.nominalValue) },
+                    { key: 'N. Punti', value: stats.n },
+                    { key: 'Media', value: format(stats.mean) },
+                    { key: 'Minimo', value: format(stats.min) },
+                    { key: 'Massimo', value: format(stats.max) },
+                    { key: 'Deviazione Standard', value: format(stats.stdDev) },
+                    { key: 'CV %', value: formatPercent(stats.cv_percent) },
+                    { key: 'Limite Ripetibilità (r)', value: format(stats.repeatability_limit_r) },
+                    { key: 'r %', value: formatPercent(stats.repeatability_limit_r_percent) },
+                    { key: 'Recupero %', value: formatPercent(stats.recovery) }
+                ].filter(item => item.value !== 'N/A')
+            });
+        }
+        return blocks;
+    };
+
+    const getPreparazioneBlocks = (sampleId, selections) => {
+        const blocks = [];
+        const sample = appState.samples.find(s => s.id === sampleId);
+        if (!sample) return blocks;
+
+        if (selections.matrix_spike) {
+            const spikeData = appState.spikeUncertainty[sampleId];
+            if (spikeData && spikeData.results) {
+                blocks.push({
+                    title: 'Preparazione Matrix Spike',
+                    type: 'summary',
+                    content: spikeData.results.summary || 'Nessun riepilogo disponibile.'
+                });
+                blocks.push({
+                    title: 'Risultati Matrix Spike',
+                    type: 'keyValue',
+                    content: [
+                        { key: 'Concentrazione Finale Calcolata', value: `${spikeData.results.finalConcentration.toPrecision(4)} ${sample.unit || 'µg/L'}` },
+                        { key: 'Incertezza tipo composta (u_c %)', value: `${spikeData.results.u_comp_rel_perc.toFixed(2)} %` }
+                    ]
+                });
+            }
+        }
+        if (selections.trattamenti) {
+             const treatmentData = appState.treatments.find(t => t.sampleId === sampleId);
+             if (treatmentData && treatmentData.results) {
+                 blocks.push({
+                    title: 'Trattamenti di Campioni e Estratti',
+                    type: 'summary',
+                    content: treatmentData.results.summary || 'Nessun riepilogo disponibile.'
+                 });
+                 blocks.push({
+                    title: 'Risultati Trattamento',
+                    type: 'keyValue',
+                    content: [
+                        { key: 'Concentrazione Finale Calcolata', value: `${treatmentData.results.finalConcentration.toPrecision(4)} ${sample.unit || 'µg/L'}` },
+                        { key: 'Incertezza tipo composta (u_c %)', value: `${treatmentData.results.u_comp_rel_perc.toFixed(2)} %` }
+                    ]
+                });
+             }
+        }
+        return blocks;
+    };
+
+    const getTaraturaRettaBlocks = (sampleId, selections) => {
+        const blocks = [];
+        const cal = appState.calibration.results;
+        if (!cal || cal.error) return blocks;
+
+        if (selections.dati && cal.line) {
+            blocks.push({
+                title: 'Dati della Retta di Taratura',
+                type: 'table',
+                content: {
+                    headers: ['Conc. (X)', 'Unità', 'Segnale (Y)'],
+                    rows: appState.calibration.points.map(p => [p.x, p.unit, p.y])
+                }
+            });
+        }
+        if (selections.risultati && cal.line) {
+            blocks.push({
+                title: 'Risultati del Calcolo (Retta)',
+                type: 'keyValue',
+                content: [
+                    { key: 'Equazione', value: `y = ${cal.line.b.toPrecision(6)}x + ${cal.line.a.toPrecision(6)}`},
+                    { key: 'R²', value: cal.line.r2.toPrecision(7) },
+                    { key: 's_yx', value: cal.line.s_yx.toPrecision(6) }
+                ]
+            });
+        }
+        if (selections.incertezza_livello && cal.samples) {
+            const sampleName = appState.samples.find(s => s.id === sampleId)?.name;
+            const sampleResult = cal.samples.find(s => s.sampleName === sampleName);
+            if (sampleResult) {
+                blocks.push({
+                    title: 'Incertezza per Livello di Concentrazione (Retta)',
+                    type: 'table',
+                    content: {
+                        headers: ['Conc. Nominale', 'Incertezza Tipo (u_x)', 'Incertezza Relativa (%)'],
+                        rows: [[
+                            sampleResult.nominalConc.toPrecision(6),
+                            sampleResult.ux.toPrecision(6),
+                            `${sampleResult.ux_rel_perc.toFixed(2)} %`
+                        ]]
+                    }
+                });
+            }
+        }
+        return blocks;
+    };
+
+    const getTaraturaFrBlocks = (sampleId, selections) => {
+        const blocks = [];
+        const cal = appState.rfCalibration.results;
+        if (!cal || cal.error) return blocks;
+
+        if (selections.criterio && appState.rfCalibration.acceptabilityCriterion) {
+            blocks.push({
+                title: 'Criterio di Accettabilità (FR)',
+                type: 'keyValue',
+                content: [{ key: 'Criterio di accettabilità', value: `${appState.rfCalibration.acceptabilityCriterion} %` }]
+            });
+        }
+        if (selections.risultati && cal.utaratura_perc) {
+            blocks.push({
+                title: 'Risultati del Calcolo (FR)',
+                type: 'keyValue',
+                content: [{ key: 'Incertezza tipo relativa di taratura (u_taratura%)', value: `${cal.utaratura_perc.toFixed(3)} %` }]
+            });
+        }
+        if (selections.incertezza_livello && cal.samples) {
+            const sampleName = appState.samples.find(s => s.id === sampleId)?.name;
+            const sampleResult = cal.samples.find(s => s.sampleName === sampleName);
+            if (sampleResult) {
+                blocks.push({
+                    title: 'Incertezza per Livello di Concentrazione (FR)',
+                    type: 'table',
+                    content: {
+                        headers: ['Conc. Nominale', 'Incertezza Tipo (u_x)'],
+                        rows: [[
+                            sampleResult.nominalConc.toPrecision(6),
+                            sampleResult.ux.toPrecision(6)
+                        ]]
+                    }
+                });
+            }
+        }
+        return blocks;
+    };
+
+    const getEstesaBlocks = (sampleId, selections) => {
+        const blocks = [];
+        const result = calculateExpandedUncertainty(sampleId);
+        if (!result || result.error) return blocks;
+
+        if (selections.riepilogo && result.contributions) {
+            blocks.push({
+                title: 'Riepilogo Contributi Incertezza Estesa',
+                type: 'table',
+                content: {
+                    headers: ['Fonte di Incertezza', 'u_rel (%)', 'Gradi di Libertà (v)'],
+                    rows: result.contributions.map(c => [
+                        c.name,
+                        (c.value * 100).toFixed(3),
+                        c.dof === Infinity ? '∞' : c.dof.toFixed(2)
+                    ])
+                }
+            });
+        }
+        if (selections.risultati) {
+            const sampleUnit = appState.samples.find(s => s.id === sampleId)?.unit || 'µg/L';
+            blocks.push({
+                title: 'Risultati Finali Incertezza Estesa',
+                type: 'keyValue',
+                content: [
+                    { key: 'Gradi di Libertà Effettivi (ν_eff)', value: result.v_eff === Infinity ? '∞' : result.v_eff.toFixed(2) },
+                    { key: 'Fattore di Copertura (k)', value: result.k.toFixed(3) },
+                    { key: 'Incertezza Estesa Assoluta (U)', value: `${result.U_abs.toPrecision(3)} ${sampleUnit}` },
+                    { key: 'Incertezza Estesa Relativa (U%)', value: `${result.U_rel_perc.toFixed(2)} %` }
+                ]
+            });
+        }
+        return blocks;
+    };
+
+    const featureMap = {
+        'Analisi Statistica': (sampleId) => getStatisticaBlocks(sampleId, settings.selections.statistica),
+        'Incertezza di Preparazione': (sampleId) => getPreparazioneBlocks(sampleId, settings.selections.preparazione),
+        'Incertezza di Taratura da Retta': (sampleId) => getTaraturaRettaBlocks(sampleId, settings.selections['taratura-retta']),
+        'Incertezza di Taratura da FR': (sampleId) => getTaraturaFrBlocks(sampleId, settings.selections['taratura-fr']),
+        'Incertezza Estesa': (sampleId) => getEstesaBlocks(sampleId, settings.selections.estesa)
+    };
+    const featureNames = Object.keys(featureMap);
+
+    if (settings.grouping === 'sample') {
+        appState.samples.forEach(sample => {
+            const items = [];
+            featureNames.forEach(featureName => {
+                const blocks = featureMap[featureName](sample.id);
+                if (blocks.length > 0) {
+                    items.push({ itemTitle: featureName, blocks: blocks });
+                }
+            });
+
+            if (items.length > 0) {
+                reportData.groups.push({
+                    groupTitle: sample.name,
+                    items: items
+                });
+            }
+        });
+    } else { // grouping by feature
+        featureNames.forEach(featureName => {
+            const items = [];
+            appState.samples.forEach(sample => {
+                const blocks = featureMap[featureName](sample.id);
+                if (blocks.length > 0) {
+                    items.push({ itemTitle: sample.name, blocks: blocks });
+                }
+            });
+
+            if (items.length > 0) {
+                 reportData.groups.push({
+                    groupTitle: featureName,
+                    items: items
+                });
+            }
+        });
+    }
+
+    return reportData;
+}
+
+function setupReportEventListeners() {
+    const reportContainer = document.getElementById('content-report-progetto');
+    if (!reportContainer) return;
+
+    const allItemCheckboxes = reportContainer.querySelectorAll('.report-item-checkbox:not(:disabled)');
+    const allSectionCheckboxes = reportContainer.querySelectorAll('.report-section-checkbox');
+    const masterCheckbox = document.getElementById('report-select-all-complete');
+
+    const updateMasterCheckboxes = () => {
+        const allChecked = Array.from(allItemCheckboxes).every(cb => cb.checked);
+        masterCheckbox.checked = allChecked;
+
+        allSectionCheckboxes.forEach(sectionCb => {
+            const section = sectionCb.dataset.section;
+            const allSectionItems = reportContainer.querySelectorAll(`.report-item-checkbox[data-section="${section}"]:not(:disabled)`);
+            if (allSectionItems.length > 0) {
+                const allSectionChecked = Array.from(allSectionItems).every(cb => cb.checked);
+                sectionCb.checked = allSectionChecked;
+            }
+        });
+    };
+
+    reportContainer.addEventListener('change', e => {
+        const target = e.target;
+        const id = target.id;
+
+        if (target.name === 'report-grouping') {
+            appState.reportSettings.grouping = target.value;
+            return;
+        }
+
+        if (target.type === 'checkbox') {
+            const isChecked = target.checked;
+            if (id === 'report-select-all-complete') {
+                allItemCheckboxes.forEach(cb => cb.checked = isChecked);
+                allSectionCheckboxes.forEach(cb => cb.checked = isChecked);
+
+                for (const section in appState.reportSettings.selections) {
+                    for (const item in appState.reportSettings.selections[section]) {
+                        appState.reportSettings.selections[section][item] = isChecked;
+                    }
+                }
+            } else if (target.classList.contains('report-section-checkbox')) {
+                const section = target.dataset.section;
+                reportContainer.querySelectorAll(`.report-item-checkbox[data-section="${section}"]:not(:disabled)`).forEach(cb => {
+                    cb.checked = isChecked;
+                });
+                 for (const item in appState.reportSettings.selections[section]) {
+                    appState.reportSettings.selections[section][item] = isChecked;
+                }
+                updateMasterCheckboxes();
+            } else if (target.classList.contains('report-item-checkbox')) {
+                const section = target.dataset.section;
+                const key = id.replace(`report-item-${section}-`, '').replace(/-/g, '_');
+                 if (appState.reportSettings.selections[section] && typeof appState.reportSettings.selections[section][key] !== 'undefined') {
+                    appState.reportSettings.selections[section][key] = isChecked;
+                }
+                updateMasterCheckboxes();
+            }
+        }
+    });
+
+    const tabButton = document.getElementById('tab-report-progetto');
+    if (tabButton) {
+        new MutationObserver((mutations) => {
+            if (mutations[0].target.classList.contains('active')) {
+                document.querySelector(`input[name="report-grouping"][value="${appState.reportSettings.grouping}"]`).checked = true;
+                for (const section in appState.reportSettings.selections) {
+                    for (const item in appState.reportSettings.selections[section]) {
+                        const itemKey = item.replace(/_/g, '-');
+                        const cb = document.getElementById(`report-item-${section}-${itemKey}`);
+                        if (cb) {
+                            cb.checked = appState.reportSettings.selections[section][item];
+                        }
+                    }
+                }
+                updateMasterCheckboxes();
+            }
+        }).observe(tabButton, { attributes: true, attributeFilter: ['class'] });
+    }
+}
+
+
 // --- MAIN APP SETUP ---
 function main() {
     actionLoadLibraries();
+    setupReportEventListeners();
+
+    // --- Event Listeners Scheda Report Progetto ---
+    document.getElementById('btn-export-pdf').addEventListener('click', () => actionGenerateReport('pdf'));
+    document.getElementById('btn-export-excel').addEventListener('click', () => actionGenerateReport('excel'));
+    document.getElementById('btn-export-word').addEventListener('click', () => actionGenerateReport('word'));
+
     // --- Event Listeners Scheda Analisi Statistica ---
     document.getElementById('btn-add-sample').addEventListener('click', actionAddSample);
     document.getElementById('btn-load-data').addEventListener('click', () => document.getElementById('load-data-input').click());
