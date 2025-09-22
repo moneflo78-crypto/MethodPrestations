@@ -412,7 +412,6 @@ function render() {
     renderExpandedUncertainty(); // <-- AGGIUNTA
     renderLibraryTabs(); // <-- Funzione per le librerie
     renderLibraries(); // <-- Funzione per le tabelle delle librerie
-    renderDebugInfo();
 }
 
 function renderCalibrationSolutionUncertainty() {
@@ -1521,12 +1520,6 @@ function renderProjectInfo() {
     document.getElementById('project-method').value = appState.project.method;
     document.getElementById('project-component').value = appState.project.component;
 }
-function renderDebugInfo() {
-    const debugView = document.getElementById('debug-state-view');
-    if (debugView) {
-        debugView.textContent = JSON.stringify(appState, null, 2);
-    }
-}
 
 function renderExpandedUncertainty() {
     const container = document.getElementById('extended-uncertainty-container');
@@ -1604,7 +1597,6 @@ function renderResultsOnly() {
     resultsContainer.innerHTML = '';
 
     const hasResults = appState.samples.some(s => appState.results[s.id] && (appState.results[s.id].statistics || appState.results[s.id].error));
-    document.getElementById('export-buttons').classList.toggle('hidden', !hasResults);
 
     appState.samples.forEach(sample => {
         const result = appState.results[sample.id];
@@ -3575,24 +3567,11 @@ function main() {
         }
     });
 
-    document.getElementById('project-name').addEventListener('input', e => { appState.project.projectName = e.target.value; renderDebugInfo(); });
+    document.getElementById('project-name').addEventListener('input', e => { appState.project.projectName = e.target.value; });
     document.getElementById('btn-rename-project').addEventListener('click', actionRenameProject);
-    document.getElementById('project-objective').addEventListener('input', e => { appState.project.objective = e.target.value; renderDebugInfo(); });
-    document.getElementById('project-method').addEventListener('input', e => { appState.project.method = e.target.value; renderDebugInfo(); });
-    document.getElementById('project-component').addEventListener('input', e => { appState.project.component = e.target.value; renderDebugInfo(); });
-
-    // --- Automated Tests Event Listener ---
-    const testRunnerButton = document.getElementById('btn-run-tests');
-    if (testRunnerButton) {
-        testRunnerButton.addEventListener('click', () => {
-            // Make the container visible when tests are run
-            const testRunnerContainer = document.getElementById('test-runner-container');
-            if (testRunnerContainer) {
-                testRunnerContainer.style.display = 'block';
-            }
-            runAllTests();
-        });
-    }
+    document.getElementById('project-objective').addEventListener('input', e => { appState.project.objective = e.target.value; });
+    document.getElementById('project-method').addEventListener('input', e => { appState.project.method = e.target.value; });
+    document.getElementById('project-component').addEventListener('input', e => { appState.project.component = e.target.value; });
 
     // --- Event Listeners Scheda Incertezza di Preparazione ---
     const prepContainer = document.getElementById('content-preparazione');
