@@ -3638,7 +3638,7 @@ function gatherMultiProjectReportData({ grouping }) {
                     { key: 'CV%', value: result?.statistics?.cv_percent },
                     { key: 'r', value: result?.statistics?.repeatability_limit_r },
                     { key: 'r%', value: result?.statistics?.repeatability_limit_r_percent },
-                    { key: 'R%', value: 'N/A' }, // As per previous implementation
+                    { key: 'R%', value: result?.statistics?.recovery },
                     { key: 'U', value: estesaResult && !estesaResult.error ? estesaResult.U_abs : null },
                     { key: 'U%', value: estesaResult && !estesaResult.error ? estesaResult.U_rel_perc : null }
                 ].map(item => ({ key: item.key, value: formatValue(item.value) }));
@@ -3778,7 +3778,10 @@ function gatherMultiProjectExcelData({ grouping }) {
                     const sample = projectState.samples.find(s => s.name === sampleName);
                     return sample ? projectState.results[sample.id]?.statistics?.repeatability_limit_r_percent : 'Livello non presente';
                 },
-                'R%': (sampleName) => projectState.samples.find(s => s.name === sampleName) ? 'N/A' : 'Livello non presente',
+                'R%': (sampleName) => {
+                    const sample = projectState.samples.find(s => s.name === sampleName);
+                    return sample ? projectState.results[sample.id]?.statistics?.recovery : 'Livello non presente';
+                },
                 'U': (sampleName) => {
                     const sample = projectState.samples.find(s => s.name === sampleName);
                     if (!sample) return 'Livello non presente';
@@ -3975,7 +3978,7 @@ function generatePdfReport(reportData) {
 
             item.blocks.forEach(block => {
                 if (block.type === 'table' || block.type === 'keyValue') {
-                    const headers = (block.type === 'table') ? block.content.headers : [['Parametro', 'Valore']];
+                    const headers = (block.type === 'table') ? [block.content.headers] : [['Parametro', 'Valore']];
                     const rows = (block.type === 'table') ? block.content.rows : block.content.map(kv => [kv.key, kv.value]);
 
                     if (rows.length > 0) {
@@ -4409,10 +4412,10 @@ function gatherReportData() {
                 selection: 'statistiche_descrittive',
                 getValue: (sample, id) => appState.results[id]?.statistics?.repeatability_limit_r_percent,
             },
-             'R%': { // Campo non implementato, come discusso
+             'R%': {
                 section: 'statistica',
                 selection: 'statistiche_descrittive',
-                getValue: (sample, id) => 'N/A',
+                getValue: (sample, id) => appState.results[id]?.statistics?.recovery,
             },
             'U': {
                 section: 'estesa',
