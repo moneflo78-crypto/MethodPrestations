@@ -3975,10 +3975,10 @@ function gatherReportData() {
                 selection: 'statistiche_descrittive',
                 getValue: (sample, id) => appState.results[id]?.statistics?.repeatability_limit_r_percent,
             },
-             'R%': { // Campo non implementato, come discusso
+             'Recupero %': {
                 section: 'statistica',
                 selection: 'statistiche_descrittive',
-                getValue: (sample, id) => 'N/A',
+                getValue: (sample, id) => appState.results[id]?.statistics?.recovery,
             },
             'U': {
                 section: 'estesa',
@@ -3994,7 +3994,7 @@ function gatherReportData() {
 
         const orderedParamNames = [
             'Nome campione', 'Unità di misura', 'Valore nominale', 'Media',
-            'Scarto tipo', 'CV%', 'r', 'r%', 'R%', 'U', 'U%'
+            'Scarto tipo', 'CV%', 'r', 'r%', 'Recupero %', 'U', 'U%'
         ];
 
         const activeParams = orderedParamNames.filter(name => {
