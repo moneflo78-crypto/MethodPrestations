@@ -190,7 +190,18 @@ L'applicazione supporta diversi tipi di trattamenti, incluse due modalità di di
   - **Incertezza:** L'incertezza del volume finale `V_finale = V_prelievo_totale + V_aggiunto` viene calcolata propagando le incertezze assolute dei volumi che lo compongono: `u_abs(V_finale)² = u_abs(V_prelievo_totale)² + u_abs(V_aggiunto)²`. L'incertezza composita totale segue poi il principio generale di propagazione.
 
 - **Estrazione / Concentrazione:**
-  - **Formula:** `C_finale = C_iniziale * (V_matraccio_iniziale / V_matraccio_finale)`
+  Questi trattamenti modificano la concentrazione del campione alterando il volume del solvente.
+
+  - **Formula (Metodo Matraccio):** Questo è il metodo standard, applicabile sia a Estrazione che a Concentrazione.
+    `C_finale = C_iniziale * (V_matraccio_iniziale / V_matraccio_finale)`
+    L'incertezza viene calcolata propagando le incertezze dei due matracci.
+
+  - **Formula (Metodo Pipetta - solo per Estrazione):** Questo nuovo metodo permette di definire il volume finale come somma di più aliquote aggiunte con una pipetta.
+    - **Volume Finale:** `V_finale = Σ V_aliquota_i`
+    - **Concentrazione Finale:** `C_finale = C_iniziale * (V_matraccio_iniziale / V_finale)`
+    - **Incertezza del Volume Finale:** L'incertezza del volume finale totale è la combinazione in quadratura delle incertezze assolute di ogni singola aliquota.
+      `u_abs(V_finale)² = Σ u_abs(V_aliquota_i)²`
+      L'incertezza di ogni aliquota (`u_abs(V_aliquota_i)`) viene calcolata individualmente usando la libreria della pipetta selezionata, come descritto nella sezione 4.3.
 
 #### 4.3 Calcolo delle Incertezze Tipo Relative dei Componenti (u_rel)
 
