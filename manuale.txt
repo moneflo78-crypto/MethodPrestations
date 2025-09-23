@@ -225,8 +225,8 @@ Questa sezione descrive i controlli di coerenza eseguiti per validare la prepara
 
 #### 5.1 Verifica della Correttezza della Preparazione
 Questo controllo confronta la concentrazione finale calcolata durante i passaggi di preparazione (`C_calcolata`) con il valore nominale teorico dello standard preparato (`C_nominale`). Lo scopo è verificare la coerenza dei calcoli di diluizione.
-- **Condizione di Superamento:** `|C_nominale - C_calcolata| < 0.0001 * C_nominale`
-- **Spiegazione:** Il test è superato se la differenza assoluta tra il valore nominale e quello calcolato è inferiore allo 0.01% del valore nominale. Una differenza maggiore potrebbe indicare un errore nei dati inseriti per la preparazione.
+- **Condizione di Superamento:** `|C_nominale - C_calcolata| < 0.005 * C_nominale`
+- **Spiegazione:** Il test è superato se la differenza assoluta tra il valore nominale e quello calcolato è inferiore allo 0.5% del valore nominale. Una differenza maggiore potrebbe indicare un errore nei dati inseriti per la preparazione.
 
 #### 5.2 Verifica dell'Esattezza del Metodo
 Questo controllo valuta se la media delle misure sperimentali (`media_misure`) è statisticamente compatibile con il valore nominale (`C_nominale`), tenendo conto dell'incertezza composita della preparazione (`u_c`).

@@ -3370,11 +3370,11 @@ function actionCalculateSpikeUncertainty(sampleId) {
 
         if (!isNaN(nominalValue) && !isNaN(calculatedConcentration)) {
             const diff = Math.abs(nominalValue - calculatedConcentration);
-            const threshold = 0.0001 * nominalValue;
+            const threshold = 0.005 * nominalValue;
             const isCorrect = diff < threshold;
             preparationCheck = {
                 isCorrect: isCorrect,
-                message: isCorrect ? 'Superato: la concentrazione calcolata è sufficientemente vicina al valore nominale.' : 'Fallito: la concentrazione calcolata differisce dal valore nominale di oltre lo 0.01%. Si raccomanda di controllare i calcoli e la procedura di preparazione.',
+                message: isCorrect ? 'Superato: la concentrazione calcolata è sufficientemente vicina al valore nominale.' : 'Fallito: la concentrazione calcolata differisce dal valore nominale di oltre lo 0.5%. Si raccomanda di controllare i calcoli e la procedura di preparazione.',
                 details: `Differenza: ${diff.toPrecision(3)}, Soglia: ${threshold.toPrecision(3)}`
             };
         }
