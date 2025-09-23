@@ -428,6 +428,28 @@ function getInitialAppState() {
 }
 let appState = getInitialAppState();
 let loadedProjectsData = []; // Dati per il report multiprogetto
+let isDirty = false;
+
+/**
+ * Sets the "dirty" flag for the application state.
+ * Also updates the document title with a `*` to indicate unsaved changes.
+ * @param {boolean} dirty - The new state for the dirty flag.
+ */
+function setDirty(dirty = true) {
+    if (isDirty === dirty) return; // Do nothing if state is already correct
+    isDirty = dirty;
+
+    const title = document.querySelector('title');
+    if (isDirty) {
+        if (!title.innerText.startsWith('*')) {
+            title.innerText = '*' + title.innerText;
+        }
+    } else {
+        if (title.innerText.startsWith('*')) {
+            title.innerText = title.innerText.substring(1);
+        }
+    }
+}
 
 
 // --- RENDER FUNCTIONS ---
@@ -1799,6 +1821,7 @@ async function actionAddGlassware() {
         }
 
         appState.libraries.glassware[name] = { volume, uncertainty };
+        setDirty();
         render();
         actionSaveLibraries();
     }
@@ -1836,6 +1859,7 @@ function actionImportLibraries(event) {
             // Basic validation
             if (loadedLibraries && loadedLibraries.glassware && loadedLibraries.pipettes) {
                 appState.libraries = loadedLibraries;
+                setDirty();
                 actionSaveLibraries(); // Persist the new libraries
                 render();
                 alert('Librerie importate con successo!');
@@ -1971,6 +1995,7 @@ async function actionEditPipette(id) {
             delete appState.libraries.pipettes[id];
         }
         appState.libraries.pipettes[newId] = { calibrationPoints };
+        setDirty();
         render();
         actionSaveLibraries();
     }
@@ -2007,6 +2032,7 @@ async function actionDuplicatePipette(id) {
             return;
         }
         appState.libraries.pipettes[newId] = deepCopy(itemToCopy);
+        setDirty();
         render();
         actionSaveLibraries();
     }
@@ -2024,6 +2050,7 @@ async function actionRemovePipette(id) {
 
     if (confirm) {
         delete appState.libraries.pipettes[id];
+        setDirty();
         render();
         actionSaveLibraries();
     }
@@ -2080,6 +2107,7 @@ async function actionEditGlassware(name) {
             delete appState.libraries.glassware[name];
         }
         appState.libraries.glassware[newName] = { volume, uncertainty };
+        setDirty();
         render();
         actionSaveLibraries();
     }
@@ -2097,6 +2125,7 @@ async function actionRemoveGlassware(name) {
 
     if (confirm) {
         delete appState.libraries.glassware[name];
+        setDirty();
         render();
         actionSaveLibraries();
     }
@@ -2133,6 +2162,7 @@ async function actionDuplicateGlassware(name) {
             return;
         }
         appState.libraries.glassware[newName] = deepCopy(itemToCopy);
+        setDirty();
         render();
         actionSaveLibraries();
     }
@@ -2230,6 +2260,7 @@ async function actionAddPipette() {
         calibrationPoints.sort((a, b) => a.volume - b.volume);
 
         appState.libraries.pipettes[id] = { calibrationPoints };
+        setDirty();
         render();
         actionSaveLibraries();
     }
@@ -2239,11 +2270,13 @@ async function actionAddPipette() {
 function actionAddSample() {
     const newId = appState.samples.length > 0 ? Math.max(...appState.samples.map(s => s.id)) + 1 : 1;
     appState.samples.push({ id: newId, name: `Campione ${newId}`, rawData: '', expectedValue: null, unit: 'µg/L' });
+    setDirty();
     render();
 }
 function actionRemoveSample(sampleId) {
     appState.samples = appState.samples.filter(s => s.id !== sampleId);
     delete appState.results[sampleId];
+    setDirty();
     render();
 }
 function actionUpdateSample(sampleId, field, value) {
@@ -2251,6 +2284,7 @@ function actionUpdateSample(sampleId, field, value) {
     if (sample) {
         if (field === 'expectedValue') sample[field] = value === '' ? null : parseFloat(value);
         else sample[field] = value;
+        setDirty();
     }
 }
 
@@ -2482,12 +2516,51 @@ async function processSample(sample) {
         render();
     }
 }
-function actionResetData() { appState = getInitialAppState(); actionAddSample(); }
-function actionSave() {
+// --- PROJECT LIFECYCLE ACTIONS (NEW) ---
+async function actionNewProject() {
+    if (isDirty) {
+        const confirmed = await choiceModal.show({
+            title: 'Creare un Nuovo Progetto?',
+            bodyContent: 'Ci sono modifiche non salvate che andranno perse. Sei sicuro di voler continuare?',
+            buttons: [
+                { text: 'Annulla', value: false, class: secondaryBtnClass },
+                { text: 'Crea Nuovo senza Salvare', value: true, class: 'bg-red-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-red-700' }
+            ]
+        });
+        if (!confirmed) return; // User cancelled
+    }
+    appState = getInitialAppState();
+    actionAddSample(); // Create a blank sample to start with
+    setDirty(false);   // A new project is not dirty
+    render();
+}
+
+async function actionOpenProject() {
+    if (isDirty) {
+        const confirmed = await choiceModal.show({
+            title: 'Aprire un Progetto?',
+            bodyContent: 'Ci sono modifiche non salvate che andranno perse. Sei sicuro di voler continuare?',
+            buttons: [
+                { text: 'Annulla', value: false, class: secondaryBtnClass },
+                { text: 'Apri senza Salvare', value: true, class: 'bg-red-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-red-700' }
+            ]
+        });
+        if (!confirmed) return; // User cancelled
+    }
+    // This function just triggers the hidden file input.
+    document.getElementById('load-data-input').click();
+}
+
+function actionSaveProject() {
+    // If there's no current file name, it's the first save for this project.
+    // We treat it as "Save As" to get a filename from the user.
     if (!appState.ui.currentFileName) {
-        actionSaveAs();
+        actionSaveProjectAs();
         return;
     }
+
+    // Otherwise, save with the current name. The browser will still likely show a "Save As"
+    // dialog, but it will be pre-filled with the correct filename, simulating an overwrite.
     const stateString = JSON.stringify(appState, null, 2);
     const blob = new Blob([stateString], { type: 'application/json' });
     const link = document.createElement('a');
@@ -2497,15 +2570,137 @@ function actionSave() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(link.href);
+    setDirty(false); // The project is now saved.
+    addProjectToRecents(appState);
 }
 
-function actionSaveAs() {
-    const sanitizedProjectName = (appState.project.projectName || 'dati_analisi').replace(/[^a-z0-9_-\s.]/gi, '').trim();
+function actionSaveProjectAs() {
+    // Suggest a filename based on the project name.
+    const sanitizedProjectName = (appState.project.projectName || 'progetto_senza_nome').replace(/[^a-z0-9_-\s.]/gi, '').trim();
     const fileName = `${sanitizedProjectName.replace(/\s/g, '_')}.json`;
 
+    // Update the state with the new file name.
     appState.ui.currentFileName = fileName;
 
-    const stateString = JSON.stringify(appState, null, 2);
+    // Now that the name is set in the state, call the regular save function.
+    actionSaveProject();
+}
+
+const RECENT_PROJECTS_KEY = 'unccalib_recent_projects';
+const MAX_RECENT_PROJECTS = 5;
+
+function getRecentProjects() {
+    try {
+        const recent = localStorage.getItem(RECENT_PROJECTS_KEY);
+        return recent ? JSON.parse(recent) : [];
+    } catch (e) {
+        console.error("Failed to get recent projects from localStorage", e);
+        return [];
+    }
+}
+
+function addProjectToRecents(stateToSave) {
+    try {
+        let recentProjects = getRecentProjects();
+        // Create a new entry for the project
+        const newEntry = {
+            name: stateToSave.project.projectName || 'Progetto senza nome',
+            fileName: stateToSave.ui.currentFileName,
+            timestamp: new Date().getTime(),
+            state: stateToSave // Store the entire state
+        };
+
+        // Remove any existing entry with the same filename to avoid duplicates
+        recentProjects = recentProjects.filter(p => p.fileName !== newEntry.fileName);
+
+        // Add the new entry to the top of the list
+        recentProjects.unshift(newEntry);
+
+        // Trim the list to the maximum allowed size
+        if (recentProjects.length > MAX_RECENT_PROJECTS) {
+            recentProjects = recentProjects.slice(0, MAX_RECENT_PROJECTS);
+        }
+
+        localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(recentProjects));
+        renderRecentFiles(); // Update the UI
+    } catch (e) {
+        console.error("Failed to add project to recents", e);
+    }
+}
+
+function renderRecentFiles() {
+    const recentProjects = getRecentProjects();
+    const listElement = document.getElementById('recent-files-list');
+    if (!listElement) return;
+
+    listElement.innerHTML = ''; // Clear existing list
+
+    if (recentProjects.length === 0) {
+        listElement.innerHTML = '<span class="text-gray-400 block px-4 py-2 text-sm">Nessun file recente</span>';
+        return;
+    }
+
+    recentProjects.forEach((project, index) => {
+        const link = document.createElement('a');
+        link.href = '#';
+        link.className = 'text-gray-700 block px-4 py-2 text-sm hover:bg-gray-100';
+        link.textContent = project.name;
+        link.title = `${project.fileName}\nSalvato: ${new Date(project.timestamp).toLocaleString()}`;
+        link.dataset.projectIndex = index;
+        link.addEventListener('click', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (isDirty) {
+                const confirmed = await choiceModal.show({
+                    title: 'Aprire un Progetto Recente?',
+                    bodyContent: 'Ci sono modifiche non salvate che andranno perse. Sei sicuro di voler continuare?',
+                    buttons: [
+                        { text: 'Annulla', value: false, class: secondaryBtnClass },
+                        { text: 'Apri senza Salvare', value: true, class: 'bg-red-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-red-700' }
+                    ]
+                });
+                if (!confirmed) return;
+            }
+            loadRecentProject(index);
+            // Hide the dropdowns
+            document.getElementById('file-menu-dropdown').classList.add('hidden');
+            document.getElementById('recent-files-dropdown').classList.add('hidden');
+        });
+        listElement.appendChild(link);
+    });
+}
+
+function loadRecentProject(index) {
+    try {
+        const recentProjects = getRecentProjects();
+        const projectToLoad = recentProjects[index];
+        if (projectToLoad && projectToLoad.state) {
+            appState = projectToLoad.state;
+            setDirty(false);
+            render();
+        } else {
+            throw new Error("Progetto recente non trovato o corrotto.");
+        }
+    } catch (e) {
+        console.error("Failed to load recent project", e);
+        alert(`Errore nel caricamento del progetto recente: ${e.message}`);
+    }
+}
+
+
+function actionDuplicateProject() {
+    // Create a deep copy of the state to avoid modifying the current one.
+    const duplicatedState = deepCopy(appState);
+
+    // Modify the duplicated state to mark it as a copy.
+    duplicatedState.project.projectName = `${duplicatedState.project.projectName} (copia)`;
+    duplicatedState.ui.currentFileName = null; // This is a new, unsaved project.
+
+    // Suggest a filename for the duplicated project.
+    const sanitizedProjectName = (duplicatedState.project.projectName).replace(/[^a-z0-9_-\s.]/gi, '').trim();
+    const fileName = `${sanitizedProjectName.replace(/\s/g, '_')}.json`;
+
+    const stateString = JSON.stringify(duplicatedState, null, 2);
     const blob = new Blob([stateString], { type: 'application/json' });
 
     const link = document.createElement('a');
@@ -2515,15 +2710,13 @@ function actionSaveAs() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(link.href);
-
-    document.getElementById('btn-save-overwrite').disabled = false;
-    renderDebugInfo();
 }
 
 // --- AZIONI PER LA SEZIONE TARATURA ---
 function actionAddRegressionRow() {
     const newId = `cal-point-${Date.now()}`;
     appState.calibration.points.push({ id: newId, x: null, y: null, unit: 'µg/L' });
+    setDirty();
     renderCalibrationTab();
     renderDebugInfo();
 }
@@ -2534,6 +2727,7 @@ function actionRemoveRegressionRow(id) {
     if (appState.calibrationSolutionUncertainty[id]) {
         delete appState.calibrationSolutionUncertainty[id];
     }
+    setDirty();
     render(); // Use full render to update all dependent sections
 }
 
@@ -2547,7 +2741,7 @@ function actionUpdateRegressionPoint(id, field, value) {
         const numValue = value === '' ? null : parseFloat(value);
         point[field] = numValue;
     }
-
+    setDirty();
     // When a calibration point value changes, we should also re-render the dependent sections
     render();
 }
@@ -2555,6 +2749,7 @@ function actionUpdateRegressionPoint(id, field, value) {
 function actionUpdateManualCalibrationSample(field, value) {
     const numValue = value === '' ? null : parseFloat(value);
     appState.calibration.manualSample[field] = numValue;
+    setDirty();
     renderDebugInfo();
 }
 
@@ -2565,6 +2760,7 @@ function actionUpdateRfCalibrationInput(field, value) {
     } else if (field === 'manualConc') {
         appState.rfCalibration.manualSample.xk = numValue;
     }
+    setDirty();
     renderDebugInfo();
 }
 
@@ -2705,6 +2901,7 @@ async function actionRenameProject() {
         const newName = modalBody.querySelector('#form-field-new-name').value.trim();
         if (newName) {
             appState.project.projectName = newName;
+            setDirty();
             render(); // Re-render to show the new name in the input
         } else {
             alert("Il nome del progetto non può essere vuoto.");
@@ -2781,7 +2978,7 @@ async function actionLoadMultipleProjects(event) {
     }
 }
 
-function actionLoadData(event) {
+function handleFileLoad(event) {
     const file = event.target.files[0];
     if (!file) return;
     const reader = new FileReader();
@@ -2805,10 +3002,9 @@ function actionLoadData(event) {
                 appState.project.projectName = fileNameWithoutExt.replace(/_/g, ' ');
             }
 
-            // Abilita il pulsante Salva dopo il caricamento
-            document.getElementById('btn-save-overwrite').disabled = false;
-
             render();
+            setDirty(false); // A newly loaded project is not dirty.
+            addProjectToRecents(appState);
             alert("Dati caricati con successo!");
         } catch (error) {
             alert(`Errore nel caricamento: ${error.message}`);
@@ -2835,6 +3031,7 @@ function actionAddSpikeStep(sampleId) {
             { id: `w-${Date.now()}`, pipette: null, volume: null }
         ]
     });
+    setDirty();
     render();
     actionCalculateSpikeUncertainty(sampleId);
 }
@@ -2843,6 +3040,7 @@ function actionRemoveSpikeStep(sampleId, stepId) {
     const sampleState = appState.spikeUncertainty[sampleId];
     if (!sampleState) return;
     sampleState.steps = sampleState.steps.filter(s => s.id !== stepId);
+    setDirty();
     render();
     actionCalculateSpikeUncertainty(sampleId);
 }
@@ -2851,6 +3049,7 @@ function actionAddSpikeWithdrawal(sampleId, stepId) {
     const step = appState.spikeUncertainty[sampleId]?.steps.find(s => s.id === stepId);
     if (!step) return;
     step.withdrawals.push({ id: `w-${Date.now()}`, pipette: null, volume: null });
+    setDirty();
     render();
     actionCalculateSpikeUncertainty(sampleId);
 }
@@ -2859,6 +3058,7 @@ function actionRemoveSpikeWithdrawal(sampleId, stepId, withdrawalId) {
     const step = appState.spikeUncertainty[sampleId]?.steps.find(s => s.id === stepId);
     if (!step) return;
     step.withdrawals = step.withdrawals.filter(w => w.id !== withdrawalId);
+    setDirty();
     render();
     actionCalculateSpikeUncertainty(sampleId);
 }
@@ -2895,6 +3095,7 @@ function actionUpdateSpikeState({ sampleId, stepId, withdrawalId, field, value }
         sampleState[field] = value;
     }
 
+    setDirty();
     render();
     actionCalculateSpikeUncertainty(sampleId);
 }
@@ -2961,6 +3162,7 @@ function actionAddCalSolStep(pointId) {
             { id: `calsol-w-${Date.now()}`, pipette: null, volume: null }
         ]
     });
+    setDirty();
     render();
     actionCalculateCalibrationSolutionUncertainty(pointId);
 }
@@ -2969,6 +3171,7 @@ function actionRemoveCalSolStep(pointId, stepId) {
     const pointState = appState.calibrationSolutionUncertainty[pointId];
     if (!pointState) return;
     pointState.steps = pointState.steps.filter(s => s.id !== stepId);
+    setDirty();
     render();
     actionCalculateCalibrationSolutionUncertainty(pointId);
 }
@@ -2977,6 +3180,7 @@ function actionAddCalSolWithdrawal(pointId, stepId) {
     const step = appState.calibrationSolutionUncertainty[pointId]?.steps.find(s => s.id === stepId);
     if (!step) return;
     step.withdrawals.push({ id: `calsol-w-${Date.now()}`, pipette: null, volume: null });
+    setDirty();
     render();
     actionCalculateCalibrationSolutionUncertainty(pointId);
 }
@@ -2985,6 +3189,7 @@ function actionRemoveCalSolWithdrawal(pointId, stepId, withdrawalId) {
     const step = appState.calibrationSolutionUncertainty[pointId]?.steps.find(s => s.id === stepId);
     if (!step) return;
     step.withdrawals = step.withdrawals.filter(w => w.id !== withdrawalId);
+    setDirty();
     render();
     actionCalculateCalibrationSolutionUncertainty(pointId);
 }
@@ -3007,6 +3212,7 @@ function actionUpdateCalSolState({ pointId, stepId, withdrawalId, field, value }
     } else {
         pointState[field] = value;
     }
+    setDirty();
     actionCalculateCalibrationSolutionUncertainty(pointId);
 }
 
@@ -4628,6 +4834,7 @@ function setupReportEventListeners() {
 // --- MAIN APP SETUP ---
 function main() {
     actionLoadLibraries();
+    renderRecentFiles();
     setupReportEventListeners();
 
     // --- Event Listeners Scheda Report Progetto ---
@@ -4652,10 +4859,52 @@ function main() {
 
     // --- Event Listeners Scheda Analisi Statistica ---
     document.getElementById('btn-add-sample').addEventListener('click', actionAddSample);
-    document.getElementById('btn-load-data').addEventListener('click', () => document.getElementById('load-data-input').click());
-    document.getElementById('load-data-input').addEventListener('change', actionLoadData);
-    document.getElementById('btn-save-data').addEventListener('click', actionSaveAs); // This is now "Save As"
-    document.getElementById('btn-save-overwrite').addEventListener('click', actionSave); // This is the new "Save"
+
+    // --- NEW Project Lifecycle Event Listeners ---
+    document.getElementById('load-data-input').addEventListener('change', handleFileLoad);
+    document.getElementById('btn-new-project').addEventListener('click', (e) => { e.preventDefault(); actionNewProject(); });
+    document.getElementById('btn-open-project').addEventListener('click', (e) => { e.preventDefault(); actionOpenProject(); });
+    document.getElementById('btn-save-project').addEventListener('click', (e) => { e.preventDefault(); actionSaveProject(); });
+    document.getElementById('btn-save-project-as').addEventListener('click', (e) => { e.preventDefault(); actionSaveProjectAs(); });
+    document.getElementById('btn-duplicate-project').addEventListener('click', (e) => { e.preventDefault(); actionDuplicateProject(); });
+
+    // Dropdown Menu Logic
+    const menuButton = document.getElementById('file-menu-button');
+    const dropdown = document.getElementById('file-menu-dropdown');
+    const recentFilesButton = document.getElementById('recent-files-button');
+    const recentFilesDropdown = document.getElementById('recent-files-dropdown');
+    const recentFilesContainer = document.getElementById('recent-files-container');
+
+    menuButton.addEventListener('click', (e) => {
+        e.stopPropagation(); // prevent window listener from closing it immediately
+        dropdown.classList.toggle('hidden');
+    });
+
+    recentFilesButton.addEventListener('mouseenter', () => {
+        if (!recentFilesDropdown.classList.contains('hidden')) return;
+        recentFilesDropdown.classList.remove('hidden');
+    });
+
+    recentFilesContainer.addEventListener('mouseleave', () => {
+        recentFilesDropdown.classList.add('hidden');
+    });
+
+    // Close dropdown when clicking outside
+    window.addEventListener('click', (e) => {
+        if (!dropdown.classList.contains('hidden') && !menuButton.contains(e.target)) {
+            dropdown.classList.add('hidden');
+        }
+    });
+
+    // Warn user before leaving page if there are unsaved changes
+    window.addEventListener('beforeunload', (e) => {
+        if (isDirty) {
+            e.preventDefault(); // Required for some browsers
+            e.returnValue = ''; // Required for Chrome/Firefox
+            return '';          // For older browsers
+        }
+    });
+
 
     // Attach the robust error-handling event listener for the calculate button
     document.getElementById('calculate-btn').addEventListener('click', () => {
@@ -4765,11 +5014,11 @@ function main() {
         }
     });
 
-    document.getElementById('project-name').addEventListener('input', e => { appState.project.projectName = e.target.value; });
+    document.getElementById('project-name').addEventListener('input', e => { appState.project.projectName = e.target.value; setDirty(); });
     document.getElementById('btn-rename-project').addEventListener('click', actionRenameProject);
-    document.getElementById('project-objective').addEventListener('input', e => { appState.project.objective = e.target.value; });
-    document.getElementById('project-method').addEventListener('input', e => { appState.project.method = e.target.value; });
-    document.getElementById('project-component').addEventListener('input', e => { appState.project.component = e.target.value; });
+    document.getElementById('project-objective').addEventListener('input', e => { appState.project.objective = e.target.value; setDirty(); });
+    document.getElementById('project-method').addEventListener('input', e => { appState.project.method = e.target.value; setDirty(); });
+    document.getElementById('project-component').addEventListener('input', e => { appState.project.component = e.target.value; setDirty(); });
 
     // --- Event Listeners Scheda Incertezza di Preparazione ---
     const prepContainer = document.getElementById('content-preparazione');
@@ -4875,11 +5124,13 @@ function main() {
             sampleId: null,
             treatments: []
         });
+        setDirty();
         render();
     }
 
     function actionRemoveTreatmentSample(treatmentSampleId) {
         appState.treatments = appState.treatments.filter(ts => ts.id !== treatmentSampleId);
+        setDirty();
         render();
     }
 
@@ -4888,6 +5139,7 @@ function main() {
         if (treatmentSample) {
             treatmentSample.sampleId = selectedSampleId ? parseInt(selectedSampleId, 10) : null;
         }
+        setDirty();
         render();
         // Potrebbe essere necessario ricalcolare qui se la selezione del campione influisce sui calcoli
     }
@@ -4921,6 +5173,7 @@ function main() {
             }
             treatmentSample.treatments.push(newTreatment);
         }
+        setDirty();
         render();
     }
 
@@ -4929,6 +5182,7 @@ function main() {
         if (treatmentSample) {
             treatmentSample.treatments = treatmentSample.treatments.filter(t => t.id !== treatmentId);
         }
+        setDirty();
         render();
     }
 
@@ -4946,6 +5200,7 @@ function main() {
         } else if (direction === 'down' && index < treatments.length - 1) {
             [treatments[index], treatments[index + 1]] = [treatments[index + 1], treatments[index]];
         }
+        setDirty();
         render();
         actionCalculateTreatmentChain(treatmentSampleId);
     }
@@ -4957,6 +5212,7 @@ function main() {
         if (treatment && treatment.type === 'diluizione') {
             if (!treatment.withdrawals) treatment.withdrawals = [];
             treatment.withdrawals.push({ id: `w-${Date.now()}`, pipette: null, volume: null });
+            setDirty();
             render();
             actionCalculateTreatmentChain(treatmentSampleId);
         }
@@ -4968,6 +5224,7 @@ function main() {
             .find(t => t.id === treatmentId);
         if (treatment && treatment.type === 'diluizione' && treatment.withdrawals) {
             treatment.withdrawals = treatment.withdrawals.filter(w => w.id !== withdrawalId);
+            setDirty();
             render();
             actionCalculateTreatmentChain(treatmentSampleId);
         }
@@ -4994,6 +5251,7 @@ function main() {
              treatment[field] = value;
         }
 
+        setDirty();
         actionCalculateTreatmentChain(treatmentSampleId);
     // render() is called inside actionCalculateTreatmentChain's finally block, so this one is redundant.
         renderDebugInfo();

@@ -25,10 +25,36 @@
                 <h1 class="text-3xl font-bold text-gray-800">Suite di Analisi per Laboratorio</h1>
                 <p class="text-lg text-gray-600 mt-1">Strumenti per l'analisi statistica e il calcolo dell'incertezza.</p>
             </div>
-            <div class="flex space-x-2">
-                <button id="btn-save-overwrite" class="bg-green-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-green-700 transition disabled:bg-gray-400" disabled>Salva</button>
-                <button id="btn-load-data" class="bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-gray-700 transition">Carica Dati</button>
-                <button id="btn-save-data" class="bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-blue-700 transition">Salva con Nome</button>
+            <!-- Nuovo Menu File -->
+            <div id="file-menu-container" class="relative inline-block text-left">
+                <button id="file-menu-button" class="bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-gray-700 transition flex items-center">
+                    File
+                    <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </button>
+                <div id="file-menu-dropdown" class="origin-top-right absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none hidden z-10" role="menu" aria-orientation="vertical" aria-labelledby="file-menu-button">
+                    <div class="py-1" role="none">
+                        <a href="#" id="btn-new-project" class="text-gray-700 block px-4 py-2 text-sm hover:bg-gray-100" role="menuitem">Nuovo</a>
+                        <a href="#" id="btn-open-project" class="text-gray-700 block px-4 py-2 text-sm hover:bg-gray-100" role="menuitem">Apri...</a>
+                        <div class="border-t border-gray-100 my-1"></div>
+                        <a href="#" id="btn-save-project" class="text-gray-700 block px-4 py-2 text-sm hover:bg-gray-100" role="menuitem">Salva</a>
+                        <a href="#" id="btn-save-project-as" class="text-gray-700 block px-4 py-2 text-sm hover:bg-gray-100" role="menuitem">Salva con nome...</a>
+                        <a href="#" id="btn-duplicate-project" class="text-gray-700 block px-4 py-2 text-sm hover:bg-gray-100" role="menuitem">Duplica</a>
+                        <div class="border-t border-gray-100 my-1"></div>
+                        <!-- Sottomenu per Apri Recente -->
+                        <div id="recent-files-container" class="relative">
+                             <a href="#" class="text-gray-700 block px-4 py-2 text-sm hover:bg-gray-100 flex justify-between items-center" id="recent-files-button">
+                                <span>Apri Recente</span>
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                             </a>
+                             <div id="recent-files-dropdown" class="absolute left-full top-0 -mt-8 ml-1 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 hidden">
+                                 <div id="recent-files-list" class="py-1">
+                                    <!-- I file recenti verranno aggiunti qui da JS -->
+                                    <span class="text-gray-400 block px-4 py-2 text-sm">Nessun file recente</span>
+                                 </div>
+                             </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </header>
 
