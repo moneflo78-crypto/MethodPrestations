@@ -10,6 +10,16 @@ const kp_coeffs_table = { 3:{g:-0.625,e:0.386,f:0.75},4:{g:-1.107,e:0.714,f:0.62
 const STUDENT_T_95_TWO_TAILED = { 1:12.706,2:4.303,3:3.182,4:2.776,5:2.571,6:2.447,7:2.365,8:2.306,9:2.262,10:2.228,11:2.201,12:2.179,13:2.16,14:2.145,15:2.131,16:2.12,17:2.11,18:2.101,19:2.093,20:2.086,21:2.08,22:2.074,23:2.069,24:2.064,25:2.06,26:2.056,27:2.052,28:2.048,29:2.045,30:2.042,infinity:1.96};
 function getTValue(n){if(n<=1)return NaN;const df=n-1;if(df>30)return STUDENT_T_95_TWO_TAILED.infinity;return STUDENT_T_95_TWO_TAILED[df]||NaN}
 
+/**
+ * Custom error class for handling incomplete user input without treating it as a critical failure.
+ */
+class IncompleteDataError extends Error {
+    constructor(message) {
+        super(message);
+        this.name = "IncompleteDataError";
+    }
+}
+
 function shapiroWilk(data) {
     const sorted = data.slice().sort((a, b) => a - b);
     const n = sorted.length;
@@ -3216,10 +3226,17 @@ function actionCalculateSpikeUncertainty(sampleId) {
     const sampleState = appState.spikeUncertainty[sampleId];
     const resultsContainer = document.getElementById(`spike-results-container-${sampleId}`);
 
-    // Funzione di utilità per pulire i risultati e mostrare errori
-    const resetAndShowError = (message) => {
+    // Funzione di utilità per pulire i risultati e mostrare errori/informazioni
+    const resetAndShowMessage = (message, type = 'error') => {
         if (resultsContainer) {
-            resultsContainer.innerHTML = message ? `<span class="text-red-500 text-sm font-medium">${message}</span>` : '';
+            if (message) {
+                const styleClass = type === 'error'
+                    ? 'text-red-600 font-semibold'
+                    : 'text-gray-500 italic';
+                resultsContainer.innerHTML = `<span class="${styleClass} text-sm">${message}</span>`;
+            } else {
+                resultsContainer.innerHTML = '';
+            }
         }
         sampleState.results = null;
         // Pulisce anche i dati intermedi dai passaggi per evitare di visualizzare dati vecchi
@@ -3238,28 +3255,23 @@ function actionCalculateSpikeUncertainty(sampleId) {
     };
 
     try {
-        // Reset parziale prima di iniziare, per evitare dati "orfani" se il calcolo fallisce a metà
-        resetAndShowError(null);
+        // Pulisce i risultati precedenti prima di ogni ricalcolo.
+        resetAndShowMessage(null);
 
         if (sampleState.initialConcentration === null || sampleState.initialConcentration <= 0) {
-            return; // Non mostrare errore se i dati iniziali non sono ancora stati inseriti
+            return; // Esce silenziosamente se i dati iniziali non sono pronti.
         }
 
         // --- INIZIO LOGICA DI CONVERSIONE UNITÀ ---
         const sample = appState.samples.find(s => s.id == sampleId);
         if (!sample) throw new Error(`Campione con ID ${sampleId} non trovato.`);
-
         const targetUnit = sample.unit;
         const sourceUnit = sampleState.unit;
-
-        const initialConcentrationInSourceUnit = sampleState.initialConcentration;
-        const convertedInitialConcentration = convertConcentration(initialConcentrationInSourceUnit, sourceUnit, targetUnit);
-
+        const convertedInitialConcentration = convertConcentration(sampleState.initialConcentration, sourceUnit, targetUnit);
         let currentConcentration = convertedInitialConcentration;
         // --- FINE LOGICA DI CONVERSIONE UNITÀ ---
 
         let sum_u_rel_sq;
-
         if (sampleState.initialUncertainty !== null && sampleState.initialUncertainty > 0) {
             const u_rel_initial = sampleState.initialUncertainty / (200 * Math.sqrt(2));
             sum_u_rel_sq = Math.pow(u_rel_initial, 2);
@@ -3270,9 +3282,9 @@ function actionCalculateSpikeUncertainty(sampleId) {
 
         for (const step of sampleState.steps) {
             // --- 1. Calcolo Prelievi (comune a entrambi i metodi) ---
-            if (step.withdrawals.length === 0) throw new Error(`Nessun prelievo nel passaggio.`);
+            if (step.withdrawals.length === 0) throw new IncompleteDataError(`Aggiungere almeno un prelievo.`);
             if (step.withdrawals.some(w => !w.pipette || w.volume === null || w.volume <= 0)) {
-                throw new Error(`Dati di prelievo incompleti o non validi.`);
+                throw new IncompleteDataError(`Compilare tutti i campi del prelievo (pipetta e volume).`);
             }
 
             let totalWithdrawalVolume = 0;
@@ -3291,7 +3303,7 @@ function actionCalculateSpikeUncertainty(sampleId) {
             if (step.dilutionType === 'addSolvent') {
                 // METODO 2: Aggiunta di un volume di solvente
                 if (!step.addedSolventPipette || !step.addedSolventVolume || step.addedSolventVolume <= 0) {
-                    throw new Error("Dati per l'aggiunta di solvente incompleti o non validi.");
+                    throw new IncompleteDataError("Compilare i dati per l'aggiunta di solvente (pipetta e volume).");
                 }
                 const Vi = totalWithdrawalVolume;
                 const u_abs_Vi = u_abs_total_withdrawal;
@@ -3313,7 +3325,7 @@ function actionCalculateSpikeUncertainty(sampleId) {
 
             } else {
                 // METODO 1: Portando a volume (logica originale)
-                if (!step.dilutionFlask) throw new Error(`Matraccio non selezionato.`);
+                if (!step.dilutionFlask) throw new IncompleteDataError(`Selezionare un matraccio di diluizione.`);
 
                 const u_rel_sq_total_withdrawal = totalWithdrawalVolume > 0 ? Math.pow(u_abs_total_withdrawal / totalWithdrawalVolume, 2) : 0;
 
@@ -3336,42 +3348,29 @@ function actionCalculateSpikeUncertainty(sampleId) {
         const final_u_abs = final_u_rel * currentConcentration;
         const final_u_rel_perc = final_u_rel * 100;
 
-        // NUOVO: Genera il riepilogo testuale
+        // Genera il riepilogo testuale
         let summaryLines = [];
-        let concentrationBeforeStep = convertedInitialConcentration; // Inizia con la concentrazione GIA' CONVERTITA
+        let concentrationBeforeStep = convertedInitialConcentration;
         sampleState.steps.forEach((step, index) => {
-            // Costruisce la stringa dei prelievi con l'ID della pipetta
             const withdrawalsText = step.withdrawals.map(w => `${w.volume} mL (pipetta: ${w.pipette})`).join(' e ');
-
             const flask = appState.libraries.glassware[step.dilutionFlask];
-
-            // La concentrazione della soluzione prelevata è quella prima di questo passaggio
             const initialConcForStep = concentrationBeforeStep;
-
-            // La concentrazione finale di questo passaggio è memorizzata nell'oggetto 'step'
             const finalConcForStep = step.intermediateConcentration;
-
             summaryLines.push(`<b>Passaggio ${index + 1}:</b> Prelievo di ${withdrawalsText} da soluzione a ${initialConcForStep.toPrecision(4)} ${targetUnit}. Diluizione a ${flask.volume} mL per una concentrazione finale di ${finalConcForStep.toPrecision(4)} ${targetUnit}.`);
-
-            // Aggiorna la concentrazione per il prossimo passaggio
             concentrationBeforeStep = finalConcForStep;
         });
         const summary = summaryLines.join('<br>');
 
-        // NUOVO: Logica per le verifiche di preparazione e accuratezza
+        // Logica per le verifiche di preparazione e accuratezza
         const nominalValue = parseFloat(sample.expectedValue);
         const calculatedConcentration = currentConcentration;
         const meanValue = appState.results[sampleId]?.statistics?.mean;
-
         let preparationCheck = null;
         let accuracyCheck = null;
 
-        // VERIFICA 1: Correttezza della preparazione
-        // Confronta il valore nominale con il valore di concentrazione calcolata.
-        // Se la differenza è minore dello 0.01% del valore nominale il test e superato.
         if (!isNaN(nominalValue) && !isNaN(calculatedConcentration)) {
             const diff = Math.abs(nominalValue - calculatedConcentration);
-            const threshold = 0.0001 * nominalValue; // 0.01%
+            const threshold = 0.0001 * nominalValue;
             const isCorrect = diff < threshold;
             preparationCheck = {
                 isCorrect: isCorrect,
@@ -3380,12 +3379,9 @@ function actionCalculateSpikeUncertainty(sampleId) {
             };
         }
 
-        // VERIFICA 2: Esattezza del metodo (solo se la preparazione è corretta)
-        // Calcola il valore assoluto della differenza tra la media e il valore nominale e lo divide per l'incertezza tipo composta di preparazione assoluta.
-        // Se questo rapporto è minore o uguale a 2 il test è superato.
         if (preparationCheck && preparationCheck.isCorrect && !isNaN(meanValue) && !isNaN(nominalValue)) {
             const absoluteUncertainty = final_u_rel * nominalValue;
-            if (absoluteUncertainty > 1e-12) { // Evita divisione per zero
+            if (absoluteUncertainty > 1e-12) {
                 const ratio = Math.abs(meanValue - nominalValue) / absoluteUncertainty;
                 const isAccurate = ratio <= 2;
                 accuracyCheck = {
@@ -3394,15 +3390,11 @@ function actionCalculateSpikeUncertainty(sampleId) {
                     details: `Rapporto: ${ratio.toFixed(3)} (soglia: <= 2)`
                 };
             } else {
-                 accuracyCheck = {
-                    isAccurate: false,
-                    message: 'Non calcolabile: incertezza di preparazione è zero.',
-                    details: ''
-                };
+                 accuracyCheck = { isAccurate: false, message: 'Non calcolabile: incertezza di preparazione è zero.', details: '' };
             }
         }
 
-        // Memorizza tutti i risultati finali nello stato
+        // Memorizza i risultati finali
         sampleState.results = {
             finalConcentration: currentConcentration,
             u_comp: final_u_abs,
@@ -3412,12 +3404,15 @@ function actionCalculateSpikeUncertainty(sampleId) {
             accuracyCheck: accuracyCheck
         };
 
-        // Forza un re-render completo per mostrare tutti i nuovi dati
         render();
 
     } catch (e) {
-        // Usa la nuova funzione di errore per pulire l'UI
-        resetAndShowError(e.message);
+        // Gestisce gli errori in modo differenziato
+        if (e instanceof IncompleteDataError) {
+            resetAndShowMessage(e.message, 'info');
+        } else {
+            resetAndShowMessage(e.message, 'error');
+        }
         console.error("Errore nel calcolo dello spike:", e);
     }
 }
@@ -3425,10 +3420,20 @@ function actionCalculateSpikeUncertainty(sampleId) {
 function actionCalculateCalibrationSolutionUncertainty(pointId) {
     const pointState = appState.calibrationSolutionUncertainty[pointId];
     const point = appState.calibration.points.find(p => p.id === pointId);
-    if (!pointState || !point) return;
+    const resultsContainer = document.getElementById(`calsol-results-container-${pointId}`);
 
-    // Funzione di utilità per pulire i risultati
-    const resetResults = () => {
+    // Funzione di utilità per pulire i risultati e mostrare messaggi
+    const resetAndShowMessage = (message, type = 'error') => {
+        if (resultsContainer) {
+            if (message) {
+                const styleClass = type === 'error'
+                    ? 'text-red-600 font-semibold'
+                    : 'text-gray-500 italic';
+                resultsContainer.innerHTML = `<span class="${styleClass} text-sm">${message}</span>`;
+            } else {
+                resultsContainer.innerHTML = '';
+            }
+        }
         pointState.results = null;
         pointState.initialUncertaintyRelPerc = null;
         pointState.steps.forEach(step => {
@@ -3440,13 +3445,13 @@ function actionCalculateCalibrationSolutionUncertainty(pointId) {
                 w.pipetteUncertainty_U_perc = null;
             });
         });
+        render();
     };
 
     try {
-        resetResults();
+        resetAndShowMessage(null);
 
         if (pointState.initialConcentration === null || pointState.initialConcentration <= 0) {
-            render(); // Rirenderizza per pulire l'UI ma non mostra errori
             return;
         }
 
@@ -3464,11 +3469,15 @@ function actionCalculateCalibrationSolutionUncertainty(pointId) {
         }
 
         for (const step of pointState.steps) {
-            if (step.withdrawals.length === 0) throw new Error(`Nessun prelievo nel passaggio.`);
-            if (step.withdrawals.some(w => !w.pipette || w.volume === null || w.volume <= 0)) {
-                throw new Error(`Dati di prelievo incompleti o non validi.`);
+            if (step.withdrawals.length === 0) {
+                throw new IncompleteDataError(`Aggiungere almeno un prelievo.`);
             }
-            if (!step.dilutionFlask) throw new Error(`Matraccio non selezionato.`);
+            if (step.withdrawals.some(w => !w.pipette || w.volume === null || w.volume <= 0)) {
+                throw new IncompleteDataError(`Compilare i campi del prelievo (pipetta, volume).`);
+            }
+            if (!step.dilutionFlask) {
+                throw new IncompleteDataError(`Selezionare un matraccio di diluizione.`);
+            }
 
             let totalWithdrawalVolume = 0;
             let sum_u_abs_sq_withdrawals = 0;
@@ -3508,11 +3517,12 @@ function actionCalculateCalibrationSolutionUncertainty(pointId) {
         render();
 
     } catch (e) {
+        if (e instanceof IncompleteDataError) {
+            resetAndShowMessage(e.message, 'info');
+        } else {
+            resetAndShowMessage(e.message, 'error');
+        }
         console.error("Errore nel calcolo della soluzione di taratura:", e);
-        // Non mostriamo un errore popup, ma l'assenza di risultati indicherà il problema.
-        // L'errore viene loggato in console per il debug.
-        resetResults();
-        render();
     }
 }
 
