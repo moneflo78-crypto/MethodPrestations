@@ -28,9 +28,10 @@ Quando si aggiunge un trattamento di tipo "Estrazione", è ora possibile specifi
 
 **Utilizzo del Metodo "Pipetta":**
 
-1.  **Selezionare la Pipetta:** Scegliere dal primo menu a tendina lo strumento (pipetta) che verrà utilizzato per dispensare tutte le aliquote. L'incertezza di questo strumento verrà usata per i calcoli.
-2.  **Aggiungere Aliquote:** Fare clic sul pulsante **"+ Aggiungi Aliquota"** per creare un nuovo campo di input.
-3.  **Inserire i Volumi:** Inserire il volume (in mL) per ciascuna aliquota. Il volume finale totale sarà la somma di tutti i volumi inseriti.
-4.  **Rimuovere Aliquote:** Se necessario, fare clic sul pulsante **"×"** accanto a un campo per rimuovere quell'aliquota.
+1.  **Aggiungere Aliquote:** Fare clic sul pulsante **"+ Aggiungi Aliquota"** per creare una nuova "scheda" per una singola aliquota. È possibile aggiungere più aliquote, anche se verranno prelevate con pipette diverse.
+2.  **Per ogni aliquota:**
+    *   **Selezionare la Pipetta:** All'interno della scheda dell'aliquota, scegliere dal menu a tendina lo strumento (pipetta) che verrà utilizzato per quel prelievo specifico.
+    *   **Inserire il Volume:** Inserire il volume (in mL) per quella specifica aliquota.
+3.  **Rimuovere Aliquote:** Se necessario, fare clic sul pulsante **"×"** all'interno della scheda di un'aliquota per rimuoverla.
 
-L'applicazione calcolerà automaticamente la concentrazione finale e l'incertezza composita tenendo conto della somma dei volumi delle aliquote e propagando correttamente l'incertezza da ogni singola aliquota dispensata con la pipetta selezionata.
+L'applicazione calcolerà automaticamente la concentrazione finale e l'incertezza composita. Il volume finale totale sarà la somma di tutti i volumi delle aliquote inserite, e l'incertezza totale verrà calcolata combinando correttamente i contributi di incertezza di ogni singolo prelievo, in base alla pipetta e al volume specificati.

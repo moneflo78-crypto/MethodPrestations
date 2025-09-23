@@ -199,9 +199,9 @@ L'applicazione supporta diversi tipi di trattamenti, incluse due modalità di di
   - **Formula (Metodo Pipetta - solo per Estrazione):** Questo nuovo metodo permette di definire il volume finale come somma di più aliquote aggiunte con una pipetta.
     - **Volume Finale:** `V_finale = Σ V_aliquota_i`
     - **Concentrazione Finale:** `C_finale = C_iniziale * (V_matraccio_iniziale / V_finale)`
-    - **Incertezza del Volume Finale:** L'incertezza del volume finale totale è la combinazione in quadratura delle incertezze assolute di ogni singola aliquota.
+    - **Incertezza del Volume Finale:** L'incertezza del volume finale totale è la combinazione in quadratura delle incertezze assolute di ogni singola aliquota, poiché ogni prelievo è un'operazione indipendente.
       `u_abs(V_finale)² = Σ u_abs(V_aliquota_i)²`
-      L'incertezza di ogni aliquota (`u_abs(V_aliquota_i)`) viene calcolata individualmente usando la libreria della pipetta selezionata, come descritto nella sezione 4.3.
+      L'incertezza di ogni aliquota (`u_abs(V_aliquota_i)`) viene calcolata individualmente usando la libreria della specifica pipetta selezionata per quell'aliquota, come descritto nella sezione 4.3.
 
 #### 4.3 Calcolo delle Incertezze Tipo Relative dei Componenti (u_rel)
 
