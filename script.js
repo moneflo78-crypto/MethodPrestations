@@ -20,6 +20,13 @@ class IncompleteDataError extends Error {
     }
 }
 
+class ValidationError extends Error {
+    constructor(message) {
+        super(message);
+        this.name = "ValidationError";
+    }
+}
+
 function shapiroWilk(data) {
     const sorted = data.slice().sort((a, b) => a - b);
     const n = sorted.length;
@@ -3116,7 +3123,7 @@ function _get_pipette_uncertainty_contribution(pipetteId, volume, libraries) {
     }
     const points = pipette.calibrationPoints.map(p => p.volume);
     if (volume < Math.min(...points) || volume > Math.max(...points)) {
-        throw new Error(`Volume ${volume}mL fuori range per pipetta ${pipetteId}. Range valido: [${Math.min(...points)} - ${Math.max(...points)}].`);
+        throw new ValidationError(`Volume ${volume}mL fuori range per pipetta ${pipetteId}. Range valido: [${Math.min(...points)} - ${Math.max(...points)}].`);
     }
 
     let uncertainty_U_perc = 0;
@@ -3282,15 +3289,16 @@ function actionCalculateSpikeUncertainty(sampleId) {
 
         for (const step of sampleState.steps) {
             // --- 1. Calcolo Prelievi (comune a entrambi i metodi) ---
-            if (step.withdrawals.length === 0) throw new IncompleteDataError(`Aggiungere almeno un prelievo.`);
+            if (step.withdrawals.length === 0) return resetAndShowMessage('Aggiungere almeno un prelievo.', 'info');
             if (step.withdrawals.some(w => !w.pipette || w.volume === null || w.volume <= 0)) {
-                throw new IncompleteDataError(`Compilare tutti i campi del prelievo (pipetta e volume).`);
+                return resetAndShowMessage('Compilare tutti i campi del prelievo (pipetta e volume).', 'info');
             }
 
             let totalWithdrawalVolume = 0;
             let sum_u_abs_sq_withdrawals = 0;
 
             for (const w of step.withdrawals) {
+                if (!w) continue; // Safeguard against malformed state with undefined/null entries
                 totalWithdrawalVolume += w.volume;
                 const contrib = _get_pipette_uncertainty_contribution(w.pipette, w.volume, appState.libraries);
                 w.pipetteUncertainty_U_perc = contrib.U_perc;
@@ -3303,7 +3311,7 @@ function actionCalculateSpikeUncertainty(sampleId) {
             if (step.dilutionType === 'addSolvent') {
                 // METODO 2: Aggiunta di un volume di solvente
                 if (!step.addedSolventPipette || !step.addedSolventVolume || step.addedSolventVolume <= 0) {
-                    throw new IncompleteDataError("Compilare i dati per l'aggiunta di solvente (pipetta e volume).");
+                    return resetAndShowMessage("Compilare i dati per l'aggiunta di solvente (pipetta e volume).", 'info');
                 }
                 const Vi = totalWithdrawalVolume;
                 const u_abs_Vi = u_abs_total_withdrawal;
@@ -3325,7 +3333,7 @@ function actionCalculateSpikeUncertainty(sampleId) {
 
             } else {
                 // METODO 1: Portando a volume (logica originale)
-                if (!step.dilutionFlask) throw new IncompleteDataError(`Selezionare un matraccio di diluizione.`);
+                if (!step.dilutionFlask) return resetAndShowMessage('Selezionare un matraccio di diluizione.', 'info');
 
                 const u_rel_sq_total_withdrawal = totalWithdrawalVolume > 0 ? Math.pow(u_abs_total_withdrawal / totalWithdrawalVolume, 2) : 0;
 
@@ -3408,12 +3416,16 @@ function actionCalculateSpikeUncertainty(sampleId) {
 
     } catch (e) {
         // Gestisce gli errori in modo differenziato
-        if (e instanceof IncompleteDataError) {
+        if (e instanceof ValidationError) {
+            resetAndShowMessage(e.message, 'info');
+        } else if (e instanceof IncompleteDataError) {
+            // This case is now handled by early returns, but we keep it as a safeguard.
             resetAndShowMessage(e.message, 'info');
         } else {
+            // For any other unexpected error, show a critical error and log it.
             resetAndShowMessage(e.message, 'error');
+            console.error("Errore nel calcolo dello spike:", e);
         }
-        console.error("Errore nel calcolo dello spike:", e);
     }
 }
 
