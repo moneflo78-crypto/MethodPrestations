@@ -2718,7 +2718,6 @@ function actionAddRegressionRow() {
     appState.calibration.points.push({ id: newId, x: null, y: null, unit: 'µg/L' });
     setDirty();
     renderCalibrationTab();
-    renderDebugInfo();
 }
 
 function actionRemoveRegressionRow(id) {
@@ -2750,7 +2749,6 @@ function actionUpdateManualCalibrationSample(field, value) {
     const numValue = value === '' ? null : parseFloat(value);
     appState.calibration.manualSample[field] = numValue;
     setDirty();
-    renderDebugInfo();
 }
 
 function actionUpdateRfCalibrationInput(field, value) {
@@ -2761,7 +2759,6 @@ function actionUpdateRfCalibrationInput(field, value) {
         appState.rfCalibration.manualSample.xk = numValue;
     }
     setDirty();
-    renderDebugInfo();
 }
 
 function actionCalculateRegression() {
@@ -3077,7 +3074,6 @@ function _updateSpikeStateFromInput({ sampleId, stepId, withdrawalId, field, val
     } else {
         sampleState[field] = value;
     }
-    renderDebugInfo();
 }
 
 function actionUpdateSpikeState({ sampleId, stepId, withdrawalId, field, value }) {
@@ -3418,7 +3414,6 @@ function actionCalculateSpikeUncertainty(sampleId) {
 
         // Forza un re-render completo per mostrare tutti i nuovi dati
         render();
-        renderDebugInfo();
 
     } catch (e) {
         // Usa la nuova funzione di errore per pulire l'UI
@@ -5254,7 +5249,6 @@ function main() {
         setDirty();
         actionCalculateTreatmentChain(treatmentSampleId);
     // render() is called inside actionCalculateTreatmentChain's finally block, so this one is redundant.
-        renderDebugInfo();
     }
 
     function actionCalculateTreatmentChain(treatmentSampleId) {
