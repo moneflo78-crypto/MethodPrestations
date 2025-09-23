@@ -1,0 +1,36 @@
+#################################
+# MANUALE UTENTE - GUIDA RAPIDA #
+#################################
+
+Questo manuale fornisce istruzioni pratiche sull'utilizzo delle funzionalità dell'applicazione.
+
+---
+
+### SEZIONE: INCERTEZZA DI PREPARAZIONE
+
+#### Trattamenti di Campioni e Estratti
+
+Questa sezione permette di simulare e calcolare l'incertezza per una catena di trattamenti applicati a un campione.
+
+##### Nuovo Trattamento di Estrazione: Scelta del Metodo per il Volume Finale
+
+Quando si aggiunge un trattamento di tipo "Estrazione", è ora possibile specificare come viene determinato il volume finale del solvente. Questo offre maggiore flessibilità per modellare le procedure di laboratorio reali.
+
+**Come utilizzare la nuova funzionalità:**
+
+1.  Nella scheda "Incertezza di Preparazione", fare clic su **"+ Aggiungi Campione da Trattare"**.
+2.  Selezionare il campione desiderato dal menu a tendina.
+3.  Fare clic sul pulsante **"Estrazione"** per aggiungere un nuovo passaggio di trattamento.
+4.  Nel riquadro del trattamento, compilare il "Volume Iniziale (Matraccio)" come di consueto.
+5.  Nella sezione **"Metodo Volume Finale"**, scegliere una delle due opzioni:
+    *   **Matraccio (Metodo Classico):** Selezionando questa opzione, verrà mostrato un menu a tendina per scegliere il matraccio di volume finale. Il calcolo procederà come nella versione precedente.
+    *   **Pipetta (Nuovo Metodo):** Selezionando questa opzione, l'interfaccia cambierà per permettere di definire il volume finale come somma di aliquote.
+
+**Utilizzo del Metodo "Pipetta":**
+
+1.  **Selezionare la Pipetta:** Scegliere dal primo menu a tendina lo strumento (pipetta) che verrà utilizzato per dispensare tutte le aliquote. L'incertezza di questo strumento verrà usata per i calcoli.
+2.  **Aggiungere Aliquote:** Fare clic sul pulsante **"+ Aggiungi Aliquota"** per creare un nuovo campo di input.
+3.  **Inserire i Volumi:** Inserire il volume (in mL) per ciascuna aliquota. Il volume finale totale sarà la somma di tutti i volumi inseriti.
+4.  **Rimuovere Aliquote:** Se necessario, fare clic sul pulsante **"×"** accanto a un campo per rimuovere quell'aliquota.
+
+L'applicazione calcolerà automaticamente la concentrazione finale e l'incertezza composita tenendo conto della somma dei volumi delle aliquote e propagando correttamente l'incertezza da ogni singola aliquota dispensata con la pipetta selezionata.

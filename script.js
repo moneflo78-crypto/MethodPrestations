@@ -966,24 +966,42 @@ function renderTreatments() {
                         </div>`;
                     break;
                 case 'estrazione':
-                    const initialFlaskUncertaintyNote_est = treatment.initialFlaskUncertaintyRelPerc ?
-                        `<div class="text-xs text-gray-500 mt-1" title="Incertezza tipo relativa del matraccio (u_rel)">u_rel: <strong>${treatment.initialFlaskUncertaintyRelPerc.toFixed(3)} %</strong></div>` : '';
-                    const finalFlaskUncertaintyNote_est = treatment.finalFlaskUncertaintyRelPerc ?
-                        `<div class="text-xs text-gray-500 mt-1" title="Incertezza tipo relativa del matraccio (u_rel)">u_rel: <strong>${treatment.finalFlaskUncertaintyRelPerc.toFixed(3)} %</strong></div>` : '';
-                    treatmentFieldsHTML = `
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700">Volume Iniziale (Matraccio)</label>
-                                <select data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-field="initialVolumeFlask" class="treatment-input w-full p-1 border-gray-300 rounded-md text-sm">
-                                    <option value="">-- Seleziona --</option>
-                                    ${Object.keys(appState.libraries.glassware).map(key => {
-                                        const flask = appState.libraries.glassware[key];
-                                        const isSelected = key === treatment.initialVolumeFlask ? 'selected' : '';
-                                        return `<option value="${key}" ${isSelected}>${key} (Vol: ${flask.volume} mL, Tol: ±${flask.uncertainty} mL)</option>`;
-                                    }).join('')}
-                                </select>
-                                ${initialFlaskUncertaintyNote_est}
+                    const initialFlaskUncertaintyNote_est = treatment.initialFlaskUncertaintyRelPerc ? `<div class="text-xs text-gray-500 mt-1" title="Incertezza tipo relativa del matraccio (u_rel)">u_rel: <strong>${treatment.initialFlaskUncertaintyRelPerc.toFixed(3)} %</strong></div>` : '';
+                    const initialVolumeHTML = `
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Volume Iniziale (Matraccio)</label>
+                            <select data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-field="initialVolumeFlask" class="treatment-input w-full p-1 border-gray-300 rounded-md text-sm">
+                                <option value="">-- Seleziona --</option>
+                                ${Object.keys(appState.libraries.glassware).map(key => {
+                                    const flask = appState.libraries.glassware[key];
+                                    const isSelected = key === treatment.initialVolumeFlask ? 'selected' : '';
+                                    return `<option value="${key}" ${isSelected}>${key} (Vol: ${flask.volume} mL, Tol: ±${flask.uncertainty} mL)</option>`;
+                                }).join('')}
+                            </select>
+                            ${initialFlaskUncertaintyNote_est}
+                        </div>`;
+
+                    let finalVolumeHTML = '';
+                    const isMatraccio = treatment.extractionMethod === 'matraccio';
+
+                    const radioButtonsHTML = `
+                        <div class="flex items-center space-x-4">
+                            <div class="flex items-center">
+                                <input type="radio" id="method-matraccio-${treatment.id}" name="extraction-method-${treatment.id}" value="matraccio" class="extraction-method-radio h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500" ${isMatraccio ? 'checked' : ''}
+                                       data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}">
+                                <label for="method-matraccio-${treatment.id}" class="ml-2 block text-sm font-medium text-gray-700">Matraccio</label>
                             </div>
+                            <div class="flex items-center">
+                                <input type="radio" id="method-pipetta-${treatment.id}" name="extraction-method-${treatment.id}" value="pipetta" class="extraction-method-radio h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500" ${!isMatraccio ? 'checked' : ''}
+                                       data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}">
+                                <label for="method-pipetta-${treatment.id}" class="ml-2 block text-sm font-medium text-gray-700">Pipetta</label>
+                            </div>
+                        </div>`;
+
+                    let matraccioInputsHTML = '';
+                    if (isMatraccio) {
+                        const finalFlaskUncertaintyNote_est = treatment.finalFlaskUncertaintyRelPerc ? `<div class="text-xs text-gray-500 mt-1" title="Incertezza tipo relativa del matraccio (u_rel)">u_rel: <strong>${treatment.finalFlaskUncertaintyRelPerc.toFixed(3)} %</strong></div>` : '';
+                        matraccioInputsHTML = `
                             <div>
                                 <label class="block text-sm font-medium text-gray-700">Volume Finale (Matraccio)</label>
                                 <select data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-field="finalVolumeFlask" class="treatment-input w-full p-1 border-gray-300 rounded-md text-sm">
@@ -995,7 +1013,62 @@ function renderTreatments() {
                                     }).join('')}
                                 </select>
                                 ${finalFlaskUncertaintyNote_est}
+                            </div>`;
+                    }
+
+                    let pipettaInputsHTML = '';
+                    if (!isMatraccio) {
+                        const pipetteOptions = Object.keys(appState.libraries.pipettes).map(key => `<option value="${key}" ${treatment.finalVolumePipette === key ? 'selected' : ''}>${key}</option>`).join('');
+                        const pipetteUncertaintyNote = treatment.pipetteUncertaintyRelPerc ? `<div class="text-xs text-gray-500 mt-1" title="Incertezza relativa composta delle aliquote (u_rel)">u_rel(pipette): <strong>${treatment.pipetteUncertaintyRelPerc.toFixed(3)} %</strong></div>` : '';
+
+                        let aliquotsHTML = (treatment.finalVolumeAliquots || []).map(aliquot => `
+                            <div class="flex items-center space-x-2">
+                                <input type="text" inputmode="decimal" value="${aliquot.volume !== null ? String(aliquot.volume).replace('.', ',') : ''}" class="treatment-input w-full p-1 border border-gray-300 rounded-md text-sm" placeholder="Volume (mL)"
+                                       data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-aliquot-id="${aliquot.id}" data-field="aliquotVolume">
+                                <button class="btn-remove-aliquot text-red-500 hover:text-red-700 font-bold px-2" title="Rimuovi aliquota"
+                                        data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-aliquot-id="${aliquot.id}">&times;</button>
                             </div>
+                        `).join('');
+
+                        if ((treatment.finalVolumeAliquots || []).length === 0) {
+                            aliquotsHTML = `<p class="text-xs text-gray-500 italic">Nessuna aliquota aggiunta.</p>`;
+                        }
+
+                        pipettaInputsHTML = `
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Pipetta da usare per le aliquote</label>
+                                    <select data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-field="finalVolumePipette" class="treatment-input w-full p-1 border-gray-300 rounded-md text-sm">
+                                        <option value="">-- Seleziona Pipetta --</option>
+                                        ${pipetteOptions}
+                                    </select>
+                                    ${pipetteUncertaintyNote}
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Aliquote di Volume Finale (mL)</label>
+                                    <div class="space-y-2 mt-1 p-2 border rounded-md bg-gray-50" id="aliquots-container-${treatment.id}">
+                                        ${aliquotsHTML}
+                                    </div>
+                                     <button class="btn-add-aliquot mt-2 text-xs bg-blue-100 text-blue-800 font-semibold py-1 px-2 rounded-md hover:bg-blue-200"
+                                            data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}">+ Aggiungi Aliquota</button>
+                                </div>
+                            </div>`;
+                    }
+
+                    finalVolumeHTML = `
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Metodo Volume Finale</label>
+                            ${radioButtonsHTML}
+                            <div class="mt-3">
+                                ${isMatraccio ? matraccioInputsHTML : pipettaInputsHTML}
+                            </div>
+                        </div>
+                    `;
+
+                    treatmentFieldsHTML = `
+                        <div class="grid grid-cols-2 gap-4">
+                            ${initialVolumeHTML}
+                            ${finalVolumeHTML}
                         </div>`;
                     break;
                 case 'concentrazione':
@@ -5176,11 +5249,17 @@ function main() {
                 },
                 results: null
             };
-            if (type === 'estrazione' || type === 'concentrazione') {
+        if (type === 'estrazione') {
+            newTreatment.initialVolumeFlask = null;
+            // Nuovi campi per metodo di estrazione
+            newTreatment.extractionMethod = 'matraccio'; // 'matraccio' o 'pipetta'
+            newTreatment.finalVolumeFlask = null;      // Usato se extractionMethod = 'matraccio'
+            newTreatment.finalVolumePipette = null;    // Usato se extractionMethod = 'pipetta'
+            newTreatment.finalVolumeAliquots = [];     // Usato se extractionMethod = 'pipetta'
+        } else if (type === 'concentrazione') {
                 newTreatment.initialVolumeFlask = null;
                 newTreatment.finalVolumeFlask = null;
-            }
-            if (type === 'diluizione') {
+        } else if (type === 'diluizione') {
                 // Struttura più complessa, simile a un passo di spike
                 newTreatment.withdrawals = [{ id: `w-${Date.now()}`, pipette: null, volume: null }];
                 newTreatment.dilutionType = 'bringToVolume';
@@ -5222,6 +5301,31 @@ function main() {
         actionCalculateTreatmentChain(treatmentSampleId);
     }
 
+    function actionAddAliquot(treatmentSampleId, treatmentId) {
+        const treatment = appState.treatments
+            .find(ts => ts.id === treatmentSampleId)?.treatments
+            .find(t => t.id === treatmentId);
+        if (treatment && treatment.type === 'estrazione') {
+            if (!treatment.finalVolumeAliquots) treatment.finalVolumeAliquots = [];
+            treatment.finalVolumeAliquots.push({ id: `a-${Date.now()}`, volume: null });
+            setDirty();
+            render();
+            actionCalculateTreatmentChain(treatmentSampleId);
+        }
+    }
+
+    function actionRemoveAliquot(treatmentSampleId, treatmentId, aliquotId) {
+        const treatment = appState.treatments
+            .find(ts => ts.id === treatmentSampleId)?.treatments
+            .find(t => t.id === treatmentId);
+        if (treatment && treatment.finalVolumeAliquots) {
+            treatment.finalVolumeAliquots = treatment.finalVolumeAliquots.filter(a => a.id !== aliquotId);
+            setDirty();
+            render();
+            actionCalculateTreatmentChain(treatmentSampleId);
+        }
+    }
+
     function actionAddTreatmentWithdrawal(treatmentSampleId, treatmentId) {
         const treatment = appState.treatments
             .find(ts => ts.id === treatmentSampleId)?.treatments
@@ -5247,14 +5351,19 @@ function main() {
         }
     }
 
-    function actionUpdateTreatmentState({ treatmentSampleId, treatmentId, withdrawalId, field, value }) {
+    function actionUpdateTreatmentState({ treatmentSampleId, treatmentId, withdrawalId, aliquotId, field, value }) {
         const treatmentSample = appState.treatments.find(ts => ts.id === treatmentSampleId);
         if (!treatmentSample) return;
 
         const treatment = treatmentSample.treatments.find(t => t.id === treatmentId);
         if (!treatment) return;
 
-        if (withdrawalId) {
+        if (aliquotId && field === 'aliquotVolume') {
+            const aliquot = treatment.finalVolumeAliquots?.find(a => a.id === aliquotId);
+            if (aliquot) {
+                aliquot.volume = value;
+            }
+        } else if (withdrawalId) {
             const withdrawal = treatment.withdrawals?.find(w => w.id === withdrawalId);
             if (withdrawal) {
                 withdrawal[field] = value;
@@ -5382,17 +5491,61 @@ function main() {
                         currentConcentration = currentConcentration * (totalWithdrawalVolume / flask.volume);
                     }
 
-                } else if (treatment.type === 'estrazione' || treatment.type === 'concentrazione') {
-                    if (!treatment.initialVolumeFlask || !treatment.finalVolumeFlask) throw new Error(`${treatment.type}: Selezionare i matracci.`);
+                } else if (treatment.type === 'estrazione') {
+                    if (!treatment.initialVolumeFlask) throw new Error("Estrazione: Selezionare il matraccio iniziale.");
 
                     const initialFlask = appState.libraries.glassware[treatment.initialVolumeFlask];
-                    const finalFlask = appState.libraries.glassware[treatment.finalVolumeFlask];
+                    const u_rel_initial_flask = (initialFlask.uncertainty / initialFlask.volume / Math.sqrt(3));
+                    treatment.initialFlaskUncertaintyRelPerc = u_rel_initial_flask * 100;
+                    sum_u_rel_sq += Math.pow(u_rel_initial_flask, 2);
 
+                    let finalVolume = 0;
+                    let u_rel_sq_final_volume = 0;
+                    // Pulisce i campi di incertezza non utilizzati per evitare confusione nell'UI
+                    treatment.finalFlaskUncertaintyRelPerc = null;
+                    treatment.pipetteUncertaintyRelPerc = null;
+
+
+                    if (treatment.extractionMethod === 'matraccio') {
+                        if (!treatment.finalVolumeFlask) throw new Error("Estrazione (Matraccio): Selezionare il matraccio finale.");
+                        const finalFlask = appState.libraries.glassware[treatment.finalVolumeFlask];
+                        finalVolume = finalFlask.volume;
+                        const u_rel_final_flask = (finalFlask.uncertainty / finalFlask.volume / Math.sqrt(3));
+                        treatment.finalFlaskUncertaintyRelPerc = u_rel_final_flask * 100;
+                        u_rel_sq_final_volume = Math.pow(u_rel_final_flask, 2);
+                    } else { // 'pipetta'
+                        if (!treatment.finalVolumePipette) throw new Error("Estrazione (Pipetta): Selezionare una pipetta.");
+                        if (!treatment.finalVolumeAliquots || treatment.finalVolumeAliquots.length === 0) throw new Error("Estrazione (Pipetta): Aggiungere almeno un'aliquota.");
+
+                        let sum_u_abs_sq_aliquots = 0;
+                        treatment.finalVolumeAliquots.forEach(aliquot => {
+                            const aliquotVolume = parseFloat(String(aliquot.volume).replace(',', '.'));
+                            if (isNaN(aliquotVolume) || aliquotVolume <= 0) throw new Error("Estrazione (Pipetta): Tutte le aliquote devono avere un volume valido.");
+                            finalVolume += aliquotVolume;
+                            const contrib = _get_pipette_uncertainty_contribution(treatment.finalVolumePipette, aliquotVolume, appState.libraries);
+                            sum_u_abs_sq_aliquots += Math.pow(contrib.u_abs, 2);
+                        });
+
+                        if (finalVolume > 0) {
+                            const u_abs_total_aliquots = Math.sqrt(sum_u_abs_sq_aliquots);
+                            u_rel_sq_final_volume = Math.pow(u_abs_total_aliquots / finalVolume, 2);
+                            treatment.pipetteUncertaintyRelPerc = Math.sqrt(u_rel_sq_final_volume) * 100;
+                        }
+                    }
+
+                    if (finalVolume > 0) {
+                        sum_u_rel_sq += u_rel_sq_final_volume;
+                        currentConcentration = currentConcentration * (initialFlask.volume / finalVolume);
+                    }
+
+                } else if (treatment.type === 'concentrazione') {
+                    if (!treatment.initialVolumeFlask || !treatment.finalVolumeFlask) throw new Error(`Concentrazione: Selezionare i matracci.`);
+                    const initialFlask = appState.libraries.glassware[treatment.initialVolumeFlask];
+                    const finalFlask = appState.libraries.glassware[treatment.finalVolumeFlask];
                     const u_rel_initial_flask = (initialFlask.uncertainty / initialFlask.volume / Math.sqrt(3));
                     const u_rel_final_flask = (finalFlask.uncertainty / finalFlask.volume / Math.sqrt(3));
                     treatment.initialFlaskUncertaintyRelPerc = u_rel_initial_flask * 100;
                     treatment.finalFlaskUncertaintyRelPerc = u_rel_final_flask * 100;
-
                     sum_u_rel_sq += Math.pow(u_rel_initial_flask, 2) + Math.pow(u_rel_final_flask, 2);
                     currentConcentration = currentConcentration * (initialFlask.volume / finalFlask.volume);
                 }
@@ -5454,6 +5607,10 @@ function main() {
             const addWithdrawalBtn = e.target.closest('.btn-add-treatment-withdrawal');
             const removeWithdrawalBtn = e.target.closest('.btn-remove-treatment-withdrawal');
             const dilutionTypeBtn = e.target.closest('.dilution-type-btn');
+            // NUOVI BOTTONI PER ESTRAZIONE
+            const addAliquotBtn = e.target.closest('.btn-add-aliquot');
+            const removeAliquotBtn = e.target.closest('.btn-remove-aliquot');
+            const radioBtn = e.target.closest('.extraction-method-radio');
 
             if (removeSampleBtn) {
                 actionRemoveTreatmentSample(removeSampleBtn.dataset.treatmentSampleId);
@@ -5470,14 +5627,48 @@ function main() {
             } else if (dilutionTypeBtn) {
                  const { treatmentSampleId, treatmentId, field, value } = dilutionTypeBtn.dataset;
                  actionUpdateTreatmentState({ treatmentSampleId, treatmentId, field, value });
+            } else if (addAliquotBtn) {
+                actionAddAliquot(addAliquotBtn.dataset.treatmentSampleId, addAliquotBtn.dataset.treatmentId);
+            } else if (removeAliquotBtn) {
+                actionRemoveAliquot(removeAliquotBtn.dataset.treatmentSampleId, removeAliquotBtn.dataset.treatmentId, removeAliquotBtn.dataset.aliquotId);
+            } else if (radioBtn) {
+                actionUpdateTreatmentState({
+                    treatmentSampleId: radioBtn.dataset.treatmentSampleId,
+                    treatmentId: radioBtn.dataset.treatmentId,
+                    field: 'extractionMethod',
+                    value: radioBtn.value
+                });
+            }
+        });
+
+        treatmentsContainer.addEventListener('change', e => {
+            const selectSample = e.target.closest('.select-treatment-sample');
+            const treatmentInput = e.target.closest('.treatment-input');
+
+            // --- STATE UPDATE ---
+            if (selectSample) {
+                actionSelectTreatmentSample(selectSample.dataset.treatmentSampleId, e.target.value);
+            } else if (treatmentInput) {
+                const { treatmentSampleId, treatmentId, withdrawalId, aliquotId, field } = treatmentInput.dataset;
+                let value;
+
+                if (treatmentInput.type === 'radio') {
+                    value = treatmentInput.value;
+                }
+                else if (treatmentInput.inputMode === 'decimal') {
+                    value = e.target.value.replace(',', '.');
+                } else {
+                    value = e.target.value;
+                }
+                actionUpdateTreatmentState({ treatmentSampleId, treatmentId, withdrawalId, aliquotId, field, value });
             }
         });
 
         treatmentsContainer.addEventListener('input', e => {
-            const selectSample = e.target.closest('.select-treatment-sample');
             const treatmentInput = e.target.closest('.treatment-input');
+            if (!treatmentInput || (treatmentInput.type !== 'text' && treatmentInput.inputMode !== 'decimal')) return;
 
-            // --- FOCUS SAVING ---
+            // --- FOCUS SAVING per input testuali ---
             const focusedElement = document.activeElement;
             let focusedSelector = null;
             let selectionStart = null;
@@ -5485,6 +5676,7 @@ function main() {
                 const ds = focusedElement.dataset;
                 // Build a unique selector from data attributes
                 focusedSelector = `[data-field="${ds.field}"]`;
+                if (ds.aliquotId) focusedSelector += `[data-aliquot-id="${ds.aliquotId}"]`;
                 if (ds.withdrawalId) focusedSelector += `[data-withdrawal-id="${ds.withdrawalId}"]`;
                 if (ds.treatmentId) focusedSelector += `[data-treatment-id="${ds.treatmentId}"]`;
                 if (ds.treatmentSampleId) focusedSelector += `[data-treatment-sample-id="${ds.treatmentSampleId}"]`;
@@ -5498,7 +5690,7 @@ function main() {
             if (selectSample) {
                 actionSelectTreatmentSample(selectSample.dataset.treatmentSampleId, e.target.value);
             } else if (treatmentInput) {
-                const { treatmentSampleId, treatmentId, withdrawalId, field } = treatmentInput.dataset;
+                const { treatmentSampleId, treatmentId, withdrawalId, aliquotId, field } = treatmentInput.dataset;
                 let value;
 
                 if (treatmentInput.inputMode === 'decimal') {
@@ -5508,7 +5700,7 @@ function main() {
                 } else {
                     value = e.target.value;
                 }
-                actionUpdateTreatmentState({ treatmentSampleId, treatmentId, withdrawalId, field, value });
+                actionUpdateTreatmentState({ treatmentSampleId, treatmentId, withdrawalId, aliquotId, field, value });
             }
 
             // --- FOCUS RESTORING ---
