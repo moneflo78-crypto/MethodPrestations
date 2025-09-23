@@ -1018,17 +1018,35 @@ function renderTreatments() {
 
                     let pipettaInputsHTML = '';
                     if (!isMatraccio) {
-                        const pipetteOptions = Object.keys(appState.libraries.pipettes).map(key => `<option value="${key}" ${treatment.finalVolumePipette === key ? 'selected' : ''}>${key}</option>`).join('');
                         const pipetteUncertaintyNote = treatment.pipetteUncertaintyRelPerc ? `<div class="text-xs text-gray-500 mt-1" title="Incertezza relativa composta delle aliquote (u_rel)">u_rel(pipette): <strong>${treatment.pipetteUncertaintyRelPerc.toFixed(3)} %</strong></div>` : '';
 
-                        let aliquotsHTML = (treatment.finalVolumeAliquots || []).map(aliquot => `
-                            <div class="flex items-center space-x-2">
-                                <input type="text" inputmode="decimal" value="${aliquot.volume !== null ? String(aliquot.volume).replace('.', ',') : ''}" class="treatment-input w-full p-1 border border-gray-300 rounded-md text-sm" placeholder="Volume (mL)"
-                                       data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-aliquot-id="${aliquot.id}" data-field="aliquotVolume">
-                                <button class="btn-remove-aliquot text-red-500 hover:text-red-700 font-bold px-2" title="Rimuovi aliquota"
-                                        data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-aliquot-id="${aliquot.id}">&times;</button>
+                        let aliquotsHTML = (treatment.finalVolumeAliquots || []).map(aliquot => {
+                            const pipetteOptions = Object.keys(appState.libraries.pipettes).map(key => `<option value="${key}" ${aliquot.pipette === key ? 'selected' : ''}>${key}</option>`).join('');
+                            const uncertaintyNote = aliquot.pipetteUncertaintyRelPerc ? `<div class="text-xs text-gray-500 mt-1" title="Incertezza tipo relativa del prelievo (u_rel)">u_rel(pipetta): <strong>${aliquot.pipetteUncertaintyRelPerc.toFixed(3)} %</strong></div>` : '';
+
+                            return `
+                            <div class="p-3 bg-gray-100 rounded-md border border-gray-200 space-y-2">
+                                <div class="flex items-center space-x-2">
+                                     <div class="flex-grow">
+                                        <label class="block text-xs font-medium text-gray-600">Pipetta</label>
+                                        <select class="treatment-input w-full p-1 border border-gray-300 rounded-md text-sm"
+                                                data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-aliquot-id="${aliquot.id}" data-field="aliquotPipette">
+                                            <option value="">-- Seleziona --</option>
+                                            ${pipetteOptions}
+                                        </select>
+                                    </div>
+                                    <button class="btn-remove-aliquot text-red-500 hover:text-red-700 font-bold px-2 self-end pb-1" title="Rimuovi aliquota"
+                                            data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-aliquot-id="${aliquot.id}">&times;</button>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-600">Volume Aliquota (mL)</label>
+                                    <input type="text" inputmode="decimal" value="${aliquot.volume !== null ? String(aliquot.volume).replace('.', ',') : ''}" class="treatment-input w-full p-1 border border-gray-300 rounded-md text-sm" placeholder="Volume (mL)"
+                                           data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-aliquot-id="${aliquot.id}" data-field="aliquotVolume">
+                                </div>
+                                ${uncertaintyNote}
                             </div>
-                        `).join('');
+                            `;
+                        }).join('');
 
                         if ((treatment.finalVolumeAliquots || []).length === 0) {
                             aliquotsHTML = `<p class="text-xs text-gray-500 italic">Nessuna aliquota aggiunta.</p>`;
@@ -1037,20 +1055,13 @@ function renderTreatments() {
                         pipettaInputsHTML = `
                             <div class="space-y-3">
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700">Pipetta da usare per le aliquote</label>
-                                    <select data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}" data-field="finalVolumePipette" class="treatment-input w-full p-1 border-gray-300 rounded-md text-sm">
-                                        <option value="">-- Seleziona Pipetta --</option>
-                                        ${pipetteOptions}
-                                    </select>
-                                    ${pipetteUncertaintyNote}
-                                </div>
-                                <div>
                                     <label class="block text-sm font-medium text-gray-700">Aliquote di Volume Finale (mL)</label>
-                                    <div class="space-y-2 mt-1 p-2 border rounded-md bg-gray-50" id="aliquots-container-${treatment.id}">
+                                    <div class="space-y-2 mt-1" id="aliquots-container-${treatment.id}">
                                         ${aliquotsHTML}
                                     </div>
                                      <button class="btn-add-aliquot mt-2 text-xs bg-blue-100 text-blue-800 font-semibold py-1 px-2 rounded-md hover:bg-blue-200"
                                             data-treatment-sample-id="${treatmentSample.id}" data-treatment-id="${treatment.id}">+ Aggiungi Aliquota</button>
+                                    ${pipetteUncertaintyNote}
                                 </div>
                             </div>`;
                     }
@@ -5307,7 +5318,7 @@ function main() {
             .find(t => t.id === treatmentId);
         if (treatment && treatment.type === 'estrazione') {
             if (!treatment.finalVolumeAliquots) treatment.finalVolumeAliquots = [];
-            treatment.finalVolumeAliquots.push({ id: `a-${Date.now()}`, volume: null });
+            treatment.finalVolumeAliquots.push({ id: `a-${Date.now()}`, volume: null, pipette: null });
             setDirty();
             render();
             actionCalculateTreatmentChain(treatmentSampleId);
@@ -5358,10 +5369,14 @@ function main() {
         const treatment = treatmentSample.treatments.find(t => t.id === treatmentId);
         if (!treatment) return;
 
-        if (aliquotId && field === 'aliquotVolume') {
+        if (aliquotId) {
             const aliquot = treatment.finalVolumeAliquots?.find(a => a.id === aliquotId);
             if (aliquot) {
-                aliquot.volume = value;
+                if (field === 'aliquotVolume') {
+                    aliquot.volume = value;
+                } else if (field === 'aliquotPipette') {
+                    aliquot.pipette = value;
+                }
             }
         } else if (withdrawalId) {
             const withdrawal = treatment.withdrawals?.find(w => w.id === withdrawalId);
@@ -5514,15 +5529,20 @@ function main() {
                         treatment.finalFlaskUncertaintyRelPerc = u_rel_final_flask * 100;
                         u_rel_sq_final_volume = Math.pow(u_rel_final_flask, 2);
                     } else { // 'pipetta'
-                        if (!treatment.finalVolumePipette) throw new Error("Estrazione (Pipetta): Selezionare una pipetta.");
                         if (!treatment.finalVolumeAliquots || treatment.finalVolumeAliquots.length === 0) throw new Error("Estrazione (Pipetta): Aggiungere almeno un'aliquota.");
+
+                        // Pulisce le incertezze precedenti per evitare di mostrare dati vecchi
+                        treatment.finalVolumeAliquots.forEach(a => a.pipetteUncertaintyRelPerc = null);
 
                         let sum_u_abs_sq_aliquots = 0;
                         treatment.finalVolumeAliquots.forEach(aliquot => {
                             const aliquotVolume = parseFloat(String(aliquot.volume).replace(',', '.'));
-                            if (isNaN(aliquotVolume) || aliquotVolume <= 0) throw new Error("Estrazione (Pipetta): Tutte le aliquote devono avere un volume valido.");
+                            if (!aliquot.pipette || isNaN(aliquotVolume) || aliquotVolume <= 0) {
+                                throw new Error("Estrazione (Pipetta): Tutte le aliquote devono avere una pipetta selezionata e un volume valido.");
+                            }
                             finalVolume += aliquotVolume;
-                            const contrib = _get_pipette_uncertainty_contribution(treatment.finalVolumePipette, aliquotVolume, appState.libraries);
+                            const contrib = _get_pipette_uncertainty_contribution(aliquot.pipette, aliquotVolume, appState.libraries);
+                            aliquot.pipetteUncertaintyRelPerc = contrib.u_rel_perc; // Salva l'incertezza per la UI
                             sum_u_abs_sq_aliquots += Math.pow(contrib.u_abs, 2);
                         });
 
