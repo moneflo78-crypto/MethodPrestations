@@ -2,6 +2,32 @@
 # MANUALE UTENTE - GUIDA RAPIDA #
 #################################
 
+### SEZIONE: INCERTEZZA DI TARATURA
+
+#### Nuovo Calcolo Opzionale: Incertezza da Controllo di Taratura (ICV)
+
+È stata introdotta una nuova funzionalità che permette di considerare l'incertezza derivante dal criterio di accettabilità dei controlli di taratura (ICV). Questo è utile quando la variabilità del sistema, misurata tramite i controlli, è maggiore dell'incertezza calcolata dal modello di taratura.
+
+**Come utilizzare la nuova funzionalità:**
+
+1.  **Naviga alla scheda "Incertezza di Taratura".**
+2.  Troverai un nuovo riquadro: **"Criterio di Accettabilità sul Controllo di Taratura (Opzionale)"**.
+3.  **Inserisci il valore (opzionale):** Nel campo `MAX_RSD_ICV%`, inserisci il criterio massimo di deviazione standard relativa che il tuo laboratorio accetta per un controllo di taratura (es. 15 per 15%).
+    *   Se questo campo viene lasciato vuoto, l'applicazione funzionerà come sempre, utilizzando solo l'incertezza del modello di taratura (retta o fattore di risposta).
+    *   Se viene inserito un valore, l'applicazione eseguirà un calcolo aggiuntivo.
+
+**Come interpretare i nuovi risultati:**
+
+Quando un valore per `MAX_RSD_ICV%` è fornito, la tabella dei risultati "Incertezza per Livello di Concentrazione" mostrerà delle nuove colonne per una maggiore chiarezza:
+*   **u_taratura:** L'incertezza calcolata dal modello di taratura (retta o fattore di risposta).
+*   **u_ICV:** L'incertezza calcolata a partire dal tuo criterio `MAX_RSD_ICV%`.
+*   **u_finale:** Il valore di incertezza che verrà effettivamente utilizzato nei calcoli successivi. L'applicazione sceglie automaticamente il valore più alto tra `u_taratura` e `u_ICV`.
+*   **Fonte:** Indica quale dei due contributi è stato scelto.
+
+Se una riga è evidenziata in blu, significa che il contributo `u_ICV` è risultato maggiore ed è stato scelto come incertezza finale per quel campione. Questa informazione verrà riportata anche nei report estesi (PDF, Word, Excel) per garantire la completa tracciabilità dell'analisi.
+
+---
+
 Questo manuale fornisce istruzioni pratiche sull'utilizzo delle funzionalità dell'applicazione.
 
 ---

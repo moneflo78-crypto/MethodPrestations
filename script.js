@@ -429,6 +429,7 @@ function getInitialAppState() {
             pipettes: deepCopy(DEFAULT_PIPETTE_LIBRARY),
         },
         calibration: {
+            max_rsd_icv: null, // NUOVO CAMPO OPZIONALE
             points: [
                 { id: 'cal-point-1', x: 0.0, y: 0.05, unit: 'µg/L' },
                 { id: 'cal-point-2', x: 0.1, y: 0.18, unit: 'µg/L' },
@@ -1341,14 +1342,22 @@ function renderCalibrationTab() {
             const line = results.line;
             const samples = results.samples;
 
-            const samplesHTML = samples.map(s => `
-                <tr class="border-b hover:bg-gray-50">
+            const samplesHTML = samples.map(s => {
+                const u_icv_display = s.ux_icv !== null ? s.ux_icv.toPrecision(6) : 'N/A';
+                const highlightClass = s.source === 'Controllo Taratura' ? 'bg-blue-50' : '';
+
+                return `
+                <tr class="border-b hover:bg-gray-50 ${highlightClass}">
                     <td class="p-2 font-medium">${s.sampleName}</td>
                     <td class="p-2 font-mono">${s.nominalConc.toPrecision(6)}</td>
-                    <td class="p-2 font-mono">${s.ux.toPrecision(6)}</td>
-                    <td class="p-2 font-mono">${s.ux_rel_perc.toFixed(2)} %</td>
+                    <td class="p-2 font-mono">${s.ux_calib_orig.toPrecision(6)}</td>
+                    <td class="p-2 font-mono">${u_icv_display}</td>
+                    <td class="p-2 font-mono font-bold">${s.ux.toPrecision(6)}</td>
+                    <td class="p-2 font-mono font-bold">${s.ux_rel_perc.toFixed(2)} %</td>
+                    <td class="p-2">${s.source}</td>
                 </tr>
-            `).join('');
+                `
+            }).join('');
 
             const resultsHTML = `
                 <h3 class="text-lg font-semibold text-gray-800 my-4 pt-4 border-t">Risultati del Calcolo</h3>
@@ -1368,10 +1377,13 @@ function renderCalibrationTab() {
                     <table class="w-full text-sm text-left">
                         <thead class="bg-gray-100">
                             <tr>
-                                <th class="p-2 font-medium text-gray-600 rounded-tl-lg">Nome Campione/Livello</th>
-                                <th class="p-2 font-medium text-gray-600">Concentrazione Nominale (x)</th>
-                                <th class="p-2 font-medium text-gray-600">Incertezza Tipo (u_x)</th>
-                                <th class="p-2 font-medium text-gray-600 rounded-tr-lg">Incertezza Relativa (%)</th>
+                                <th class="p-2 font-medium text-gray-600">Campione</th>
+                                <th class="p-2 font-medium text-gray-600">Conc. (x)</th>
+                                <th class="p-2 font-medium text-gray-600">u_taratura</th>
+                                <th class="p-2 font-medium text-gray-600">u_ICV</th>
+                                <th class="p-2 font-medium text-gray-600">u_finale</th>
+                                <th class="p-2 font-medium text-gray-600">u_finale (%)</th>
+                                <th class="p-2 font-medium text-gray-600">Fonte</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1397,13 +1409,22 @@ function renderRfResults() {
         if (results.error) {
             resultsContainer.innerHTML = `<div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mt-4" role="alert"><p class="font-bold">Errore di Calcolo</p><p>${results.error}</p></div>`;
         } else if (results.samples) {
-            const samplesHTML = results.samples.map(s => `
-                <tr class="border-b hover:bg-gray-50">
+            const samplesHTML = results.samples.map(s => {
+                const u_icv_display = s.ux_icv !== null ? s.ux_icv.toPrecision(6) : 'N/A';
+                const highlightClass = s.source === 'Controllo Taratura' ? 'bg-blue-50' : '';
+
+                return `
+                <tr class="border-b hover:bg-gray-50 ${highlightClass}">
                     <td class="p-2 font-medium">${s.sampleName}</td>
                     <td class="p-2 font-mono">${s.nominalConc.toPrecision(6)}</td>
-                    <td class="p-2 font-mono">${s.ux.toPrecision(6)}</td>
+                    <td class="p-2 font-mono">${s.ux_calib_orig.toPrecision(6)}</td>
+                    <td class="p-2 font-mono">${u_icv_display}</td>
+                    <td class="p-2 font-mono font-bold">${s.ux.toPrecision(6)}</td>
+                    <td class="p-2 font-mono font-bold">${s.ux_rel_perc.toFixed(2)} %</td>
+                    <td class="p-2">${s.source}</td>
                 </tr>
-            `).join('');
+                `
+            }).join('');
 
             const resultsHTML = `
                 <h3 class="text-lg font-semibold text-gray-800 my-4 pt-4 border-t">Risultati del Calcolo</h3>
@@ -1419,9 +1440,13 @@ function renderRfResults() {
                     <table class="w-full text-sm text-left">
                         <thead class="bg-gray-100">
                             <tr>
-                                <th class="p-2 font-medium text-gray-600 rounded-tl-lg">Nome Campione/Livello</th>
-                                <th class="p-2 font-medium text-gray-600">Concentrazione Nominale (x)</th>
-                                <th class="p-2 font-medium text-gray-600 rounded-tr-lg">Incertezza Tipo (u_x)</th>
+                                <th class="p-2 font-medium text-gray-600">Campione</th>
+                                <th class="p-2 font-medium text-gray-600">Conc. (x)</th>
+                                <th class="p-2 font-medium text-gray-600">u_taratura</th>
+                                <th class="p-2 font-medium text-gray-600">u_ICV</th>
+                                <th class="p-2 font-medium text-gray-600">u_finale</th>
+                                <th class="p-2 font-medium text-gray-600">u_finale (%)</th>
+                                <th class="p-2 font-medium text-gray-600">Fonte</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -2934,10 +2959,32 @@ function actionCalculateRegression() {
         const sampleResults = tasks.map(task => {
             const y_predicted = (lineParams.b * task.xk) + lineParams.a;
             const uncertaintyResult = calculateUncertaintyForSample(lineParams, y_predicted, task.p);
+
+            // Inizializza l'oggetto finale con i risultati originali
+            let finalUncertainty = {
+                ...uncertaintyResult,
+                ux_calib_orig: uncertaintyResult.ux, // Salva l'originale
+                ux_icv: null,
+                source: 'Incertezza Taratura'
+            };
+
+            const max_rsd_icv = appState.calibration.max_rsd_icv;
+            if (max_rsd_icv !== null && max_rsd_icv > 0) {
+                const u_c_taratura_perc = max_rsd_icv / Math.sqrt(3);
+                const u_icv = (u_c_taratura_perc / 100) * Math.abs(task.xk);
+                finalUncertainty.ux_icv = u_icv;
+
+                if (u_icv > uncertaintyResult.ux) {
+                    finalUncertainty.ux = u_icv; // Sovrascrive ux con il valore maggiore
+                    finalUncertainty.ux_rel_perc = (task.xk !== 0) ? (u_icv / Math.abs(task.xk)) * 100 : 0;
+                    finalUncertainty.source = 'Controllo Taratura';
+                }
+            }
+
             return {
                 sampleName: task.name,
                 nominalConc: task.xk,
-                ...uncertaintyResult
+                ...finalUncertainty
             };
         });
 
@@ -2991,11 +3038,33 @@ function actionCalculateResponseFactor() {
         }
 
         const sampleResults = tasks.map(task => {
-            const ux = (Math.abs(task.xk) * utaratura_perc) / 100;
+            const ux_calib_orig = (Math.abs(task.xk) * utaratura_perc) / 100;
+
+            let finalUncertainty = {
+                ux: ux_calib_orig,
+                ux_calib_orig: ux_calib_orig,
+                ux_rel_perc: utaratura_perc,
+                ux_icv: null,
+                source: 'Incertezza Taratura'
+            };
+
+            const max_rsd_icv = appState.calibration.max_rsd_icv;
+            if (max_rsd_icv !== null && max_rsd_icv > 0) {
+                const u_c_taratura_perc_icv = max_rsd_icv / Math.sqrt(3);
+                const u_icv = (u_c_taratura_perc_icv / 100) * Math.abs(task.xk);
+                finalUncertainty.ux_icv = u_icv;
+
+                if (u_icv > ux_calib_orig) {
+                    finalUncertainty.ux = u_icv;
+                    finalUncertainty.ux_rel_perc = (task.xk !== 0) ? (u_icv / Math.abs(task.xk)) * 100 : 0;
+                    finalUncertainty.source = 'Controllo Taratura';
+                }
+            }
+
             return {
                 sampleName: task.name,
                 nominalConc: task.xk,
-                ux: ux
+                ...finalUncertainty
             };
         });
 
@@ -4621,11 +4690,14 @@ function gatherReportData() {
                     title: 'Incertezza per Livello di Concentrazione (Retta)',
                     type: 'table',
                     content: {
-                        headers: ['Conc. Nominale', 'Incertezza Tipo (u_x)', 'Incertezza Relativa (%)'],
+                        headers: ['Conc. Nominale', 'u_taratura', 'u_ICV', 'u_finale', 'u_finale (%)', 'Fonte'],
                         rows: [[
                             sampleResult.nominalConc.toPrecision(6),
+                            sampleResult.ux_calib_orig.toPrecision(6),
+                            sampleResult.ux_icv !== null ? sampleResult.ux_icv.toPrecision(6) : 'N/A',
                             sampleResult.ux.toPrecision(6),
-                            `${sampleResult.ux_rel_perc.toFixed(2)} %`
+                            `${sampleResult.ux_rel_perc.toFixed(2)} %`,
+                            sampleResult.source
                         ]]
                     }
                 });
@@ -4661,10 +4733,14 @@ function gatherReportData() {
                     title: 'Incertezza per Livello di Concentrazione (FR)',
                     type: 'table',
                     content: {
-                        headers: ['Conc. Nominale', 'Incertezza Tipo (u_x)'],
+                        headers: ['Conc. Nominale', 'u_taratura', 'u_ICV', 'u_finale', 'u_finale (%)', 'Fonte'],
                         rows: [[
                             sampleResult.nominalConc.toPrecision(6),
-                            sampleResult.ux.toPrecision(6)
+                            sampleResult.ux_calib_orig.toPrecision(6),
+                            sampleResult.ux_icv !== null ? sampleResult.ux_icv.toPrecision(6) : 'N/A',
+                            sampleResult.ux.toPrecision(6),
+                            `${sampleResult.ux_rel_perc.toFixed(2)} %`,
+                            sampleResult.source
                         ]]
                     }
                 });
@@ -5227,6 +5303,25 @@ function main() {
     document.getElementById('btn-add-regression-row').addEventListener('click', actionAddRegressionRow);
     document.getElementById('btn-calculate-regression').addEventListener('click', actionCalculateRegression);
     document.getElementById('btn-calculate-response-factor').addEventListener('click', actionCalculateResponseFactor);
+
+    document.getElementById('max-rsd-icv').addEventListener('input', e => {
+        const input = e.target;
+        let value = input.value;
+
+        // Validation
+        if (value !== '' && (parseFloat(value) < 0 || parseFloat(value) > 100)) {
+            input.classList.add('border-red-500', 'focus:ring-red-500', 'focus:border-red-500');
+            input.classList.remove('focus:ring-indigo-500', 'focus:border-indigo-500');
+            return; // Stop processing if invalid
+        } else {
+            input.classList.remove('border-red-500', 'focus:ring-red-500', 'focus:border-red-500');
+            input.classList.add('focus:ring-indigo-500', 'focus:border-indigo-500');
+        }
+
+        const numValue = value === '' ? null : parseFloat(value);
+        appState.calibration.max_rsd_icv = numValue;
+        setDirty();
+    });
 
     const regressionContainer = document.getElementById('regression-table-container');
     // Use 'change' to handle select dropdowns and when number inputs lose focus.
