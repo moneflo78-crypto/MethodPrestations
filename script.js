@@ -1343,8 +1343,21 @@ function renderCalibrationTab() {
             const samples = results.samples;
 
             const samplesHTML = samples.map(s => {
-                const u_icv_display = s.ux_icv !== null ? s.ux_icv.toPrecision(6) : 'N/A';
+                // Defensive checks for new properties
+                const u_icv_display = (s.ux_icv !== null && s.ux_icv !== undefined) ? s.ux_icv.toPrecision(6) : 'N/A';
                 const highlightClass = s.source === 'Controllo Taratura' ? 'bg-blue-50' : '';
+
+                // Handle old data structure gracefully
+                if (s.ux_calib_orig === undefined) {
+                    return `
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="p-2 font-medium">${s.sampleName}</td>
+                        <td class="p-2 font-mono">${s.nominalConc.toPrecision(6)}</td>
+                        <td class="p-2 font-mono text-center" colspan="3">${s.ux.toPrecision(6)}</td>
+                        <td class="p-2 font-mono text-center" colspan="2">${s.ux_rel_perc.toFixed(2)} %</td>
+                    </tr>
+                    `;
+                }
 
                 return `
                 <tr class="border-b hover:bg-gray-50 ${highlightClass}">
@@ -1354,7 +1367,7 @@ function renderCalibrationTab() {
                     <td class="p-2 font-mono">${u_icv_display}</td>
                     <td class="p-2 font-mono font-bold">${s.ux.toPrecision(6)}</td>
                     <td class="p-2 font-mono font-bold">${s.ux_rel_perc.toFixed(2)} %</td>
-                    <td class="p-2">${s.source}</td>
+                    <td class="p-2">${s.source || 'N/A'}</td>
                 </tr>
                 `
             }).join('');
@@ -1410,8 +1423,20 @@ function renderRfResults() {
             resultsContainer.innerHTML = `<div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mt-4" role="alert"><p class="font-bold">Errore di Calcolo</p><p>${results.error}</p></div>`;
         } else if (results.samples) {
             const samplesHTML = results.samples.map(s => {
-                const u_icv_display = s.ux_icv !== null ? s.ux_icv.toPrecision(6) : 'N/A';
+                // Defensive checks for new properties
+                const u_icv_display = (s.ux_icv !== null && s.ux_icv !== undefined) ? s.ux_icv.toPrecision(6) : 'N/A';
                 const highlightClass = s.source === 'Controllo Taratura' ? 'bg-blue-50' : '';
+
+                // Handle old data structure gracefully
+                if (s.ux_calib_orig === undefined) {
+                     return `
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="p-2 font-medium">${s.sampleName}</td>
+                        <td class="p-2 font-mono">${s.nominalConc.toPrecision(6)}</td>
+                        <td class="p-2 font-mono text-center" colspan="5">${s.ux.toPrecision(6)}</td>
+                    </tr>
+                    `;
+                }
 
                 return `
                 <tr class="border-b hover:bg-gray-50 ${highlightClass}">
@@ -1421,7 +1446,7 @@ function renderRfResults() {
                     <td class="p-2 font-mono">${u_icv_display}</td>
                     <td class="p-2 font-mono font-bold">${s.ux.toPrecision(6)}</td>
                     <td class="p-2 font-mono font-bold">${s.ux_rel_perc.toFixed(2)} %</td>
-                    <td class="p-2">${s.source}</td>
+                    <td class="p-2">${s.source || 'N/A'}</td>
                 </tr>
                 `
             }).join('');
