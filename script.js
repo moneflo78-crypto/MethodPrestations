@@ -9,6 +9,7 @@ const a_coeffs_table = { 3:[0.7071],4:[0.6872,0.1677],5:[0.6646,0.2413],6:[0.643
 const kp_coeffs_table = { 3:{g:-0.625,e:0.386,f:0.75},4:{g:-1.107,e:0.714,f:0.6297},5:{g:-1.53,e:0.935,f:0.5521},6:{g:-2.01,e:1.138,f:0.4963},7:{g:-2.356,e:1.245,f:0.4533},8:{g:-2.696,e:1.333,f:0.4186},9:{g:-2.968,e:1.4,f:0.39},10:{g:-3.262,e:1.471,f:0.366},11:{g:-3.485,e:1.515,f:0.3451},12:{g:-3.731,e:1.571,f:0.327},13:{g:-3.936,e:1.613,f:0.3111},14:{g:-4.155,e:1.655,f:0.2969},15:{g:-4.373,e:1.695,f:0.2842},16:{g:-4.567,e:1.724,f:0.2727},17:{g:-4.713,e:1.739,f:0.2622},18:{g:-4.885,e:1.77,f:0.2528},19:{g:-5.018,e:1.786,f:0.244},20:{g:-5.153,e:1.802,f:0.2359},21:{g:-5.291,e:1.818,f:0.2284},22:{g:-5.413,e:1.835,f:0.2207},23:{g:-5.508,e:1.848,f:0.2157},24:{g:-5.605,e:1.862,f:0.2106},25:{g:-5.704,e:1.876,f:0.2063},26:{g:-5.803,e:1.89,f:0.202}};
 const STUDENT_T_95_TWO_TAILED = { 1:12.706,2:4.303,3:3.182,4:2.776,5:2.571,6:2.447,7:2.365,8:2.306,9:2.262,10:2.228,11:2.201,12:2.179,13:2.16,14:2.145,15:2.131,16:2.12,17:2.11,18:2.101,19:2.093,20:2.086,21:2.08,22:2.074,23:2.069,24:2.064,25:2.06,26:2.056,27:2.052,28:2.048,29:2.045,30:2.042,infinity:1.96};
 function getTValue(n){if(n<=1)return NaN;const df=n-1;if(df>30)return STUDENT_T_95_TWO_TAILED.infinity;return STUDENT_T_95_TWO_TAILED[df]||NaN}
+const GRUBBS_CRITICAL_VALUES_0_05 = { 3:1.155,4:1.481,5:1.715,6:1.887,7:2.02,8:2.126,9:2.215,10:2.29,11:2.355,12:2.412,13:2.462,14:2.507,15:2.549,16:2.585,17:2.62,18:2.651,19:2.681,20:2.709,21:2.733,22:2.758,23:2.781,24:2.802,25:2.822,26:2.841 };
 
 /**
  * Custom error class for handling incomplete user input without treating it as a critical failure.
@@ -74,7 +75,40 @@ function dixonsTest(data) {
 }
 
 function grubbsTest(data) {
-    console.warn("Grubbs' test is not yet implemented.");
+    const n = data.length;
+    if (n < 3 || n > 26) {
+        // Test not applicable or critical value not available for this sample size.
+        return [];
+    }
+
+    const mean = ss.mean(data);
+    const stdDev = ss.sampleStandardDeviation(data);
+
+    if (stdDev < 1e-9) {
+        // If standard deviation is zero, all values are the same, no outliers.
+        return [];
+    }
+
+    let maxDev = 0;
+    let outlierIndex = -1;
+    let outlierValue = null;
+
+    data.forEach((value, index) => {
+        const dev = Math.abs(value - mean);
+        if (dev > maxDev) {
+            maxDev = dev;
+            outlierIndex = index;
+            outlierValue = value;
+        }
+    });
+
+    const gStat = maxDev / stdDev;
+    const criticalValue = GRUBBS_CRITICAL_VALUES_0_05[n];
+
+    if (gStat > criticalValue) {
+        return [{ value: outlierValue, index: outlierIndex }];
+    }
+
     return [];
 }
 
