@@ -95,10 +95,26 @@ Questo è un test robusto per l'identificazione di outlier, che non richiede la 
     - **Formula:** `|x_i - med| / MAD > 3.5`
     - La soglia di 3.5 è un valore comunemente usato in letteratura per questo test.
 
-#### 2.3 Altri Test (Non Implementati)
-Nel codice sono presenti richiami ai seguenti test, che tuttavia **non sono ancora implementati**:
+#### 2.3 Test di Grubbs per Dati Anomali
+Questo test è utilizzato per identificare un singolo outlier in un campione di dati che si presume provenga da una popolazione normalmente distribuita. Il test rileva il valore che ha la massima deviazione dalla media e lo confronta con un valore critico.
+
+1.  **Calcolo della Media e Deviazione Standard:** Vengono calcolate la media (`media`) e la deviazione standard campionaria (`s`) del set di dati.
+
+2.  **Calcolo della statistica G:**
+    - **Formula:** `G = |valore_sospetto - media| / s`
+    - **Termini:**
+      - `valore_sospetto`: il valore nel campione con la massima differenza assoluta rispetto alla media.
+      - `media`: la media del campione.
+      - `s`: la deviazione standard del campione.
+
+3.  **Decisione:**
+    - Il valore `G` calcolato viene confrontato con un valore critico tabulato (`G_critico`) per un dato livello di significatività (α=0.05) e una data dimensione del campione (`n`).
+    - Se `G > G_critico`, il valore sospetto è identificato come un outlier.
+    - L'applicazione utilizza una tabella interna di valori critici per `n` da 3 a 26.
+
+#### 2.4 Altri Test (Non Implementati)
+Nel codice è presente un richiamo al seguente test, che tuttavia **non è ancora implementato**:
 - **Test di Dixon:** Utile per piccoli campioni.
-- **Test di Grubbs:** Utile per identificare un singolo outlier in un campione.
 
 ---------------------------------------------------
 
