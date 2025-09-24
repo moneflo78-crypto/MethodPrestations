@@ -229,6 +229,21 @@ const secondaryBtnClass = "bg-gray-200 text-gray-800 font-semibold py-2 px-4 rou
 function deepCopy(obj) { return JSON.parse(JSON.stringify(obj)); }
 
 /**
+ * Formats a number for display, safely handling null or undefined values.
+ * @param {number|null|undefined} value - The number to format.
+ * @param {number} [precision=6] - The number of significant digits or decimal places.
+ * @param {boolean} [isFixed=false] - If true, use toFixed(); otherwise, use toPrecision().
+ * @returns {string} The formatted number or 'N/A'.
+ */
+function formatNumber(value, precision = 6, isFixed = false) {
+    if (value === null || typeof value === 'undefined' || isNaN(value)) {
+        return 'N/A';
+    }
+    const num = Number(value);
+    return isFixed ? num.toFixed(precision) : num.toPrecision(precision);
+}
+
+/**
  * Trova il valore t di Student per un dato numero di gradi di libertà (dof).
  * Per dof non interi, usa il valore del dof intero immediatamente inferiore (approccio conservativo).
  * @param {number} dof - Gradi di libertà (può essere un numero con virgola).
@@ -1343,20 +1358,20 @@ function renderCalibrationTab() {
             const samples = results.samples;
 
             const samplesHTML = samples.map(s => {
-                const u_icv_display = s.ux_icv !== null ? s.ux_icv.toPrecision(6) : 'N/A';
+                const u_icv_display = formatNumber(s.ux_icv, 6);
                 const highlightClass = s.source === 'Controllo Taratura' ? 'bg-blue-50' : '';
 
                 return `
                 <tr class="border-b hover:bg-gray-50 ${highlightClass}">
-                    <td class="p-2 font-medium">${s.sampleName}</td>
-                    <td class="p-2 font-mono">${s.nominalConc.toPrecision(6)}</td>
-                    <td class="p-2 font-mono">${s.ux_calib_orig.toPrecision(6)}</td>
+                    <td class="p-2 font-medium">${s.sampleName || 'N/D'}</td>
+                    <td class="p-2 font-mono">${formatNumber(s.nominalConc, 6)}</td>
+                    <td class="p-2 font-mono">${formatNumber(s.ux_calib_orig, 6)}</td>
                     <td class="p-2 font-mono">${u_icv_display}</td>
-                    <td class="p-2 font-mono font-bold">${s.ux.toPrecision(6)}</td>
-                    <td class="p-2 font-mono font-bold">${s.ux_rel_perc.toFixed(2)} %</td>
-                    <td class="p-2">${s.source}</td>
+                    <td class="p-2 font-mono font-bold">${formatNumber(s.ux, 6)}</td>
+                    <td class="p-2 font-mono font-bold">${s.ux_rel_perc !== null ? `${formatNumber(s.ux_rel_perc, 2, true)} %` : 'N/A'}</td>
+                    <td class="p-2">${s.source || 'N/D'}</td>
                 </tr>
-                `
+                `;
             }).join('');
 
             const resultsHTML = `
@@ -1410,20 +1425,20 @@ function renderRfResults() {
             resultsContainer.innerHTML = `<div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mt-4" role="alert"><p class="font-bold">Errore di Calcolo</p><p>${results.error}</p></div>`;
         } else if (results.samples) {
             const samplesHTML = results.samples.map(s => {
-                const u_icv_display = s.ux_icv !== null ? s.ux_icv.toPrecision(6) : 'N/A';
+                const u_icv_display = formatNumber(s.ux_icv, 6);
                 const highlightClass = s.source === 'Controllo Taratura' ? 'bg-blue-50' : '';
 
                 return `
                 <tr class="border-b hover:bg-gray-50 ${highlightClass}">
-                    <td class="p-2 font-medium">${s.sampleName}</td>
-                    <td class="p-2 font-mono">${s.nominalConc.toPrecision(6)}</td>
-                    <td class="p-2 font-mono">${s.ux_calib_orig.toPrecision(6)}</td>
+                    <td class="p-2 font-medium">${s.sampleName || 'N/D'}</td>
+                    <td class="p-2 font-mono">${formatNumber(s.nominalConc, 6)}</td>
+                    <td class="p-2 font-mono">${formatNumber(s.ux_calib_orig, 6)}</td>
                     <td class="p-2 font-mono">${u_icv_display}</td>
-                    <td class="p-2 font-mono font-bold">${s.ux.toPrecision(6)}</td>
-                    <td class="p-2 font-mono font-bold">${s.ux_rel_perc.toFixed(2)} %</td>
-                    <td class="p-2">${s.source}</td>
+                    <td class="p-2 font-mono font-bold">${formatNumber(s.ux, 6)}</td>
+                    <td class="p-2 font-mono font-bold">${s.ux_rel_perc !== null ? `${formatNumber(s.ux_rel_perc, 2, true)} %` : 'N/A'}</td>
+                    <td class="p-2">${s.source || 'N/D'}</td>
                 </tr>
-                `
+                `;
             }).join('');
 
             const resultsHTML = `
@@ -5353,6 +5368,13 @@ function main() {
         const numValue = value === '' ? null : parseFloat(value);
         appState.calibration.max_rsd_icv = numValue;
         setDirty();
+        // If results already exist, re-calculate to update them
+        if (appState.calibration.results) {
+            actionCalculateRegression();
+        }
+        if (appState.rfCalibration.results) {
+            actionCalculateResponseFactor();
+        }
     });
 
     const regressionContainer = document.getElementById('regression-table-container');
@@ -5374,7 +5396,13 @@ function main() {
     document.getElementById('regression-x-manual').addEventListener('input', e => actionUpdateManualCalibrationSample('xk', e.target.value));
     document.getElementById('regression-p').addEventListener('input', e => actionUpdateManualCalibrationSample('p', e.target.value));
 
-    document.getElementById('rf-acceptability-criterion').addEventListener('input', e => actionUpdateRfCalibrationInput('acceptabilityCriterion', e.target.value));
+    document.getElementById('rf-acceptability-criterion').addEventListener('input', e => {
+        actionUpdateRfCalibrationInput('acceptabilityCriterion', e.target.value)
+        // If results already exist, re-calculate to update them
+        if (appState.rfCalibration.results) {
+            actionCalculateResponseFactor();
+        }
+    });
     document.getElementById('rf-manual-conc').addEventListener('input', e => actionUpdateRfCalibrationInput('manualConc', e.target.value));
 
     // Listeners for "Select/Deselect All" buttons
