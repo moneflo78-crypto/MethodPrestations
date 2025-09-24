@@ -2921,6 +2921,34 @@ function actionUpdateRfCalibrationInput(field, value) {
     setDirty();
 }
 
+function actionResetRegressionData() {
+    // Reset state for regression
+    const initialState = getInitialAppState();
+    appState.calibration.points = initialState.calibration.points;
+    appState.calibration.manualSample = initialState.calibration.manualSample;
+    appState.calibration.results = null;
+
+    // Uncheck all checkboxes in the UI
+    document.querySelectorAll('#analysis-sample-checklist input[type="checkbox"]').forEach(cb => cb.checked = false);
+
+    setDirty();
+    render(); // Re-render to show the cleared state
+}
+
+function actionResetRfData() {
+    // Reset state for response factor
+    const initialState = getInitialAppState();
+    appState.rfCalibration.acceptabilityCriterion = initialState.rfCalibration.acceptabilityCriterion;
+    appState.rfCalibration.manualSample = initialState.rfCalibration.manualSample;
+    appState.rfCalibration.results = null;
+
+    // Uncheck all checkboxes in the UI
+    document.querySelectorAll('#rf-sample-checklist input[type="checkbox"]').forEach(cb => cb.checked = false);
+
+    setDirty();
+    render(); // Re-render to show the cleared state
+}
+
 function actionCalculateRegression() {
     try {
         appState.calibration.results = null;
@@ -5304,6 +5332,10 @@ function main() {
     document.getElementById('btn-calculate-regression').addEventListener('click', actionCalculateRegression);
     document.getElementById('btn-calculate-response-factor').addEventListener('click', actionCalculateResponseFactor);
 
+    // Reset buttons
+    document.getElementById('btn-reset-regression').addEventListener('click', actionResetRegressionData);
+    document.getElementById('btn-reset-response-factor').addEventListener('click', actionResetRfData);
+
     document.getElementById('max-rsd-icv').addEventListener('input', e => {
         const input = e.target;
         let value = input.value;
@@ -5344,6 +5376,20 @@ function main() {
 
     document.getElementById('rf-acceptability-criterion').addEventListener('input', e => actionUpdateRfCalibrationInput('acceptabilityCriterion', e.target.value));
     document.getElementById('rf-manual-conc').addEventListener('input', e => actionUpdateRfCalibrationInput('manualConc', e.target.value));
+
+    // Listeners for "Select/Deselect All" buttons
+    document.getElementById('btn-toggle-regression-all').addEventListener('click', () => {
+        document.querySelectorAll('#analysis-sample-checklist input[type="checkbox"]').forEach(cb => cb.checked = true);
+    });
+    document.getElementById('btn-toggle-regression-none').addEventListener('click', () => {
+        document.querySelectorAll('#analysis-sample-checklist input[type="checkbox"]').forEach(cb => cb.checked = false);
+    });
+    document.getElementById('btn-toggle-rf-all').addEventListener('click', () => {
+        document.querySelectorAll('#rf-sample-checklist input[type="checkbox"]').forEach(cb => cb.checked = true);
+    });
+    document.getElementById('btn-toggle-rf-none').addEventListener('click', () => {
+        document.querySelectorAll('#rf-sample-checklist input[type="checkbox"]').forEach(cb => cb.checked = false);
+    });
 
     // --- AZIONI E LISTENER PER LA NUOVA SEZIONE TRATTAMENTI ---
     // Funzioni di Azione
@@ -5874,33 +5920,58 @@ function main() {
     const calibrationChoice = document.getElementById('calibration-choice');
 
     if (btnSelectRegression) {
-        btnSelectRegression.addEventListener('click', () => {
+        btnSelectRegression.addEventListener('click', async () => {
+            if (appState.rfCalibration.results) {
+                const confirmed = await choiceModal.show({
+                    title: 'Cambio Metodo di Taratura',
+                    bodyContent: 'Hai già dei dati calcolati con il metodo "Fattore di Risposta". Cambiando metodo, questi dati verranno resettati. Vuoi continuare?',
+                    buttons: [
+                        { text: 'Annulla', value: false, class: secondaryBtnClass },
+                        { text: 'Conferma e Resetta', value: true, class: primaryBtnClass.replace('bg-blue-600', 'bg-red-600').replace('hover:bg-blue-700', 'hover:bg-red-700') }
+                    ]
+                });
+                if (!confirmed) return;
+                actionResetRfData();
+            }
             calibrationChoice.classList.add('hidden');
             regressionCalculator.classList.remove('hidden');
+            responseFactorCalculator.classList.add('hidden');
         });
     }
 
     if(btnSelectResponseFactor) {
-        btnSelectResponseFactor.addEventListener('click', () => {
+        btnSelectResponseFactor.addEventListener('click', async () => {
+            if (appState.calibration.results) {
+                const confirmed = await choiceModal.show({
+                    title: 'Cambio Metodo di Taratura',
+                    bodyContent: 'Hai già dei dati calcolati con il metodo "Retta dei Minimi Quadrati". Cambiando metodo, questi dati verranno resettati. Vuoi continuare?',
+                    buttons: [
+                        { text: 'Annulla', value: false, class: secondaryBtnClass },
+                        { text: 'Conferma e Resetta', value: true, class: primaryBtnClass.replace('bg-blue-600', 'bg-red-600').replace('hover:bg-blue-700', 'hover:bg-red-700') }
+                    ]
+                });
+                if (!confirmed) return;
+                actionResetRegressionData();
+            }
             calibrationChoice.classList.add('hidden');
             responseFactorCalculator.classList.remove('hidden');
-        });
-    }
-
-    const btnBack1 = document.getElementById('btn-back-to-calibration-choice-1');
-    if (btnBack1) {
-        btnBack1.addEventListener('click', () => {
-            calibrationChoice.classList.remove('hidden');
             regressionCalculator.classList.add('hidden');
         });
     }
-    const btnBack2 = document.getElementById('btn-back-to-calibration-choice-2');
-     if (btnBack2) {
-        btnBack2.addEventListener('click', () => {
-            calibrationChoice.classList.remove('hidden');
-            responseFactorCalculator.classList.add('hidden');
-        });
-    }
+
+    const setupBackButton = (buttonId, calculatorToShow, otherCalculatorToHide) => {
+        const btn = document.getElementById(buttonId);
+        if (btn) {
+            btn.addEventListener('click', () => {
+                calibrationChoice.classList.remove('hidden');
+                calculatorToShow.classList.add('hidden');
+                otherCalculatorToHide.classList.add('hidden');
+            });
+        }
+    };
+
+    setupBackButton('btn-back-to-calibration-choice-1', regressionCalculator, responseFactorCalculator);
+    setupBackButton('btn-back-to-calibration-choice-2', responseFactorCalculator, regressionCalculator);
 
     // --- Accordion Logic ---
     document.querySelectorAll('.accordion-btn').forEach(button => {
