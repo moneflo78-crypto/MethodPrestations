@@ -176,6 +176,29 @@ Questo metodo alternativo non richiede la costruzione di una retta, ma si basa s
       - `x_k`: concentrazione del campione.
       - `u_taratura%`: incertezza tipo relativa di taratura calcolata sopra.
 
+#### PARTE C: CONTRIBUTO OPZIONALE DA CONTROLLO DI TARATURA (ICV)
+
+L'applicazione permette di introdurre un contributo di incertezza aggiuntivo, basato su un criterio di accettabilità definito dall'utente per il controllo di taratura (noto anche come ICV - Initial Calibration Verification). Questo calcolo è opzionale.
+
+1.  **Input Utente:**
+    - `MAX_RSD_ICV%`: L'utente può inserire un valore percentuale che rappresenta la massima deviazione standard relativa accettabile per le misure di un controllo di taratura.
+
+2.  **Calcolo dell'Incertezza Relativa da ICV (u_icv%)**
+    - Se il valore `MAX_RSD_ICV%` è fornito, viene utilizzato per calcolare un'incertezza tipo relativa, assumendo una distribuzione rettangolare.
+    - **Formula:** `u_icv% = MAX_RSD_ICV% / sqrt(3)`
+    - **Termini:**
+      - `MAX_RSD_ICV%`: il criterio di accettabilità inserito dall'utente.
+      - `sqrt(3)`: fattore di divisione per una distribuzione rettangolare.
+
+3.  **Logica di Selezione del Contributo di Incertezza**
+    - Per ogni campione, l'applicazione calcola sia l'incertezza di taratura standard (`ux`, come descritto nelle Parti A o B) sia il contributo dall'ICV.
+    - **Contributo ICV Assoluto:** `u_icv_abs = (u_icv% / 100) * |x_k|`
+    - **Condizione:** L'applicazione confronta i due valori: `u_icv_abs` vs `ux`.
+    - **Decisione:**
+      - Se `u_icv_abs > ux`, il contributo del controllo di taratura è considerato predominante e viene utilizzato come incertezza di taratura finale per quel campione.
+      - Altrimenti, viene mantenuta l'incertezza di taratura standard `ux`.
+    - La scelta effettuata e il valore non utilizzato vengono riportati sia nelle tabelle a schermo sia nella reportistica estesa per garantire la massima tracciabilità.
+
 ---------------------------------------------------
 
 ### SEZIONE 4: INCERTEZZA DI PREPARAZIONE (INCERTEZZA COMPOSITA)
