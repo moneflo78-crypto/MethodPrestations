@@ -505,22 +505,46 @@ let isDirty = false;
 function setDirty(dirty = true) {
     if (isDirty === dirty) return; // Do nothing if state is already correct
     isDirty = dirty;
-
-    const title = document.querySelector('title');
-    if (isDirty) {
-        if (!title.innerText.startsWith('*')) {
-            title.innerText = '*' + title.innerText;
-        }
-    } else {
-        if (title.innerText.startsWith('*')) {
-            title.innerText = title.innerText.substring(1);
-        }
-    }
+    // The visual indicator is now handled by renderFileStatus(), called on every render.
 }
 
 
 // --- RENDER FUNCTIONS ---
+function renderFileStatus() {
+    const statusTextEl = document.getElementById('file-status-text');
+    if (!statusTextEl) return;
+
+    const fileName = appState.ui.currentFileName;
+    const dirty = isDirty;
+
+    let text = '';
+    let bgColor = 'bg-gray-100';
+    let textColor = 'text-gray-500';
+
+    if (!fileName) {
+        text = 'Nuovo Progetto (non salvato)';
+        bgColor = 'bg-yellow-100';
+        textColor = 'text-yellow-800';
+    } else {
+        if (dirty) {
+            text = `${fileName} (modificato)`;
+            bgColor = 'bg-yellow-100';
+            textColor = 'text-yellow-800';
+        } else {
+            text = `${fileName} (salvato)`;
+            bgColor = 'bg-green-100';
+            textColor = 'text-green-800';
+        }
+    }
+
+    statusTextEl.textContent = text;
+    // Reset classes and add new ones
+    statusTextEl.className = 'text-sm font-medium py-1 px-3 rounded-full transition-colors duration-300';
+    statusTextEl.classList.add(bgColor, textColor);
+}
+
 function render() {
+    renderFileStatus();
     renderTabs();
     renderProjectInfo();
     renderSamplesAndResults();
@@ -2705,6 +2729,7 @@ async function actionNewProject() {
         if (!confirmed) return; // User cancelled
     }
     appState = getInitialAppState();
+    appState.ui.currentFileName = null; // Ensure no filename is associated
     actionAddSample(); // Create a blank sample to start with
     setDirty(false);   // A new project is not dirty
     render();
@@ -2727,15 +2752,10 @@ async function actionOpenProject() {
 }
 
 function actionSaveProject() {
-    // If there's no current file name, it's the first save for this project.
-    // We treat it as "Save As" to get a filename from the user.
     if (!appState.ui.currentFileName) {
         actionSaveProjectAs();
         return;
     }
-
-    // Otherwise, save with the current name. The browser will still likely show a "Save As"
-    // dialog, but it will be pre-filled with the correct filename, simulating an overwrite.
     const stateString = JSON.stringify(appState, null, 2);
     const blob = new Blob([stateString], { type: 'application/json' });
     const link = document.createElement('a');
@@ -2745,20 +2765,45 @@ function actionSaveProject() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(link.href);
-    setDirty(false); // The project is now saved.
+
+    setDirty(false);
+    renderFileStatus(); // Update UI immediately
     addProjectToRecents(appState);
 }
 
 function actionSaveProjectAs() {
-    // Suggest a filename based on the project name.
     const sanitizedProjectName = (appState.project.projectName || 'progetto_senza_nome').replace(/[^a-z0-9_-\s.]/gi, '').trim();
-    const fileName = `${sanitizedProjectName.replace(/\s/g, '_')}.json`;
+    const defaultFileName = `${sanitizedProjectName.replace(/\s/g, '_')}.json`;
 
-    // Update the state with the new file name.
-    appState.ui.currentFileName = fileName;
+    const confirmed = await formModal.show({
+        title: 'Salva Progetto con Nome',
+        bodyHTML: `
+            <div>
+                <label for="form-field-filename" class="block text-sm font-medium text-gray-700">Nome del File</label>
+                <input type="text" id="form-field-filename" class="mt-1 w-full p-2 border border-gray-300 rounded-md" value="${defaultFileName}">
+            </div>
+        `,
+        buttons: [
+            { text: 'Annulla', isConfirm: false, class: secondaryBtnClass },
+            { text: 'Salva', isConfirm: true, class: primaryBtnClass }
+        ]
+    });
 
-    // Now that the name is set in the state, call the regular save function.
-    actionSaveProject();
+    if (confirmed) {
+        const modalBody = document.getElementById('form-modal-body');
+        const fileName = modalBody.querySelector('#form-field-filename').value.trim();
+
+        if (fileName) {
+            if (!fileName.toLowerCase().endsWith('.json')) {
+                alert("Il nome del file deve terminare con '.json'");
+                return;
+            }
+            appState.ui.currentFileName = fileName;
+            actionSaveProject(); // Now call the main save function
+        } else {
+            alert("Il nome del file non può essere vuoto.");
+        }
+    }
 }
 
 const RECENT_PROJECTS_KEY = 'unccalib_recent_projects';
@@ -2851,6 +2896,10 @@ function loadRecentProject(index) {
         const projectToLoad = recentProjects[index];
         if (projectToLoad && projectToLoad.state) {
             appState = projectToLoad.state;
+            // Ensure the filename from the recent entry is restored to the state
+            if (projectToLoad.fileName) {
+                appState.ui.currentFileName = projectToLoad.fileName;
+            }
             setDirty(false);
             render();
         } else {
@@ -2863,7 +2912,7 @@ function loadRecentProject(index) {
 }
 
 
-function actionDuplicateProject() {
+async function actionDuplicateProject() {
     // Create a deep copy of the state to avoid modifying the current one.
     const duplicatedState = deepCopy(appState);
 
@@ -2873,18 +2922,47 @@ function actionDuplicateProject() {
 
     // Suggest a filename for the duplicated project.
     const sanitizedProjectName = (duplicatedState.project.projectName).replace(/[^a-z0-9_-\s.]/gi, '').trim();
-    const fileName = `${sanitizedProjectName.replace(/\s/g, '_')}.json`;
+    const suggestedFileName = `${sanitizedProjectName.replace(/\s/g, '_')}.json`;
 
-    const stateString = JSON.stringify(duplicatedState, null, 2);
-    const blob = new Blob([stateString], { type: 'application/json' });
+    const confirmed = await formModal.show({
+        title: 'Duplica e Salva Progetto',
+        bodyHTML: `
+            <p>Verrà creata una copia del progetto attuale. Inserisci un nome per il nuovo file.</p>
+            <div class="mt-4">
+                <label for="form-field-filename" class="block text-sm font-medium text-gray-700">Nome del File Duplicato</label>
+                <input type="text" id="form-field-filename" class="mt-1 w-full p-2 border border-gray-300 rounded-md" value="${suggestedFileName}">
+            </div>
+        `,
+        buttons: [
+            { text: 'Annulla', isConfirm: false, class: secondaryBtnClass },
+            { text: 'Duplica e Salva', isConfirm: true, class: primaryBtnClass }
+        ]
+    });
 
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(link.href);
+    if (confirmed) {
+        const modalBody = document.getElementById('form-modal-body');
+        const fileName = modalBody.querySelector('#form-field-filename').value.trim();
+
+        if (fileName) {
+             if (!fileName.toLowerCase().endsWith('.json')) {
+                alert("Il nome del file deve terminare con '.json'");
+                return;
+            }
+            const stateString = JSON.stringify(duplicatedState, null, 2);
+            const blob = new Blob([stateString], { type: 'application/json' });
+
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = fileName;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(link.href);
+            // Importantly, we do NOT change the current appState.
+        } else {
+            alert("Il nome del file non può essere vuoto.");
+        }
+    }
 }
 
 // --- AZIONI PER LA SEZIONE TARATURA ---
@@ -3232,23 +3310,20 @@ function handleFileLoad(event) {
             if (!loadedState.version || !loadedState.project) throw new Error("File non valido o corrotto.");
 
             appState = loadedState;
+            appState.ui.currentFileName = file.name; // Set the current file name
 
-            // Assicura che i nuovi campi esistano per compatibilità
+            // Compatibility checks
             if (!appState.reportSettings) {
-                const defaultInitialState = getInitialAppState();
-                appState.reportSettings = defaultInitialState.reportSettings;
+                appState.reportSettings = getInitialAppState().reportSettings;
             }
-            if (typeof appState.ui.currentFileName === 'undefined') {
-                appState.ui.currentFileName = file.name;
-            }
-             if (typeof appState.project.projectName === 'undefined' || !appState.project.projectName) {
+            if (!appState.project.projectName) {
                 const fileNameWithoutExt = file.name.endsWith('.json') ? file.name.slice(0, -5) : file.name;
                 appState.project.projectName = fileNameWithoutExt.replace(/_/g, ' ');
             }
 
-            render();
             setDirty(false); // A newly loaded project is not dirty.
             addProjectToRecents(appState);
+            render(); // Render everything with the new state
             alert("Dati caricati con successo!");
         } catch (error) {
             alert(`Errore nel caricamento: ${error.message}`);
@@ -6028,7 +6103,7 @@ function main() {
     });
 
     actionAddSample();
-    render(); // Chiamata iniziale per renderizzare tutto
+    render(); // Initial render to draw everything, which includes renderFileStatus
 }
 
 document.addEventListener('DOMContentLoaded', main);
