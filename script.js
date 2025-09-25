@@ -244,6 +244,49 @@ function formatNumber(value, precision = 6, isFixed = false) {
 }
 
 /**
+ * Formats a number according to the specified business rules for decimal places, rounding, and scientific notation.
+ * @param {number|null|undefined} value - The number to format.
+ * @returns {string} The formatted number as a string, or 'N/A'.
+ */
+function formatNumberWithRules(value) {
+    if (value === null || typeof value === 'undefined' || isNaN(value)) {
+        return 'N/A';
+    }
+
+    const n = Number(value);
+    if (n === 0) {
+        return "0";
+    }
+
+    const absN = Math.abs(n);
+
+    // Rule 2.c: Use scientific notation for numbers > 10000 or < 0.00001
+    if (absN >= 10000 || (absN > 0 && absN < 0.00001)) {
+        // Find exponent for d=4-e rule to determine precision
+        const e = Math.floor(Math.log10(absN));
+        const d = 4 - e;
+        // For scientific notation, d becomes the number of decimal places.
+        // We ensure it's at least 0.
+        const precision = Math.max(0, d);
+        return n.toExponential(precision);
+    }
+
+    // Rule 2.a & 2.b: General rule for decimals and rounding
+    const e = Math.floor(Math.log10(absN));
+    const d = 4 - e;
+
+    if (d >= 0) {
+        // Standard decimal places. toFixed() handles the "rule of five" rounding correctly.
+        return n.toFixed(d);
+    } else {
+        // d < 0, requires terminal zeros.
+        const factor = Math.pow(10, -d); // e.g., d=-1 -> factor=10; d=-2 -> factor=100
+        const rounded = Math.round(n / factor) * factor;
+        return String(rounded);
+    }
+}
+
+/**
  * Trova il valore t di Student per un dato numero di gradi di libertà (dof).
  * Per dof non interi, usa il valore del dof intero immediatamente inferiore (approccio conservativo).
  * @param {number} dof - Gradi di libertà (può essere un numero con virgola).
@@ -1820,8 +1863,8 @@ function renderExpandedUncertainty() {
             const contributionsHTML = result.contributions.map(c => `
                 <tr class="border-b">
                     <td class="p-2">${c.name}</td>
-                    <td class="p-2 font-mono text-right">${(c.value * 100).toFixed(3)} %</td>
-                    <td class="p-2 font-mono text-right">${c.dof === Infinity ? '∞' : c.dof.toFixed(2)}</td>
+                    <td class="p-2 font-mono text-right">${formatNumberWithRules(c.value * 100)} %</td>
+                    <td class="p-2 font-mono text-right">${c.dof === Infinity ? '∞' : formatNumberWithRules(c.dof)}</td>
                 </tr>
             `).join('');
 
@@ -1847,10 +1890,10 @@ function renderExpandedUncertainty() {
                         <div class="overflow-x-auto rounded-md border bg-gray-50">
                             <table class="w-full text-sm data-table">
                                <tbody>
-                                    <tr><td class="p-2 font-medium">Gradi di Libertà Effettivi (ν_eff)</td><td class="p-2 font-mono text-right">${result.v_eff === Infinity ? '∞' : result.v_eff.toFixed(2)}</td></tr>
-                                    <tr><td class="p-2 font-medium">Fattore di Copertura (k)</td><td class="p-2 font-mono text-right">${result.k.toFixed(3)}</td></tr>
-                                    <tr class="border-t-2 border-gray-300"><td class="p-2 font-bold text-lg">Incertezza Estesa Assoluta (U)</td><td class="p-2 font-mono text-right text-lg font-bold">${result.U_abs.toPrecision(3)} ${sampleUnit}</td></tr>
-                                    <tr><td class="p-2 font-bold text-lg">Incertezza Estesa Relativa (U%)</td><td class="p-2 font-mono text-right text-lg font-bold">${result.U_rel_perc.toFixed(2)} %</td></tr>
+                                    <tr><td class="p-2 font-medium">Gradi di Libertà Effettivi (ν_eff)</td><td class="p-2 font-mono text-right">${result.v_eff === Infinity ? '∞' : formatNumberWithRules(result.v_eff)}</td></tr>
+                                    <tr><td class="p-2 font-medium">Fattore di Copertura (k)</td><td class="p-2 font-mono text-right">${formatNumberWithRules(result.k)}</td></tr>
+                                    <tr class="border-t-2 border-gray-300"><td class="p-2 font-bold text-lg">Incertezza Estesa Assoluta (U)</td><td class="p-2 font-mono text-right text-lg font-bold">${formatNumberWithRules(result.U_abs)} ${sampleUnit}</td></tr>
+                                    <tr><td class="p-2 font-bold text-lg">Incertezza Estesa Relativa (U%)</td><td class="p-2 font-mono text-right text-lg font-bold">${formatNumberWithRules(result.U_rel_perc)} %</td></tr>
                                </tbody>
                             </table>
                         </div>
@@ -4150,8 +4193,7 @@ function gatherMultiProjectReportData({ grouping }) {
         if (value === null || typeof value === 'undefined') return '-';
         if (value === 'Livello non presente' || value === 'N/A') return value;
         if (typeof value === 'number') {
-             if (Math.abs(value) < 1e-4 && Math.abs(value) > 0) return value.toExponential(2);
-             return value.toPrecision(3);
+            return formatNumberWithRules(value);
         }
         return String(value);
     };
@@ -4228,7 +4270,10 @@ function gatherMultiProjectReportData({ grouping }) {
                     const sample = projectSamples.find(s => s.name === sampleName);
                     return sample ? projectResults[sample.id]?.statistics?.repeatability_limit_r_percent : 'Livello non presente';
                 },
-                'R%': (sampleName) => projectSamples.find(s => s.name === sampleName) ? 'N/A' : 'Livello non presente',
+                'R%': (sampleName) => {
+                    const sample = projectSamples.find(s => s.name === sampleName);
+                    return sample ? projectResults[sample.id]?.statistics?.recovery : 'Livello non presente';
+                },
                 'U': (sampleName) => {
                     const sample = projectSamples.find(s => s.name === sampleName);
                     if (!sample) return 'Livello non presente';
@@ -4271,11 +4316,10 @@ function gatherMultiProjectExcelData({ grouping }) {
         if (value === null || typeof value === 'undefined' || value === 'N/A') return 'N/A';
         if (value === 'Livello non presente') return value;
         if (typeof value === 'number') {
-            if (Number.isInteger(value)) {
-                return value;
-            }
-            // Smartly format decimals, up to 2 places, removing trailing zeros
-            return parseFloat(value.toFixed(2));
+            // Use the new formatting rule and convert back to a number for Excel
+            const formattedString = formatNumberWithRules(value);
+            const num = parseFloat(formattedString);
+            return isNaN(num) ? formattedString : num;
         }
         return String(value);
     };
@@ -4369,7 +4413,7 @@ function gatherMultiProjectExcelData({ grouping }) {
                     result?.statistics?.cv_percent,
                     result?.statistics?.repeatability_limit_r,
                     result?.statistics?.repeatability_limit_r_percent,
-                    'N/A', // R%
+                    result?.statistics?.recovery, // R%
                     estesaResult && !estesaResult.error ? estesaResult.U_abs : null,
                     estesaResult && !estesaResult.error ? estesaResult.U_rel_perc : null
                 ].map(formatValue);
@@ -4718,14 +4762,17 @@ function gatherReportData() {
         }
         if (selections.statistiche_descrittive && result.statistics) {
             const stats = result.statistics;
-            const format = (value, precision = 6) => (value !== null && !isNaN(value)) ? value.toPrecision(precision) : 'N/A';
-            const formatPercent = (value) => (value !== null && !isNaN(value)) ? `${value.toFixed(2)} %` : 'N/A';
+            const format = (value) => formatNumberWithRules(value);
+            const formatPercent = (value) => {
+                const formatted = formatNumberWithRules(value);
+                return formatted === 'N/A' ? 'N/A' : `${formatted} %`;
+            };
             blocks.push({
                 title: 'Statistiche Descrittive',
                 type: 'keyValue',
                 content: [
                     { key: 'Valore Nominale', value: format(stats.nominalValue) },
-                    { key: 'N. Punti', value: stats.n },
+                    { key: 'N. Punti', value: stats.n }, // n is an integer, no formatting needed
                     { key: 'Media', value: format(stats.mean) },
                     { key: 'Minimo', value: format(stats.min) },
                     { key: 'Massimo', value: format(stats.max) },
@@ -4757,8 +4804,8 @@ function gatherReportData() {
                     title: 'Risultati Matrix Spike',
                     type: 'keyValue',
                     content: [
-                        { key: 'Concentrazione Finale Calcolata', value: `${spikeData.results.finalConcentration.toPrecision(4)} ${sample.unit || 'µg/L'}` },
-                        { key: 'Incertezza tipo composta (u_c %)', value: `${spikeData.results.u_comp_rel_perc.toFixed(2)} %` }
+                        { key: 'Concentrazione Finale Calcolata', value: `${formatNumberWithRules(spikeData.results.finalConcentration)} ${sample.unit || 'µg/L'}` },
+                        { key: 'Incertezza tipo composta (u_c %)', value: `${formatNumberWithRules(spikeData.results.u_comp_rel_perc)} %` }
                     ]
                 });
             }
@@ -4775,8 +4822,8 @@ function gatherReportData() {
                     title: 'Risultati Trattamento',
                     type: 'keyValue',
                     content: [
-                        { key: 'Concentrazione Finale Calcolata', value: `${treatmentData.results.finalConcentration.toPrecision(4)} ${sample.unit || 'µg/L'}` },
-                        { key: 'Incertezza tipo composta (u_c %)', value: `${treatmentData.results.u_comp_rel_perc.toFixed(2)} %` }
+                        { key: 'Concentrazione Finale Calcolata', value: `${formatNumberWithRules(treatmentData.results.finalConcentration)} ${sample.unit || 'µg/L'}` },
+                        { key: 'Incertezza tipo composta (u_c %)', value: `${formatNumberWithRules(treatmentData.results.u_comp_rel_perc)} %` }
                     ]
                 });
              }
@@ -4804,9 +4851,9 @@ function gatherReportData() {
                 title: 'Risultati del Calcolo (Retta)',
                 type: 'keyValue',
                 content: [
-                    { key: 'Equazione', value: `y = ${cal.line.b.toPrecision(6)}x + ${cal.line.a.toPrecision(6)}`},
-                    { key: 'R²', value: cal.line.r2.toPrecision(7) },
-                    { key: 's_yx', value: cal.line.s_yx.toPrecision(6) }
+                    { key: 'Equazione', value: `y = ${formatNumberWithRules(cal.line.b)}x + ${formatNumberWithRules(cal.line.a)}`},
+                    { key: 'R²', value: formatNumberWithRules(cal.line.r2) },
+                    { key: 's_yx', value: formatNumberWithRules(cal.line.s_yx) }
                 ]
             });
         }
@@ -4820,11 +4867,11 @@ function gatherReportData() {
                     content: {
                         headers: ['Conc. Nominale', 'u_taratura', 'u_ICV', 'u_finale', 'u_finale (%)', 'Fonte'],
                         rows: [[
-                            sampleResult.nominalConc.toPrecision(6),
-                            sampleResult.ux_calib_orig.toPrecision(6),
-                            sampleResult.ux_icv !== null ? sampleResult.ux_icv.toPrecision(6) : 'N/A',
-                            sampleResult.ux.toPrecision(6),
-                            `${sampleResult.ux_rel_perc.toFixed(2)} %`,
+                            formatNumberWithRules(sampleResult.nominalConc),
+                            formatNumberWithRules(sampleResult.ux_calib_orig),
+                            sampleResult.ux_icv !== null ? formatNumberWithRules(sampleResult.ux_icv) : 'N/A',
+                            formatNumberWithRules(sampleResult.ux),
+                            `${formatNumberWithRules(sampleResult.ux_rel_perc)} %`,
                             sampleResult.source
                         ]]
                     }
@@ -4850,7 +4897,7 @@ function gatherReportData() {
             blocks.push({
                 title: 'Risultati del Calcolo (FR)',
                 type: 'keyValue',
-                content: [{ key: 'Incertezza tipo relativa di taratura (u_taratura%)', value: `${cal.utaratura_perc.toFixed(3)} %` }]
+                content: [{ key: 'Incertezza tipo relativa di taratura (u_taratura%)', value: `${formatNumberWithRules(cal.utaratura_perc)} %` }]
             });
         }
         if (selections.incertezza_livello && cal.samples) {
@@ -4863,11 +4910,11 @@ function gatherReportData() {
                     content: {
                         headers: ['Conc. Nominale', 'u_taratura', 'u_ICV', 'u_finale', 'u_finale (%)', 'Fonte'],
                         rows: [[
-                            sampleResult.nominalConc.toPrecision(6),
-                            sampleResult.ux_calib_orig.toPrecision(6),
-                            sampleResult.ux_icv !== null ? sampleResult.ux_icv.toPrecision(6) : 'N/A',
-                            sampleResult.ux.toPrecision(6),
-                            `${sampleResult.ux_rel_perc.toFixed(2)} %`,
+                            formatNumberWithRules(sampleResult.nominalConc),
+                            formatNumberWithRules(sampleResult.ux_calib_orig),
+                            sampleResult.ux_icv !== null ? formatNumberWithRules(sampleResult.ux_icv) : 'N/A',
+                            formatNumberWithRules(sampleResult.ux),
+                            `${formatNumberWithRules(sampleResult.ux_rel_perc)} %`,
                             sampleResult.source
                         ]]
                     }
@@ -4890,8 +4937,8 @@ function gatherReportData() {
                     headers: ['Fonte di Incertezza', 'u_rel (%)', 'Gradi di Libertà (v)'],
                     rows: result.contributions.map(c => [
                         c.name,
-                        (c.value * 100).toFixed(3),
-                        c.dof === Infinity ? '∞' : c.dof.toFixed(2)
+                        formatNumberWithRules(c.value * 100),
+                        c.dof === Infinity ? '∞' : formatNumberWithRules(c.dof)
                     ])
                 }
             });
@@ -4902,10 +4949,10 @@ function gatherReportData() {
                 title: 'Risultati Finali Incertezza Estesa',
                 type: 'keyValue',
                 content: [
-                    { key: 'Gradi di Libertà Effettivi (ν_eff)', value: result.v_eff === Infinity ? '∞' : result.v_eff.toFixed(2) },
-                    { key: 'Fattore di Copertura (k)', value: result.k.toFixed(3) },
-                    { key: 'Incertezza Estesa Assoluta (U)', value: `${result.U_abs.toPrecision(3)} ${sampleUnit}` },
-                    { key: 'Incertezza Estesa Relativa (U%)', value: `${result.U_rel_perc.toFixed(2)} %` }
+                    { key: 'Gradi di Libertà Effettivi (ν_eff)', value: result.v_eff === Infinity ? '∞' : formatNumberWithRules(result.v_eff) },
+                    { key: 'Fattore di Copertura (k)', value: formatNumberWithRules(result.k) },
+                    { key: 'Incertezza Estesa Assoluta (U)', value: `${formatNumberWithRules(result.U_abs)} ${sampleUnit}` },
+                    { key: 'Incertezza Estesa Relativa (U%)', value: `${formatNumberWithRules(result.U_rel_perc)} %` }
                 ]
             });
         }
@@ -4993,9 +5040,9 @@ function gatherReportData() {
 
         const formatValue = (value) => {
             if (value === null || typeof value === 'undefined') return '-';
+            // Use the new formatting rule for numbers
             if (typeof value === 'number') {
-                 if (Math.abs(value) < 1e-4 && Math.abs(value) > 0) return value.toExponential(2);
-                 return value.toPrecision(3);
+                 return formatNumberWithRules(value);
             }
             return value;
         };
