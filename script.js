@@ -3987,8 +3987,12 @@ function calculateExpandedUncertainty(sampleId, projectState) {
             if (regResults?.samples) {
                 const regSampleResult = regResults.samples.find(s => s.sampleName === sample.name);
                 if (regSampleResult && regSampleResult.ux_rel_perc > 0) {
+                    const contributionName = regSampleResult.source === 'Controllo Taratura'
+                        ? 'Controllo Taratura (Retta)'
+                        : 'Taratura (Retta)';
+
                     contributions.push({
-                        name: 'Taratura (Retta)',
+                        name: contributionName,
                         value: regSampleResult.ux_rel_perc / 100,
                         dof: regResults.line.n_cal - 2
                     });
@@ -4001,10 +4005,16 @@ function calculateExpandedUncertainty(sampleId, projectState) {
                 const rfResults = projectState.rfCalibration.results;
                 if (rfResults?.samples) {
                     const rfSampleResult = rfResults.samples.find(s => s.sampleName === sample.name);
-                    if (rfSampleResult && rfResults.utaratura_perc > 0) {
-                         contributions.push({
-                            name: 'Taratura (Fattore Risposta)',
-                            value: rfResults.utaratura_perc / 100,
+                    if (rfSampleResult && rfSampleResult.ux_rel_perc > 0) {
+                        // FIX: Utilizza l'incertezza finale del campione (che include il check con ICV)
+                        // invece del valore di taratura generico.
+                        const contributionName = rfSampleResult.source === 'Controllo Taratura'
+                            ? 'Controllo Taratura (Fattore Risposta)'
+                            : 'Taratura (Fattore Risposta)';
+
+                        contributions.push({
+                            name: contributionName,
+                            value: rfSampleResult.ux_rel_perc / 100, // CORRETTO
                             dof: Infinity // Tipo B
                         });
                     }
