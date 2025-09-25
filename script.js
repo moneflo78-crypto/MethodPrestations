@@ -5909,14 +5909,29 @@ function main() {
                 let summaryLine = `<b>Passaggio ${index + 1} (${treatment.type}):</b> `;
                 if (treatment.type === 'diluizione') {
                     const withdrawalsText = treatment.withdrawals.map(w => `${parseFloat(String(w.volume).replace(',','.'))} mL (pipetta: ${w.pipette})`).join(' e ');
-                    const finalVolumeText = treatment.dilutionType === 'bringToVolume' ?
-                        `a ${appState.libraries.glassware[treatment.dilutionFlask].volume} mL` :
-                        `aggiungendo ${parseFloat(String(treatment.addedSolventVolume).replace(',','.'))} mL di solvente`;
+                    let finalVolumeText;
+                    if (treatment.dilutionType === 'bringToVolume') {
+                        finalVolumeText = `a ${appState.libraries.glassware[treatment.dilutionFlask].volume} mL`;
+                    } else { // 'addSolvent'
+                        const totalWithdrawalVolume = treatment.withdrawals.reduce((sum, w) => sum + parseFloat(String(w.volume).replace(',', '.')), 0);
+                        const addedSolventVolume = parseFloat(String(treatment.addedSolventVolume).replace(',', '.'));
+                        const finalVolume = totalWithdrawalVolume + addedSolventVolume;
+                        finalVolumeText = `aggiungendo ${addedSolventVolume} mL di solvente per un volume finale di ${finalVolume.toFixed(2)} mL`;
+                    }
                     summaryLine += `Prelievo di ${withdrawalsText} da soluzione a ${concentrationBeforeStep.toPrecision(4)} ${unit}. Diluizione ${finalVolumeText} per una concentrazione finale di ${currentConcentration.toPrecision(4)} ${unit}.`;
                 } else if (treatment.type === 'estrazione' || treatment.type === 'concentrazione') {
                     const initialFlask = appState.libraries.glassware[treatment.initialVolumeFlask];
-                    const finalFlask = appState.libraries.glassware[treatment.finalVolumeFlask];
-                    summaryLine += `La soluzione è stata processata da un volume di ${initialFlask.volume} mL a ${finalFlask.volume} mL, portando la concentrazione da ${concentrationBeforeStep.toPrecision(4)} a ${currentConcentration.toPrecision(4)} ${unit}.`;
+                    let finalVolumeText;
+                    // In 'estrazione', il volume finale può venire da un matraccio o da pipette
+                    if (treatment.type === 'estrazione' && treatment.extractionMethod === 'pipetta') {
+                        const totalAliquotVolume = treatment.finalVolumeAliquots.reduce((sum, a) => sum + parseFloat(String(a.volume).replace(',', '.')), 0);
+                        finalVolumeText = `${totalAliquotVolume} mL (da pipette)`;
+                    } else {
+                        // Per 'concentrazione' e 'estrazione' con matraccio, si usa il volume del matraccio finale
+                        const finalFlask = appState.libraries.glassware[treatment.finalVolumeFlask];
+                        finalVolumeText = `${finalFlask.volume} mL`;
+                    }
+                    summaryLine += `La soluzione è stata processata da un volume di ${initialFlask.volume} mL a ${finalVolumeText}, portando la concentrazione da ${concentrationBeforeStep.toPrecision(4)} a ${currentConcentration.toPrecision(4)} ${unit}.`;
                 }
                 summaryLines.push(summaryLine);
 
