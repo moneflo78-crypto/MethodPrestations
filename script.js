@@ -2771,7 +2771,7 @@ function actionSaveProject() {
     addProjectToRecents(appState);
 }
 
-function actionSaveProjectAs() {
+async function actionSaveProjectAs() {
     const sanitizedProjectName = (appState.project.projectName || 'progetto_senza_nome').replace(/[^a-z0-9_-\s.]/gi, '').trim();
     const defaultFileName = `${sanitizedProjectName.replace(/\s/g, '_')}.json`;
 
