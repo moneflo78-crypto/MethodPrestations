@@ -3608,6 +3608,247 @@ function actionUpdateCalSolState({ pointId, stepId, withdrawalId, field, value }
     actionCalculateCalibrationSolutionUncertainty(pointId);
 }
 
+function actionCalculateTreatmentChain(treatmentSampleId) {
+    const treatmentSample = appState.treatments.find(ts => ts.id === treatmentSampleId);
+    if (!treatmentSample) return;
+
+    // Pulisce i risultati precedenti prima di iniziare
+    treatmentSample.results = null;
+
+    let currentConcentration = 0;
+    let sum_u_rel_sq = 0;
+    let initialConcentrationForSummary = null;
+    const summaryLines = [];
+    const sample = appState.samples.find(s => s.id === treatmentSample.sampleId);
+    const unit = sample ? (sample.unit || 'µg/L') : 'µg/L';
+
+    try {
+        for (const [index, treatment] of treatmentSample.treatments.entries()) {
+            // Resetta i risultati e le incertezze intermedie per questo step
+            treatment.results = null;
+            treatment.flaskUncertaintyRelPerc = null;
+            treatment.addedSolventPipetteUncertaintyRelPerc = null;
+            treatment.addedSolventPipette_U_perc = null;
+            treatment.initialFlaskUncertaintyRelPerc = null;
+            treatment.finalFlaskUncertaintyRelPerc = null;
+            if (treatment.withdrawals) {
+                treatment.withdrawals.forEach(w => w.pipetteUncertaintyRelPerc = null);
+            }
+
+            if (index === 0) {
+                // Gestione della sorgente per il primo trattamento
+                if (treatment.source.type === 'manual') {
+                    const sourceConc = parseFloat(String(treatment.source.manualConcentration).replace(',', '.'));
+                    const sourceUnc = parseFloat(String(treatment.source.manualUncertainty).replace(',', '.'));
+                    if (isNaN(sourceConc) || isNaN(sourceUnc)) throw new Error("Dati manuali incompleti o non validi.");
+
+                    currentConcentration = sourceConc;
+                    initialConcentrationForSummary = sourceConc;
+                    // U% (k=2) -> u_rel
+                    const u_rel_initial = (sourceUnc / 100) / 2 / Math.sqrt(2);
+                    sum_u_rel_sq = Math.pow(u_rel_initial, 2);
+                } else if (treatment.source.type === 'spike') {
+                    if (treatment.source.spikeSampleId === null) throw new Error("Matrix spike non selezionato.");
+                    const spikeData = appState.spikeUncertainty[treatment.source.spikeSampleId];
+                    if (!spikeData || !spikeData.results) throw new Error("Dati dello spike selezionato non disponibili.");
+                    currentConcentration = spikeData.results.finalConcentration;
+                    initialConcentrationForSummary = currentConcentration;
+                    // u_c % -> u_rel
+                    const u_rel_initial = spikeData.results.u_comp_rel_perc / 100;
+                    sum_u_rel_sq = Math.pow(u_rel_initial, 2);
+                } else {
+                    throw new Error("Tipo di sorgente non valido per il primo trattamento.");
+                }
+            }
+
+            const concentrationBeforeStep = (index === 0) ?
+                initialConcentrationForSummary :
+                treatmentSample.treatments[index - 1].results.finalConcentration;
+
+            // Calcolo specifico per tipo di trattamento
+            if (treatment.type === 'diluizione') {
+                if (treatment.withdrawals.length === 0) throw new Error(`Diluizione: Nessun prelievo.`);
+                if (treatment.withdrawals.some(w => !w.pipette || w.volume === null || w.volume <= 0)) throw new Error(`Diluizione: Dati di prelievo incompleti.`);
+
+                let totalWithdrawalVolume = 0;
+                let sum_u_abs_sq_withdrawals = 0;
+
+                treatment.withdrawals.forEach(w => {
+                    const withdrawalVolume = parseFloat(String(w.volume).replace(',', '.'));
+                    if (isNaN(withdrawalVolume) || withdrawalVolume <= 0) throw new Error("Diluizione: Volume di prelievo non valido.");
+                    totalWithdrawalVolume += withdrawalVolume;
+                    const contrib = _get_pipette_uncertainty_contribution(w.pipette, withdrawalVolume, appState.libraries);
+                    w.pipetteUncertainty_U_perc = contrib.U_perc;
+                    w.pipetteUncertaintyRelPerc = contrib.u_rel_perc;
+                    sum_u_abs_sq_withdrawals += Math.pow(contrib.u_abs, 2);
+                });
+                const u_abs_total_withdrawal = Math.sqrt(sum_u_abs_sq_withdrawals);
+
+                if (treatment.dilutionType === 'addSolvent') {
+                    const addedSolventVolume = parseFloat(String(treatment.addedSolventVolume).replace(',', '.'));
+                    if (!treatment.addedSolventPipette || isNaN(addedSolventVolume) || addedSolventVolume <= 0) throw new Error("Diluizione: Dati per l'aggiunta di solvente incompleti o non validi.");
+
+                    const Vi = totalWithdrawalVolume;
+                    const u_abs_Vi = u_abs_total_withdrawal;
+
+                    const solvent_contrib = _get_pipette_uncertainty_contribution(treatment.addedSolventPipette, addedSolventVolume, appState.libraries);
+                    treatment.addedSolventPipetteUncertaintyRelPerc = solvent_contrib.u_rel_perc;
+                    treatment.addedSolventPipette_U_perc = solvent_contrib.U_perc;
+                    const Va = addedSolventVolume;
+                    const u_abs_Va = solvent_contrib.u_abs;
+
+                    const Vf = Vi + Va;
+                    const u_abs_Vf = Math.sqrt(Math.pow(u_abs_Vi, 2) + Math.pow(u_abs_Va, 2));
+
+                    const u_rel_sq_Vi = Vi > 0 ? Math.pow(u_abs_Vi / Vi, 2) : 0;
+                    const u_rel_sq_Vf = Vf > 0 ? Math.pow(u_abs_Vf / Vf, 2) : 0;
+
+                    sum_u_rel_sq += u_rel_sq_Vi + u_rel_sq_Vf;
+                    currentConcentration = currentConcentration * (Vi / Vf);
+
+                } else { // bringToVolume
+                    if (!treatment.dilutionFlask) throw new Error(`Diluizione: Matraccio non selezionato.`);
+                    const u_rel_sq_total_withdrawal = totalWithdrawalVolume > 0 ? Math.pow(u_abs_total_withdrawal / totalWithdrawalVolume, 2) : 0;
+                    const flask = appState.libraries.glassware[treatment.dilutionFlask];
+                    const u_rel_flask = (flask.uncertainty / flask.volume / Math.sqrt(3));
+                    treatment.flaskUncertaintyRelPerc = u_rel_flask * 100;
+                    const u_rel_sq_flask = Math.pow(u_rel_flask, 2);
+                    sum_u_rel_sq += u_rel_sq_total_withdrawal + u_rel_sq_flask;
+                    currentConcentration = currentConcentration * (totalWithdrawalVolume / flask.volume);
+                }
+
+            } else if (treatment.type === 'estrazione') {
+                if (!treatment.initialVolumeFlask) throw new Error("Estrazione: Selezionare il matraccio iniziale.");
+
+                const initialFlask = appState.libraries.glassware[treatment.initialVolumeFlask];
+                const u_rel_initial_flask = (initialFlask.uncertainty / initialFlask.volume / Math.sqrt(3));
+                treatment.initialFlaskUncertaintyRelPerc = u_rel_initial_flask * 100;
+                sum_u_rel_sq += Math.pow(u_rel_initial_flask, 2);
+
+                let finalVolume = 0;
+                let u_rel_sq_final_volume = 0;
+                // Pulisce i campi di incertezza non utilizzati per evitare confusione nell'UI
+                treatment.finalFlaskUncertaintyRelPerc = null;
+                treatment.pipetteUncertaintyRelPerc = null;
+
+
+                if (treatment.extractionMethod === 'matraccio') {
+                    if (!treatment.finalVolumeFlask) throw new Error("Estrazione (Matraccio): Selezionare il matraccio finale.");
+                    const finalFlask = appState.libraries.glassware[treatment.finalVolumeFlask];
+                    finalVolume = finalFlask.volume;
+                    const u_rel_final_flask = (finalFlask.uncertainty / finalFlask.volume / Math.sqrt(3));
+                    treatment.finalFlaskUncertaintyRelPerc = u_rel_final_flask * 100;
+                    u_rel_sq_final_volume = Math.pow(u_rel_final_flask, 2);
+                } else { // 'pipetta'
+                    if (!treatment.finalVolumeAliquots || treatment.finalVolumeAliquots.length === 0) throw new Error("Estrazione (Pipetta): Aggiungere almeno un'aliquota.");
+
+                    // Pulisce le incertezze precedenti per evitare di mostrare dati vecchi
+                    treatment.finalVolumeAliquots.forEach(a => a.pipetteUncertaintyRelPerc = null);
+
+                    let sum_u_abs_sq_aliquots = 0;
+                    treatment.finalVolumeAliquots.forEach(aliquot => {
+                        const aliquotVolume = parseFloat(String(aliquot.volume).replace(',', '.'));
+                        if (!aliquot.pipette || isNaN(aliquotVolume) || aliquotVolume <= 0) {
+                            throw new Error("Estrazione (Pipetta): Tutte le aliquote devono avere una pipetta selezionata e un volume valido.");
+                        }
+                        finalVolume += aliquotVolume;
+                        const contrib = _get_pipette_uncertainty_contribution(aliquot.pipette, aliquotVolume, appState.libraries);
+                        aliquot.pipetteUncertaintyRelPerc = contrib.u_rel_perc; // Salva l'incertezza per la UI
+                        sum_u_abs_sq_aliquots += Math.pow(contrib.u_abs, 2);
+                    });
+
+                    if (finalVolume > 0) {
+                        const u_abs_total_aliquots = Math.sqrt(sum_u_abs_sq_aliquots);
+                        u_rel_sq_final_volume = Math.pow(u_abs_total_aliquots / finalVolume, 2);
+                        treatment.pipetteUncertaintyRelPerc = Math.sqrt(u_rel_sq_final_volume) * 100;
+                    }
+                }
+
+                if (finalVolume > 0) {
+                    sum_u_rel_sq += u_rel_sq_final_volume;
+                    currentConcentration = currentConcentration * (initialFlask.volume / finalVolume);
+                }
+
+            } else if (treatment.type === 'concentrazione') {
+                if (!treatment.initialVolumeFlask || !treatment.finalVolumeFlask) throw new Error(`Concentrazione: Selezionare i matracci.`);
+                const initialFlask = appState.libraries.glassware[treatment.initialVolumeFlask];
+                const finalFlask = appState.libraries.glassware[treatment.finalVolumeFlask];
+                const u_rel_initial_flask = (initialFlask.uncertainty / initialFlask.volume / Math.sqrt(3));
+                const u_rel_final_flask = (finalFlask.uncertainty / finalFlask.volume / Math.sqrt(3));
+                treatment.initialFlaskUncertaintyRelPerc = u_rel_initial_flask * 100;
+                treatment.finalFlaskUncertaintyRelPerc = u_rel_final_flask * 100;
+                sum_u_rel_sq += Math.pow(u_rel_initial_flask, 2) + Math.pow(u_rel_final_flask, 2);
+                currentConcentration = currentConcentration * (initialFlask.volume / finalFlask.volume);
+            }
+
+            // --- Generazione del riepilogo per il passaggio ---
+            let summaryLine = `<b>Passaggio ${index + 1} (${treatment.type}):</b> `;
+            if (treatment.type === 'diluizione') {
+                const withdrawalsText = treatment.withdrawals.map(w => `${parseFloat(String(w.volume).replace(',','.'))} mL (pipetta: ${w.pipette})`).join(' e ');
+                let finalVolumeText;
+                if (treatment.dilutionType === 'bringToVolume') {
+                    finalVolumeText = `a ${appState.libraries.glassware[treatment.dilutionFlask].volume} mL`;
+                } else { // 'addSolvent'
+                    const totalWithdrawalVolume = treatment.withdrawals.reduce((sum, w) => sum + parseFloat(String(w.volume).replace(',', '.')), 0);
+                    const addedSolventVolume = parseFloat(String(treatment.addedSolventVolume).replace(',', '.'));
+                    const finalVolume = totalWithdrawalVolume + addedSolventVolume;
+                    finalVolumeText = `aggiungendo ${addedSolventVolume} mL di solvente per un volume finale di ${finalVolume.toFixed(2)} mL`;
+                }
+                summaryLine += `Prelievo di ${withdrawalsText} da soluzione a ${concentrationBeforeStep.toPrecision(4)} ${unit}. Diluizione ${finalVolumeText} per una concentrazione finale di ${currentConcentration.toPrecision(4)} ${unit}.`;
+            } else if (treatment.type === 'estrazione' || treatment.type === 'concentrazione') {
+                const initialFlask = appState.libraries.glassware[treatment.initialVolumeFlask];
+                let finalVolumeText;
+                // In 'estrazione', il volume finale può venire da un matraccio o da pipette
+                if (treatment.type === 'estrazione' && treatment.extractionMethod === 'pipetta') {
+                    const totalAliquotVolume = treatment.finalVolumeAliquots.reduce((sum, a) => sum + parseFloat(String(a.volume).replace(',', '.')), 0);
+                    finalVolumeText = `${totalAliquotVolume} mL (da pipette)`;
+                } else {
+                    // Per 'concentrazione' e 'estrazione' con matraccio, si usa il volume del matraccio finale
+                    const finalFlask = appState.libraries.glassware[treatment.finalVolumeFlask];
+                    finalVolumeText = `${finalFlask.volume} mL`;
+                }
+                summaryLine += `La soluzione è stata processata da un volume di ${initialFlask.volume} mL a ${finalVolumeText}, portando la concentrazione da ${concentrationBeforeStep.toPrecision(4)} a ${currentConcentration.toPrecision(4)} ${unit}.`;
+            }
+            summaryLines.push(summaryLine);
+
+            // Salva i risultati del trattamento corrente
+            treatment.results = {
+                finalConcentration: currentConcentration,
+                finalUncertaintyRelPerc: Math.sqrt(sum_u_rel_sq) * 100,
+            };
+        }
+
+        // Dopo il ciclo, se non ci sono stati errori, salva i risultati finali
+        const lastTreatment = treatmentSample.treatments[treatmentSample.treatments.length - 1];
+        if (lastTreatment && lastTreatment.results && initialConcentrationForSummary !== null) {
+            const final_u_rel = Math.sqrt(sum_u_rel_sq);
+            treatmentSample.results = {
+                initialConcentration: initialConcentrationForSummary,
+                finalConcentration: currentConcentration,
+                u_comp: final_u_rel * currentConcentration,
+                u_comp_rel_perc: final_u_rel * 100,
+                summary: summaryLines.join('<br>')
+            };
+        }
+
+    } catch (e) {
+        console.warn(`Calculation error in treatment chain ${treatmentSampleId}: ${e.message}`);
+        // L'errore interrompe il ciclo, i trattamenti successivi non avranno risultati.
+        treatmentSample.results = null; // Assicura che i risultati vengano cancellati in caso di errore
+    } finally {
+        // --- REFRESH LOGIC ---
+        // After a treatment chain changes, refresh downstream dependencies.
+        if (appState.calibration.results) {
+            actionCalculateRegression();
+        }
+        if (appState.rfCalibration.results) {
+            actionCalculateResponseFactor();
+        }
+
+        render(); // Update UI at the very end
+    }
+}
+
 function actionCalculateSpikeUncertainty(sampleId) {
     const sampleState = appState.spikeUncertainty[sampleId];
     const resultsContainer = document.getElementById(`spike-results-container-${sampleId}`);
