@@ -2539,8 +2539,39 @@ async function actionCalculateAll() {
             await processSample(sample);
         }
 
+        // --- REFRESH LOGIC ---
+        // After base stats are calculated, refresh downstream dependencies.
+        console.log("Statistics calculated. Triggering downstream refresh...");
+
+        // Refresh all spike calculations
+        for (const sampleId in appState.spikeUncertainty) {
+             const sample = appState.samples.find(s => s.id == sampleId);
+             const result = appState.results[sampleId];
+             if (sample && result && result.statistics && !result.error && (sample.expectedValue !== null && sample.expectedValue !== '')) {
+                actionCalculateSpikeUncertainty(sampleId);
+             } else {
+                if (appState.spikeUncertainty[sampleId]) {
+                    appState.spikeUncertainty[sampleId].results = null;
+                }
+             }
+        }
+
+        // Refresh all treatment chains
+        appState.treatments.forEach(ts => {
+            actionCalculateTreatmentChain(ts.id);
+        });
+
+        // Refresh calibration if it was previously calculated
+        if (appState.calibration.results) {
+            actionCalculateRegression();
+        }
+        if (appState.rfCalibration.results) {
+            actionCalculateResponseFactor();
+        }
+        // --- END REFRESH LOGIC ---
+
         document.getElementById('calculate-btn').disabled = false;
-        render();
+        render(); // The final render will show all the refreshed data
     } catch (e) {
         console.error("Error in actionCalculateAll:", e);
         const resultsContainer = document.getElementById('results-container');
@@ -3585,9 +3616,9 @@ function actionCalculateSpikeUncertainty(sampleId) {
     const resetAndShowMessage = (message, type = 'error') => {
         if (resultsContainer) {
             if (message) {
-                const styleClass = type === 'error'
-                    ? 'text-red-600 font-semibold'
-                    : 'text-gray-500 italic';
+                const styleClass = type === 'error' ?
+                    'text-red-600 font-semibold' :
+                    'text-gray-500 italic';
                 resultsContainer.innerHTML = `<span class="${styleClass} text-sm">${message}</span>`;
             } else {
                 resultsContainer.innerHTML = '';
@@ -3606,7 +3637,7 @@ function actionCalculateSpikeUncertainty(sampleId) {
                 w.pipetteUncertainty_U_perc = null;
             });
         });
-        render(); // Rirenderizza per pulire l'UI
+        // NOTA: render() viene chiamato nel blocco finally
     };
 
     try {
@@ -3617,14 +3648,12 @@ function actionCalculateSpikeUncertainty(sampleId) {
             return; // Esce silenziosamente se i dati iniziali non sono pronti.
         }
 
-        // --- INIZIO LOGICA DI CONVERSIONE UNITÀ ---
         const sample = appState.samples.find(s => s.id == sampleId);
         if (!sample) throw new Error(`Campione con ID ${sampleId} non trovato.`);
         const targetUnit = sample.unit;
         const sourceUnit = sampleState.unit;
         const convertedInitialConcentration = convertConcentration(sampleState.initialConcentration, sourceUnit, targetUnit);
         let currentConcentration = convertedInitialConcentration;
-        // --- FINE LOGICA DI CONVERSIONE UNITÀ ---
 
         let sum_u_rel_sq;
         if (sampleState.initialUncertainty !== null && sampleState.initialUncertainty > 0) {
@@ -3636,17 +3665,16 @@ function actionCalculateSpikeUncertainty(sampleId) {
         }
 
         for (const step of sampleState.steps) {
-            // --- 1. Calcolo Prelievi (comune a entrambi i metodi) ---
-            if (step.withdrawals.length === 0) return resetAndShowMessage('Aggiungere almeno un prelievo.', 'info');
+            if (step.withdrawals.length === 0) throw new IncompleteDataError('Aggiungere almeno un prelievo.');
             if (step.withdrawals.some(w => !w.pipette || w.volume === null || w.volume <= 0)) {
-                return resetAndShowMessage('Compilare tutti i campi del prelievo (pipetta e volume).', 'info');
+                 throw new IncompleteDataError('Compilare tutti i campi del prelievo (pipetta e volume).');
             }
 
             let totalWithdrawalVolume = 0;
             let sum_u_abs_sq_withdrawals = 0;
 
             for (const w of step.withdrawals) {
-                if (!w) continue; // Safeguard against malformed state with undefined/null entries
+                if (!w) continue;
                 totalWithdrawalVolume += w.volume;
                 const contrib = _get_pipette_uncertainty_contribution(w.pipette, w.volume, appState.libraries);
                 w.pipetteUncertainty_U_perc = contrib.U_perc;
@@ -3655,56 +3683,42 @@ function actionCalculateSpikeUncertainty(sampleId) {
             }
             const u_abs_total_withdrawal = Math.sqrt(sum_u_abs_sq_withdrawals);
 
-            // --- 2. Calcolo Diluizione (specifico per metodo) ---
             if (step.dilutionType === 'addSolvent') {
-                // METODO 2: Aggiunta di un volume di solvente
                 if (!step.addedSolventPipette || !step.addedSolventVolume || step.addedSolventVolume <= 0) {
-                    return resetAndShowMessage("Compilare i dati per l'aggiunta di solvente (pipetta e volume).", 'info');
+                    throw new IncompleteDataError("Compilare i dati per l'aggiunta di solvente (pipetta e volume).");
                 }
                 const Vi = totalWithdrawalVolume;
                 const u_abs_Vi = u_abs_total_withdrawal;
-
                 const solvent_contrib = _get_pipette_uncertainty_contribution(step.addedSolventPipette, step.addedSolventVolume, appState.libraries);
                 const Va = step.addedSolventVolume;
                 const u_abs_Va = solvent_contrib.u_abs;
                 step.addedSolventPipetteUncertaintyRelPerc = solvent_contrib.u_rel_perc;
                 step.addedSolventPipette_U_perc = solvent_contrib.U_perc;
-
                 const Vf = Vi + Va;
                 const u_abs_Vf = Math.sqrt(Math.pow(u_abs_Vi, 2) + Math.pow(u_abs_Va, 2));
-
                 const u_rel_sq_Vi = Vi > 0 ? Math.pow(u_abs_Vi / Vi, 2) : 0;
                 const u_rel_sq_Vf = Vf > 0 ? Math.pow(u_abs_Vf / Vf, 2) : 0;
-
                 sum_u_rel_sq += u_rel_sq_Vi + u_rel_sq_Vf;
                 currentConcentration = currentConcentration * (Vi / Vf);
-
             } else {
-                // METODO 1: Portando a volume (logica originale)
-                if (!step.dilutionFlask) return resetAndShowMessage('Selezionare un matraccio di diluizione.', 'info');
-
+                if (!step.dilutionFlask) throw new IncompleteDataError('Selezionare un matraccio di diluizione.');
                 const u_rel_sq_total_withdrawal = totalWithdrawalVolume > 0 ? Math.pow(u_abs_total_withdrawal / totalWithdrawalVolume, 2) : 0;
-
                 const flask = appState.libraries.glassware[step.dilutionFlask];
                 const u_rel_flask = (flask.uncertainty / flask.volume / Math.sqrt(3));
                 step.flaskUncertaintyRelPerc = u_rel_flask * 100;
                 const u_rel_sq_flask = Math.pow(u_rel_flask, 2);
-
                 sum_u_rel_sq += u_rel_sq_total_withdrawal + u_rel_sq_flask;
                 currentConcentration = currentConcentration * (totalWithdrawalVolume / flask.volume);
             }
 
-            // Memorizza i risultati intermedi per questo passaggio
             step.intermediateConcentration = currentConcentration;
             step.intermediateUncertaintyRelPerc = Math.sqrt(sum_u_rel_sq) * 100;
         }
 
-        // Calcoli finali
         const final_u_rel = Math.sqrt(sum_u_rel_sq);
         const final_u_abs = final_u_rel * currentConcentration;
         const final_u_rel_perc = final_u_rel * 100;
 
-        // Genera il riepilogo testuale
         let summaryLines = [];
         let concentrationBeforeStep = convertedInitialConcentration;
         sampleState.steps.forEach((step, index) => {
@@ -3717,7 +3731,6 @@ function actionCalculateSpikeUncertainty(sampleId) {
         });
         const summary = summaryLines.join('<br>');
 
-        // Logica per le verifiche di preparazione e accuratezza
         const nominalValue = parseFloat(sample.expectedValue);
         const calculatedConcentration = currentConcentration;
         const meanValue = appState.results[sampleId]?.statistics?.mean;
@@ -3746,11 +3759,10 @@ function actionCalculateSpikeUncertainty(sampleId) {
                     details: `Rapporto: ${ratio.toFixed(3)} (soglia: <= 2)`
                 };
             } else {
-                 accuracyCheck = { isAccurate: false, message: 'Non calcolabile: incertezza di preparazione è zero.', details: '' };
+                accuracyCheck = { isAccurate: false, message: 'Non calcolabile: incertezza di preparazione è zero.', details: '' };
             }
         }
 
-        // Memorizza i risultati finali
         sampleState.results = {
             finalConcentration: currentConcentration,
             u_comp: final_u_abs,
@@ -3760,20 +3772,32 @@ function actionCalculateSpikeUncertainty(sampleId) {
             accuracyCheck: accuracyCheck
         };
 
-        render();
-
     } catch (e) {
-        // Gestisce gli errori in modo differenziato
-        if (e instanceof ValidationError) {
-            resetAndShowMessage(e.message, 'info');
-        } else if (e instanceof IncompleteDataError) {
-            // This case is now handled by early returns, but we keep it as a safeguard.
+        if (e instanceof ValidationError || e instanceof IncompleteDataError) {
             resetAndShowMessage(e.message, 'info');
         } else {
-            // For any other unexpected error, show a critical error and log it.
             resetAndShowMessage(e.message, 'error');
             console.error("Errore nel calcolo dello spike:", e);
         }
+    } finally {
+        // --- REFRESH LOGIC ---
+        // Dopo aver calcolato lo spike, aggiorna le catene di trattamento che dipendono da esso.
+        appState.treatments.forEach(ts => {
+            if (ts.treatments.length > 0 && ts.treatments[0].source.type === 'spike' && ts.treatments[0].source.spikeSampleId == sampleId) {
+                actionCalculateTreatmentChain(ts.id);
+            }
+        });
+
+        // Ricalcola la taratura se dipende da un trattamento che a sua volta dipende da questo spike.
+        // Il modo più semplice è ricalcolare se esistono già dei risultati.
+        if (appState.calibration.results) {
+            actionCalculateRegression();
+        }
+        if (appState.rfCalibration.results) {
+            actionCalculateResponseFactor();
+        }
+
+        render(); // Renderizza tutto alla fine della catena di aggiornamenti.
     }
 }
 
@@ -5960,7 +5984,16 @@ function main() {
             // L'errore interrompe il ciclo, i trattamenti successivi non avranno risultati.
             treatmentSample.results = null; // Assicura che i risultati vengano cancellati in caso di errore
         } finally {
-            render(); // Aggiorna l'UI per mostrare i risultati calcolati o la loro assenza
+            // --- REFRESH LOGIC ---
+            // After a treatment chain changes, refresh downstream dependencies.
+            if (appState.calibration.results) {
+                actionCalculateRegression();
+            }
+            if (appState.rfCalibration.results) {
+                actionCalculateResponseFactor();
+            }
+
+            render(); // Update UI at the very end
         }
     }
 
