@@ -293,7 +293,7 @@ Questo controllo valuta se la media delle misure sperimentali (`media_misure`) �
 Questa sezione riporta le tabelle di valori fissi utilizzate nei calcoli statistici.
 
 #### 6.1 Valori Critici t di Student (95% Confidenza, Bilaterale)
-Utilizzati per il calcolo del limite di ripetibilità (r).
+Utilizzati per il calcolo del limite di ripetibilità (r) e per il fattore di copertura (k).
 - `df` (gradi di libertà) = `n - 1`
 
 | df | t-value |   | df | t-value |   | df | t-value |
@@ -310,21 +310,81 @@ Utilizzati per il calcolo del limite di ripetibilità (r).
 | 10 | 2.228   |   | 20 | 2.086   |   | 30 | 2.042   |
 | >30 (inf) | 1.960 | |    |         |   |    |         |
 
-#### 6.2 Coefficienti per il Test di Shapiro-Wilk
-Queste tabelle contengono i coefficienti `a_i`, `g`, `e`, `f` necessari per il calcolo. Le tabelle complete nel codice sorgente vanno da n=3 a n=26. Di seguito viene riportato un estratto.
+#### 6.2 Valori Critici del Test di Grubbs (α = 0.05)
+Utilizzati per identificare un singolo outlier in un campione.
+- `n` = dimensione del campione
 
-**Tabella `a_coeffs_table` (Estratto):**
-- n=3: [0.7071]
-- n=4: [0.6872, 0.1677]
-- n=5: [0.6646, 0.2413]
-- n=6: [0.6431, 0.2806, 0.0875]
-...
+| n  | G critico |   | n  | G critico |
+|----|-----------|---|----|-----------|
+| 3  | 1.155     |   | 15 | 2.549     |
+| 4  | 1.481     |   | 16 | 2.585     |
+| 5  | 1.715     |   | 17 | 2.620     |
+| 6  | 1.887     |   | 18 | 2.651     |
+| 7  | 2.020     |   | 19 | 2.681     |
+| 8  | 2.126     |   | 20 | 2.709     |
+| 9  | 2.215     |   | 21 | 2.733     |
+| 10 | 2.290     |   | 22 | 2.758     |
+| 11 | 2.355     |   | 23 | 2.781     |
+| 12 | 2.412     |   | 24 | 2.802     |
+| 13 | 2.462     |   | 25 | 2.822     |
+| 14 | 2.507     |   | 26 | 2.841     |
 
-**Tabella `kp_coeffs_table` (Estratto):**
-- n=3: {g: -0.625, e: 0.386, f: 0.75}
-- n=4: {g: -1.107, e: 0.714, f: 0.6297}
-- n=5: {g: -1.53,  e: 0.935, f: 0.5521}
-...
+#### 6.3 Coefficienti per il Test di Shapiro-Wilk
+Queste tabelle contengono i coefficienti `a_i`, `g`, `e`, `f` necessari per il calcolo, per n da 3 a 26.
+
+**Tabella `a_coeffs_table` (Completa):**
+- **n=3:** [0.7071]
+- **n=4:** [0.6872, 0.1677]
+- **n=5:** [0.6646, 0.2413]
+- **n=6:** [0.6431, 0.2806, 0.0875]
+- **n=7:** [0.6233, 0.3031, 0.1401]
+- **n=8:** [0.6052, 0.3164, 0.1743, 0.0561]
+- **n=9:** [0.5888, 0.3244, 0.1976, 0.0947]
+- **n=10:** [0.5739, 0.3291, 0.2141, 0.1224, 0.0399]
+- **n=11:** [0.5601, 0.3315, 0.2260, 0.1429, 0.0695]
+- **n=12:** [0.5475, 0.3325, 0.2347, 0.1586, 0.0922, 0.0303]
+- **n=13:** [0.5359, 0.3325, 0.2412, 0.1707, 0.1099, 0.0539]
+- **n=14:** [0.5251, 0.3318, 0.2460, 0.1802, 0.1240, 0.0727, 0.0240]
+- **n=15:** [0.5150, 0.3306, 0.2495, 0.1878, 0.1353, 0.0880, 0.0433]
+- **n=16:** [0.5056, 0.3290, 0.2521, 0.1939, 0.1447, 0.1005, 0.0593, 0.0196]
+- **n=17:** [0.4968, 0.3273, 0.2540, 0.1988, 0.1524, 0.1109, 0.0725, 0.0359]
+- **n=18:** [0.4886, 0.3253, 0.2553, 0.2027, 0.1587, 0.1197, 0.0837, 0.0496, 0.0153]
+- **n=19:** [0.4808, 0.3232, 0.2561, 0.2059, 0.1641, 0.1271, 0.0932, 0.0612, 0.0303]
+- **n=20:** [0.4734, 0.3211, 0.2565, 0.2085, 0.1686, 0.1334, 0.1013, 0.0711, 0.0422, 0.0140]
+- **n=21:** [0.4643, 0.3185, 0.2578, 0.2119, 0.1736, 0.1399, 0.1092, 0.0804, 0.0530, 0.0263]
+- **n=22:** [0.4590, 0.3156, 0.2571, 0.2131, 0.1764, 0.1443, 0.1150, 0.0878, 0.0618, 0.0368, 0.0122]
+- **n=23:** [0.4542, 0.3126, 0.2563, 0.2139, 0.1787, 0.1480, 0.1201, 0.0941, 0.0696, 0.0459, 0.0228]
+- **n=24:** [0.4493, 0.3098, 0.2554, 0.2145, 0.1807, 0.1512, 0.1245, 0.0997, 0.0764, 0.0539, 0.0321, 0.0107]
+- **n=25:** [0.4450, 0.3069, 0.2543, 0.2148, 0.1822, 0.1539, 0.1283, 0.1046, 0.0823, 0.0610, 0.0403, 0.0200]
+- **n=26:** [0.4407, 0.3043, 0.2533, 0.2151, 0.1836, 0.1563, 0.1316, 0.1089, 0.0876, 0.0672, 0.0476, 0.0284, 0.0094]
+
+**Tabella `kp_coeffs_table` (Completa):**
+| n  | g | e | f |
+|----|---|---|---|
+| 3  | -0.625 | 0.386  | 0.75     |
+| 4  | -1.107 | 0.714  | 0.6297   |
+| 5  | -1.53  | 0.935  | 0.5521   |
+| 6  | -2.01  | 1.138  | 0.4963   |
+| 7  | -2.356 | 1.245  | 0.4533   |
+| 8  | -2.696 | 1.333  | 0.4186   |
+| 9  | -2.968 | 1.4    | 0.39     |
+| 10 | -3.262 | 1.471  | 0.366    |
+| 11 | -3.485 | 1.515  | 0.3451   |
+| 12 | -3.731 | 1.571  | 0.327    |
+| 13 | -3.936 | 1.613  | 0.3111   |
+| 14 | -4.155 | 1.655  | 0.2969   |
+| 15 | -4.373 | 1.695  | 0.2842   |
+| 16 | -4.567 | 1.724  | 0.2727   |
+| 17 | -4.713 | 1.739  | 0.2622   |
+| 18 | -4.885 | 1.77   | 0.2528   |
+| 19 | -5.018 | 1.786  | 0.244    |
+| 20 | -5.153 | 1.802  | 0.2359   |
+| 21 | -5.291 | 1.818  | 0.2284   |
+| 22 | -5.413 | 1.835  | 0.2207   |
+| 23 | -5.508 | 1.848  | 0.2157   |
+| 24 | -5.605 | 1.862  | 0.2106   |
+| 25 | -5.704 | 1.876  | 0.2063   |
+| 26 | -5.803 | 1.89   | 0.202    |
 
 #### 6.3 Librerie di Vetreria e Pipette
 Il codice contiene due librerie predefinite:
@@ -334,3 +394,47 @@ Il codice contiene due librerie predefinite:
   - Esempio: `"043CHR": { "calibrationPoints": [ { "volume": 0.1, "U_rel_percent": 2.1 }, ... ] }`
 
 Queste librerie sono utilizzate per recuperare i valori di incertezza per i calcoli della Sezione 4.
+
+---------------------------------------------------
+
+### SEZIONE 7: REGOLE DI ARROTONDAMENTO E PRESENTAZIONE DEI RISULTATI
+
+L'applicazione utilizza un approccio standardizzato per la formattazione di tutti i risultati numerici, sia nell'interfaccia utente che nei report finali. La logica è implementata nella funzione `formatNumberWithRules` e segue queste regole per garantire coerenza e leggibilità.
+
+#### 7.1 Logica Generale di Formattazione
+La formattazione si basa sul concetto di "cifre significative" in relazione all'ordine di grandezza del numero. La regola principale è:
+
+- **d = 4 - e**
+  - **e:** è l'esponente del numero in notazione scientifica (es. per 123.45, e=2; per 0.0123, e=-2).
+  - **d:** è il numero di cifre decimali da visualizzare.
+
+Questa regola mira a mantenere circa 4 o 5 cifre significative totali per la maggior parte dei numeri.
+
+#### 7.2 Regole Specifiche
+
+1.  **Numeri molto grandi o molto piccoli (Notazione Scientifica):**
+    - **Condizione:** Se il valore assoluto di un numero è `> 10000` o `< 0.00001`, viene automaticamente convertito in notazione scientifica.
+    - **Precisione:** Il numero di cifre decimali nella notazione scientifica è determinato dalla stessa regola `d = 4 - e`.
+    - **Esempi:**
+      - `123456` diventa `1.23e+5` (e=5, d= -1, ma la precisione è gestita per mantenere le cifre significative).
+      - `0.000009876` diventa `9.8760e-6` (e=-6, d=10, qui la regola si adatta per la notazione scientifica).
+
+2.  **Numeri "Normali":**
+    - **Condizione:** Per i numeri che non rientrano nella condizione precedente.
+    - **Precisione:** Il numero di cifre decimali è calcolato come `d = 4 - e`.
+    - **Esempi:**
+      - `123.4567` -> `e=2`, `d = 4-2=2`. Il risultato sarà `123.46`.
+      - `1.234567` -> `e=0`, `d = 4-0=4`. Il risultato sarà `1.2346`.
+      - `0.012345` -> `e=-2`, `d = 4-(-2)=6`. Il risultato sarà `0.012345`.
+
+3.  **Numeri Interi Grandi (con `d < 0`):**
+    - **Condizione:** Se la regola `d = 4 - e` produce un numero di decimali negativo (es. per `12345`, `e=4`, `d=0` ma per `87654`, `e=4`, `d=0` ma la regola si spinge oltre). In questi casi, i numeri vengono arrotondati alla decina, centinaia, ecc., più vicina.
+    - **Esempio:** Un valore come `87654` verrebbe arrotondato e visualizzato come `87650` se la regola lo richiedesse (anche se la notazione scientifica per `>10000` ha la precedenza).
+
+#### 7.3 Regola di Arrotondamento ("Regola del Cinque")
+L'applicazione utilizza l'arrotondamento standard "round half to even" o "round half to odd" a seconda dell'implementazione del browser, che è lo standard per la maggior parte dei calcoli scientifici per minimizzare il bias. In pratica, quando la cifra da scartare è un 5, il numero viene arrotondato alla cifra pari più vicina.
+- Esempio: `2.5` -> `2`, `3.5` -> `4`.
+
+#### 7.4 Gestione dei Valori Speciali
+- I valori non numerici, `null` o `undefined` vengono visualizzati come **"N/A"**.
+- Il valore `0` viene sempre visualizzato come **"0"**.
