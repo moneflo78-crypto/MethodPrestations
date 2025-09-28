@@ -3937,14 +3937,8 @@ function actionCalculateTreatmentChain(treatmentSampleId) {
         treatmentSample.results = null; // Assicura che i risultati vengano cancellati in caso di errore
     } finally {
         // --- REFRESH LOGIC ---
-        // After a treatment chain changes, refresh downstream dependencies.
-        if (appState.calibration.results) {
-            actionCalculateRegression();
-        }
-        if (appState.rfCalibration.results) {
-            actionCalculateResponseFactor();
-        }
-
+        // Il ricalcolo a cascata della taratura è stato rimosso per stabilità.
+        // L'utente dovrà ricalcolare manualmente la taratura se i dati di preparazione cambiano.
         render(); // Update UI at the very end
     }
 }
@@ -4148,15 +4142,8 @@ function actionCalculateSpikeUncertainty(sampleId) {
             }
         });
 
-        // Ricalcola la taratura se dipende da un trattamento che a sua volta dipende da questo spike.
-        // Il modo più semplice è ricalcolare se esistono già dei risultati.
-        if (appState.calibration.results) {
-            actionCalculateRegression();
-        }
-        if (appState.rfCalibration.results) {
-            actionCalculateResponseFactor();
-        }
-
+        // Il ricalcolo a cascata della taratura è stato rimosso per stabilità.
+        // L'utente dovrà ricalcolare manualmente la taratura se i dati di preparazione cambiano.
         render(); // Renderizza tutto alla fine della catena di aggiornamenti.
     }
 }
