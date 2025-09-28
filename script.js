@@ -476,8 +476,15 @@ function getInitialAppState() {
         samples: [],
         results: {}, // keyed by sample.id
         spikeUncertainty: {
-            // Data for spike uncertainty calculations, keyed by sample.id
-            // Each entry will contain initial concentration, uncertainty, and preparation steps.
+            useCommonReferenceMaterial: false,
+            commonReferenceMaterial: {
+                initialConcentration: null,
+                initialUncertainty: null,
+                unit: 'µg/L',
+                productCode: '',
+                lot: ''
+            }
+            // Data for spike uncertainty calculations is now keyed by sample.id dynamically.
         },
         calibrationSolutionUncertainty: {
             // Data for calibration solution uncertainty calculations, keyed by a unique ID for each calibration point.
@@ -1563,21 +1570,102 @@ function renderSpikeUncertainty() {
         return;
     }
 
-    let content = '';
+    const useCommon = appState.spikeUncertainty.useCommonReferenceMaterial;
+    const commonRef = appState.spikeUncertainty.commonReferenceMaterial;
+
+    let content = `
+        <div class="flex items-center p-4 mb-4 bg-blue-50 border-l-4 border-blue-500 rounded-r-lg">
+            <input id="use-common-ref-material-checkbox" type="checkbox" ${useCommon ? 'checked' : ''} class="h-5 w-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+            <label for="use-common-ref-material-checkbox" class="ml-3 block text-md font-medium text-gray-800">Usa un materiale di riferimento di partenza unico per tutti i campioni</label>
+        </div>
+    `;
+
+    if (useCommon) {
+        const commonInitialUncertaintyNote = commonRef.initialUncertaintyRelPerc ?
+            `<div class="text-xs text-gray-500 mt-1" title="Incertezza tipo relativa del materiale di riferimento (u_rel)">u_rel(certificato): <strong>${commonRef.initialUncertaintyRelPerc.toFixed(3)} %</strong></div>` : '';
+
+        content += `
+            <div class="bg-white p-6 rounded-lg shadow-md border border-gray-200 mb-6">
+                <h3 class="text-xl font-semibold text-gray-800 mb-4">Materiale di Riferimento Comune</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 border rounded-md bg-gray-50 mb-4">
+                    <div>
+                        <label for="common-initial-conc" class="block text-sm font-medium text-gray-700">Concentrazione</label>
+                        <div class="flex items-center space-x-2 mt-1">
+                            <input type="number" id="common-initial-conc" data-field="initialConcentration" class="common-spike-input w-full p-2 border border-gray-300 rounded-md" value="${commonRef.initialConcentration !== null ? commonRef.initialConcentration : ''}" placeholder="Es: 1000">
+                            <select data-field="unit" class="common-spike-input w-auto p-2 border border-gray-300 rounded-md bg-gray-50 text-sm">
+                                <option value="mg/L" ${commonRef.unit === 'mg/L' ? 'selected' : ''}>mg/L</option>
+                                <option value="µg/L" ${commonRef.unit === 'µg/L' ? 'selected' : ''}>µg/L</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="common-initial-unc" class="block text-sm font-medium text-gray-700">Incertezza certificato (U %)</label>
+                        <input type="number" id="common-initial-unc" data-field="initialUncertainty" class="common-spike-input mt-1 w-full p-2 border border-gray-300 rounded-md" value="${commonRef.initialUncertainty !== null ? commonRef.initialUncertainty : ''}" placeholder="Es: 0.5">
+                        ${commonInitialUncertaintyNote}
+                    </div>
+                    <div>
+                        <label for="common-product-code" class="block text-sm font-medium text-gray-700">Codice Prodotto</label>
+                        <input type="text" id="common-product-code" data-field="productCode" class="common-spike-input mt-1 w-full p-2 border border-gray-300 rounded-md" value="${commonRef.productCode || ''}" placeholder="Es: ERM-0123">
+                    </div>
+                    <div>
+                        <label for="common-lot" class="block text-sm font-medium text-gray-700">Lotto</label>
+                        <input type="text" id="common-lot" data-field="lot" class="common-spike-input mt-1 w-full p-2 border border-gray-300 rounded-md" value="${commonRef.lot || ''}" placeholder="Es: 12345-A">
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    let sampleCardsHTML = '';
     eligibleSamples.forEach(sample => {
         if (!appState.spikeUncertainty[sample.id]) {
             appState.spikeUncertainty[sample.id] = {
                 initialConcentration: null,
                 initialUncertainty: null,
                 unit: 'µg/L',
+                productCode: '',
+                lot: '',
                 steps: []
             };
         }
         const sampleSpikeState = appState.spikeUncertainty[sample.id];
 
+        let individualRefMaterialHTML = '';
+        if (!useCommon) {
+            const initialUncertaintyNote = sampleSpikeState.initialUncertaintyRelPerc ?
+                `<div class="text-xs text-gray-500 mt-1" title="Incertezza tipo relativa del materiale di riferimento (u_rel)">u_rel(certificato): <strong>${sampleSpikeState.initialUncertaintyRelPerc.toFixed(3)} %</strong></div>` : '';
+
+            individualRefMaterialHTML = `
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 border rounded-md bg-gray-50 mb-4">
+                    <div>
+                        <label for="initial-conc-${sample.id}" class="block text-sm font-medium text-gray-700">Concentrazione Materiale di Riferimento</label>
+                        <div class="flex items-center space-x-2 mt-1">
+                            <input type="number" id="initial-conc-${sample.id}" data-sample-id="${sample.id}" data-field="initialConcentration" class="spike-input w-full p-2 border border-gray-300 rounded-md" value="${sampleSpikeState.initialConcentration !== null ? sampleSpikeState.initialConcentration : ''}" placeholder="Es: 1000">
+                            <select data-sample-id="${sample.id}" data-field="unit" class="spike-input w-auto p-2 border border-gray-300 rounded-md bg-gray-50 text-sm">
+                                <option value="mg/L" ${sampleSpikeState.unit === 'mg/L' ? 'selected' : ''}>mg/L</option>
+                                <option value="µg/L" ${sampleSpikeState.unit === 'µg/L' ? 'selected' : ''}>µg/L</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="initial-unc-${sample.id}" class="block text-sm font-medium text-gray-700">Incertezza del certificato (U %)</label>
+                        <input type="number" id="initial-unc-${sample.id}" data-sample-id="${sample.id}" data-field="initialUncertainty" class="spike-input mt-1 w-full p-2 border border-gray-300 rounded-md" value="${sampleSpikeState.initialUncertainty !== null ? sampleSpikeState.initialUncertainty : ''}" placeholder="Es: 0.5">
+                        ${initialUncertaintyNote}
+                    </div>
+                    <div>
+                        <label for="product-code-${sample.id}" class="block text-sm font-medium text-gray-700">Codice Prodotto</label>
+                        <input type="text" id="product-code-${sample.id}" data-sample-id="${sample.id}" data-field="productCode" class="spike-input mt-1 w-full p-2 border border-gray-300 rounded-md" value="${sampleSpikeState.productCode || ''}" placeholder="Es: ERM-0123">
+                    </div>
+                    <div>
+                        <label for="lot-${sample.id}" class="block text-sm font-medium text-gray-700">Lotto</label>
+                        <input type="text" id="lot-${sample.id}" data-sample-id="${sample.id}" data-field="lot" class="spike-input mt-1 w-full p-2 border border-gray-300 rounded-md" value="${sampleSpikeState.lot || ''}" placeholder="Es: 12345-A">
+                    </div>
+                </div>`;
+        }
+
         let stepsHTML = '';
         if (sampleSpikeState.steps.length > 0) {
-            sampleSpikeState.steps.forEach((step, stepIndex) => {
+             sampleSpikeState.steps.forEach((step, stepIndex) => {
                 const flaskOptions = Object.keys(appState.libraries.glassware).map(key => {
                     const flask = appState.libraries.glassware[key];
                     const isSelected = key === step.dilutionFlask ? 'selected' : '';
@@ -1666,7 +1754,7 @@ function renderSpikeUncertainty() {
                         </div>
                     `;
                 } else { // addSolvent
-                    const solventPipetteOptions = Object.keys(appState.libraries.pipettes).map(key => {
+                     const solventPipetteOptions = Object.keys(appState.libraries.pipettes).map(key => {
                         const isSelected = key === step.addedSolventPipette ? 'selected' : '';
                         return `<option value="${key}" ${isSelected}>${key}</option>`;
                     }).join('');
@@ -1680,7 +1768,7 @@ function renderSpikeUncertainty() {
                         if (points.length > 0) volHint = `(min: ${Math.min(...points)}, max: ${Math.max(...points)})`;
                     }
 
-                    const uncertaintyValue = step.addedSolventPipette_U_perc !== undefined && step.addedSolventPipette_U_perc !== null ? step.addedSolventPipette_U_perc.toFixed(2) : '';
+                     const uncertaintyValue = step.addedSolventPipette_U_perc !== undefined && step.addedSolventPipette_U_perc !== null ? step.addedSolventPipette_U_perc.toFixed(2) : '';
                     const uncertaintyDisplayHTML = `
                         <div class="w-1/3">
                             <label class="block text-xs font-medium text-gray-600">U (%)</label>
@@ -1725,7 +1813,6 @@ function renderSpikeUncertainty() {
                         <h4 class="text-lg font-semibold text-gray-700 mb-4">Passaggio di Preparazione ${stepIndex + 1}</h4>
 
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-                            <!-- Colonna Sinistra: Prelievi -->
                             <div class="space-y-2">
                                  <h5 class="font-semibold text-gray-600">Prelievi</h5>
                                 <div id="withdrawals-container-${step.id}" class="mt-1 space-y-3">
@@ -1733,8 +1820,6 @@ function renderSpikeUncertainty() {
                                 </div>
                                 <button data-sample-id="${sample.id}" data-step-id="${step.id}" class="btn-add-withdrawal mt-2 text-xs bg-blue-100 text-blue-800 font-semibold py-1 px-2 rounded-md hover:bg-blue-200">+ Aggiungi Prelievo</button>
                             </div>
-
-                            <!-- Colonna Destra: Preparazione (Diluizione) -->
                             <div class="space-y-4">
                                 <h5 class="font-semibold text-gray-600">Preparazione</h5>
                                 ${dilutionMethodHTML}
@@ -1749,7 +1834,6 @@ function renderSpikeUncertainty() {
             stepsHTML = `<p class="text-gray-500 italic p-4 text-center">Nessun passaggio di preparazione definito. Aggiungine uno per iniziare.</p>`;
         }
 
-        // Final results rendering
         let resultsHTML = '';
         const results = sampleSpikeState.results;
         if (results) {
@@ -1765,7 +1849,6 @@ function renderSpikeUncertainty() {
                         <p class="text-sm text-gray-600">Incertezza tipo composta (u_c): <span class="font-bold text-black">${results.u_comp.toPrecision(3)}</span></p>
                         <p class="text-sm text-gray-600">Incertezza tipo composta relativa (u_c %): <span class="font-bold text-black">${results.u_comp_rel_perc.toFixed(2)} %</span></p>
                     </div>
-                    <!-- Sezione Verifiche -->
                     <div class="mt-4 pt-4 border-t border-gray-300">
                         <h5 class="text-md font-semibold text-gray-700 mb-2 text-right">Verifiche Aggiuntive</h5>
                         ${results.preparationCheck ? `
@@ -1785,36 +1868,13 @@ function renderSpikeUncertainty() {
             `;
         }
 
-
-        const initialUncertaintyNote = sampleSpikeState.initialUncertaintyRelPerc ?
-            `<div class="text-xs text-gray-500 mt-1" title="Incertezza tipo relativa del materiale di riferimento (u_rel)">u_rel(certificato): <strong>${sampleSpikeState.initialUncertaintyRelPerc.toFixed(3)} %</strong></div>` : '';
-
-        content += `
+        sampleCardsHTML += `
             <div class="bg-white p-6 rounded-lg shadow-md border border-gray-200 mb-6">
                 <h3 class="text-xl font-semibold text-gray-800 mb-4">Preparazione Spike per Campione: <span class="font-bold">${sample.name}</span></h3>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 border rounded-md bg-gray-50 mb-4">
-                    <div>
-                        <label for="initial-conc-${sample.id}" class="block text-sm font-medium text-gray-700">Concentrazione Materiale di Riferimento</label>
-                        <div class="flex items-center space-x-2 mt-1">
-                            <input type="number" id="initial-conc-${sample.id}" data-sample-id="${sample.id}" data-field="initialConcentration" class="spike-input w-full p-2 border border-gray-300 rounded-md" value="${sampleSpikeState.initialConcentration !== null ? sampleSpikeState.initialConcentration : ''}" placeholder="Es: 1000">
-                            <select data-sample-id="${sample.id}" data-field="unit" class="spike-input w-auto p-2 border border-gray-300 rounded-md bg-gray-50 text-sm">
-                                <option value="mg/L" ${sampleSpikeState.unit === 'mg/L' ? 'selected' : ''}>mg/L</option>
-                                <option value="µg/L" ${sampleSpikeState.unit === 'µg/L' ? 'selected' : ''}>µg/L</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div>
-                        <label for="initial-unc-${sample.id}" class="block text-sm font-medium text-gray-700">Incertezza del certificato (U %)</label>
-                        <input type="number" id="initial-unc-${sample.id}" data-sample-id="${sample.id}" data-field="initialUncertainty" class="spike-input mt-1 w-full p-2 border border-gray-300 rounded-md" value="${sampleSpikeState.initialUncertainty !== null ? sampleSpikeState.initialUncertainty : ''}" placeholder="Es: 0.5">
-                        ${initialUncertaintyNote}
-                    </div>
-                </div>
-
+                ${individualRefMaterialHTML}
                 <div id="steps-container-${sample.id}" class="space-y-6">
                     ${stepsHTML}
                 </div>
-
                 <div class="mt-4 pt-4 border-t flex justify-between items-center">
                     <button data-sample-id="${sample.id}" class="btn-add-step text-sm bg-blue-100 text-blue-800 font-semibold py-2 px-4 rounded-md hover:bg-blue-200 transition">+ Aggiungi Passaggio</button>
                     <div id="spike-results-container-${sample.id}" class="flex-grow ml-4">
@@ -1824,7 +1884,8 @@ function renderSpikeUncertainty() {
             </div>
         `;
     });
-    container.innerHTML = content;
+
+    container.innerHTML = content + sampleCardsHTML;
 }
 
 function renderTabs() {
@@ -3395,6 +3456,29 @@ function handleFileLoad(event) {
                 appState.project.projectName = fileNameWithoutExt.replace(/_/g, ' ');
             }
 
+            // --- Retro-compatibility for Spike Uncertainty ---
+            if (typeof appState.spikeUncertainty.useCommonReferenceMaterial === 'undefined') {
+                appState.spikeUncertainty.useCommonReferenceMaterial = false;
+            }
+            if (typeof appState.spikeUncertainty.commonReferenceMaterial === 'undefined') {
+                appState.spikeUncertainty.commonReferenceMaterial = getInitialAppState().spikeUncertainty.commonReferenceMaterial;
+            }
+
+            for (const key in appState.spikeUncertainty) {
+                if (key !== 'useCommonReferenceMaterial' && key !== 'commonReferenceMaterial') {
+                    const sampleSpike = appState.spikeUncertainty[key];
+                    if (typeof sampleSpike === 'object' && sampleSpike !== null) {
+                        if (!sampleSpike.hasOwnProperty('productCode')) {
+                            sampleSpike.productCode = '';
+                        }
+                        if (!sampleSpike.hasOwnProperty('lot')) {
+                            sampleSpike.lot = '';
+                        }
+                    }
+                }
+            }
+            // --- End Retro-compatibility ---
+
             setDirty(false); // A newly loaded project is not dirty.
             addProjectToRecents(appState);
             render(); // Render everything with the new state
@@ -3454,6 +3538,22 @@ function actionRemoveSpikeWithdrawal(sampleId, stepId, withdrawalId) {
     setDirty();
     render();
     actionCalculateSpikeUncertainty(sampleId);
+}
+
+function actionUpdateCommonSpikeState(field, value) {
+    const commonRef = appState.spikeUncertainty.commonReferenceMaterial;
+    if (commonRef.hasOwnProperty(field)) {
+        commonRef[field] = value;
+        setDirty();
+        // When common data changes, we need to recalculate ALL eligible spikes
+        appState.samples.forEach(sample => {
+            const result = appState.results[sample.id];
+            if (result && result.statistics && !result.error && (sample.expectedValue !== null && sample.expectedValue !== '')) {
+                // We don't need to re-render inside the loop, the last calculation will trigger it.
+                actionCalculateSpikeUncertainty(sample.id);
+            }
+        });
+    }
 }
 
 function _updateSpikeStateFromInput({ sampleId, stepId, withdrawalId, field, value }) {
@@ -3865,19 +3965,21 @@ function actionCalculateSpikeUncertainty(sampleId) {
                 resultsContainer.innerHTML = '';
             }
         }
-        sampleState.results = null;
-        // Pulisce anche i dati intermedi dai passaggi per evitare di visualizzare dati vecchi
-        sampleState.steps.forEach(step => {
-            step.intermediateConcentration = null;
-            step.intermediateUncertaintyRelPerc = null;
-            step.flaskUncertaintyRelPerc = null;
-            step.addedSolventPipetteUncertaintyRelPerc = null;
-            step.addedSolventPipette_U_perc = null;
-            step.withdrawals.forEach(w => {
-                w.pipetteUncertaintyRelPerc = null;
-                w.pipetteUncertainty_U_perc = null;
+        if (sampleState) {
+            sampleState.results = null;
+            // Pulisce anche i dati intermedi dai passaggi per evitare di visualizzare dati vecchi
+            sampleState.steps.forEach(step => {
+                step.intermediateConcentration = null;
+                step.intermediateUncertaintyRelPerc = null;
+                step.flaskUncertaintyRelPerc = null;
+                step.addedSolventPipetteUncertaintyRelPerc = null;
+                step.addedSolventPipette_U_perc = null;
+                step.withdrawals.forEach(w => {
+                    w.pipetteUncertaintyRelPerc = null;
+                    w.pipetteUncertainty_U_perc = null;
+                });
             });
-        });
+        }
         // NOTA: render() viene chiamato nel blocco finally
     };
 
@@ -3885,22 +3987,39 @@ function actionCalculateSpikeUncertainty(sampleId) {
         // Pulisce i risultati precedenti prima di ogni ricalcolo.
         resetAndShowMessage(null);
 
-        if (sampleState.initialConcentration === null || sampleState.initialConcentration <= 0) {
+        const useCommon = appState.spikeUncertainty.useCommonReferenceMaterial;
+        const refMaterialData = useCommon
+            ? appState.spikeUncertainty.commonReferenceMaterial
+            : sampleState;
+
+        // Pulisce le incertezze relative calcolate
+        if (sampleState) sampleState.initialUncertaintyRelPerc = null;
+        if (useCommon) {
+            appState.spikeUncertainty.commonReferenceMaterial.initialUncertaintyRelPerc = null;
+        }
+
+        if (!refMaterialData || refMaterialData.initialConcentration === null || refMaterialData.initialConcentration <= 0) {
             return; // Esce silenziosamente se i dati iniziali non sono pronti.
         }
 
         const sample = appState.samples.find(s => s.id == sampleId);
         if (!sample) throw new Error(`Campione con ID ${sampleId} non trovato.`);
         const targetUnit = sample.unit;
-        const sourceUnit = sampleState.unit;
-        const convertedInitialConcentration = convertConcentration(sampleState.initialConcentration, sourceUnit, targetUnit);
+        const sourceUnit = refMaterialData.unit;
+        const convertedInitialConcentration = convertConcentration(refMaterialData.initialConcentration, sourceUnit, targetUnit);
         let currentConcentration = convertedInitialConcentration;
 
         let sum_u_rel_sq;
-        if (sampleState.initialUncertainty !== null && sampleState.initialUncertainty > 0) {
-            const u_rel_initial = sampleState.initialUncertainty / (200 * Math.sqrt(2));
+        if (refMaterialData.initialUncertainty !== null && refMaterialData.initialUncertainty > 0) {
+            const u_rel_initial = refMaterialData.initialUncertainty / (200 * Math.sqrt(2));
             sum_u_rel_sq = Math.pow(u_rel_initial, 2);
-            sampleState.initialUncertaintyRelPerc = u_rel_initial * 100;
+            // Salva l'incertezza relativa calcolata nel posto giusto per il rendering
+            const uncertaintyRelPerc = u_rel_initial * 100;
+            if (useCommon) {
+                appState.spikeUncertainty.commonReferenceMaterial.initialUncertaintyRelPerc = uncertaintyRelPerc;
+            } else if (sampleState) {
+                sampleState.initialUncertaintyRelPerc = uncertaintyRelPerc;
+            }
         } else {
             sum_u_rel_sq = 0;
         }
@@ -5060,18 +5179,28 @@ function gatherReportData() {
         if (selections.matrix_spike) {
             const spikeData = appState.spikeUncertainty[sampleId];
             if (spikeData && spikeData.results) {
+                const useCommon = appState.spikeUncertainty.useCommonReferenceMaterial;
+                const refMaterial = useCommon
+                    ? appState.spikeUncertainty.commonReferenceMaterial
+                    : spikeData;
+
                 blocks.push({
                     title: 'Preparazione Matrix Spike',
                     type: 'summary',
                     content: spikeData.results.summary || 'Nessun riepilogo disponibile.'
                 });
+
+                const content = [
+                    { key: 'Materiale di Riferimento - Codice Prodotto', value: refMaterial.productCode || 'N/D' },
+                    { key: 'Materiale di Riferimento - Lotto', value: refMaterial.lot || 'N/D' },
+                    { key: 'Concentrazione Finale Calcolata', value: `${formatNumberWithRules(spikeData.results.finalConcentration)} ${sample.unit || 'µg/L'}` },
+                    { key: 'Incertezza tipo composta (u_c %)', value: `${formatNumberWithRules(spikeData.results.u_comp_rel_perc)} %` }
+                ];
+
                 blocks.push({
                     title: 'Risultati Matrix Spike',
                     type: 'keyValue',
-                    content: [
-                        { key: 'Concentrazione Finale Calcolata', value: `${formatNumberWithRules(spikeData.results.finalConcentration)} ${sample.unit || 'µg/L'}` },
-                        { key: 'Incertezza tipo composta (u_c %)', value: `${formatNumberWithRules(spikeData.results.u_comp_rel_perc)} %` }
-                    ]
+                    content: content
                 });
             }
         }
@@ -5712,6 +5841,28 @@ function main() {
 
      prepContainer.addEventListener('change', e => {
         const target = e.target;
+
+        if (target.id === 'use-common-ref-material-checkbox') {
+            appState.spikeUncertainty.useCommonReferenceMaterial = target.checked;
+            setDirty();
+            render();
+            // Ricalcola tutto se la modalità cambia
+            appState.samples.forEach(sample => {
+                 const result = appState.results[sample.id];
+                 if (result && result.statistics && !result.error && (sample.expectedValue !== null && sample.expectedValue !== '')) {
+                    actionCalculateSpikeUncertainty(sample.id);
+                 }
+            });
+            return;
+        }
+
+        if (target.matches('.common-spike-input')) {
+            const field = target.dataset.field;
+            const value = target.type === 'number' ? (target.value === '' ? null : parseFloat(target.value)) : target.value;
+            actionUpdateCommonSpikeState(field, value);
+            return;
+        }
+
         const { sampleId, stepId, withdrawalId, field: dataField, pointId } = target.dataset;
 
         // --- Spike Logic ---
