@@ -1837,12 +1837,18 @@ function renderSpikeUncertainty() {
         let resultsHTML = '';
         const results = sampleSpikeState.results;
         if (results) {
+            const useCommon = appState.spikeUncertainty.useCommonReferenceMaterial;
+            const refMaterial = useCommon
+                ? appState.spikeUncertainty.commonReferenceMaterial
+                : sampleSpikeState;
+
             const sampleUnit = sample.unit || 'µg/L';
             resultsHTML = `
                 <div class="mt-4 pt-4 border-t">
                     <h4 class="text-md font-semibold text-gray-700 mb-2">Riepilogo Finale</h4>
                      ${results.summary ? `<div class="text-sm p-3 bg-gray-100 rounded-md border text-gray-600">${results.summary}</div>` : ''}
                     <div class="mt-3 text-right">
+                        <p class="text-sm text-gray-600 pb-2 mb-2 border-b">Mat. Riferimento: <span class="font-bold text-black">${refMaterial.productCode || 'N/D'} (Lotto: ${refMaterial.lot || 'N/D'})</span></p>
                         <p class="text-sm text-gray-600">Concentrazione Finale Calcolata: <span class="font-bold text-lg text-black">${results.finalConcentration.toPrecision(4)} ${sampleUnit}</span></p>
                         <p class="text-sm text-gray-600">Valore Nominale Campione Preparato: <span class="font-bold text-lg text-black">${parseFloat(sample.expectedValue).toPrecision(4)} ${sampleUnit}</span></p>
                         <p class="text-sm text-gray-600">Valore Medio Campione (da Statistica): <span class="font-bold text-lg text-black">${appState.results[sample.id].statistics.mean.toPrecision(4)} ${sampleUnit}</span></p>
