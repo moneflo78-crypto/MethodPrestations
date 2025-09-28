@@ -55,6 +55,8 @@ In questa scheda puoi calcolare l'incertezza derivante dalla preparazione di sta
 
 - **Incertezza nella preparazione delle soluzioni di taratura:** Qui puoi modellare come hai preparato ogni standard della curva di taratura, partendo da un materiale di riferimento.
 - **Preparazione dei matrix spike:** Questa sezione si attiva solo per i campioni per cui hai inserito un "Valore Atteso" nella scheda precedente. Permette di calcolare l'incertezza associata alla preparazione dello spike.
+  - **Novità:** All'inizio della sezione, troverai una casella di controllo che ti permette di **usare un materiale di riferimento di partenza unico** per tutti i campioni. Selezionando questa opzione, potrai inserire una sola volta i dati del materiale (concentrazione, incertezza, **codice prodotto** e **lotto**), semplificando l'inserimento quando tutti gli spike originano dallo stesso standard madre.
+  - Se non selezioni questa opzione, potrai definire un materiale di partenza diverso per ogni singolo campione, inserendo anche in questo caso il codice prodotto e il lotto specifici.
 - **Trattamenti di campioni e estratti:** Questa potente sezione ti permette di calcolare l'incertezza per una catena di trattamenti (diluizioni, estrazioni, concentrazioni) applicati a un campione.
     1. Clicca su **"+ Aggiungi Campione da Trattare"**.
     2. Seleziona il campione di partenza (che può essere un campione base o il risultato di uno spike).
