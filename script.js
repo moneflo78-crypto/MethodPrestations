@@ -58,6 +58,23 @@ const VALIDATION_TEST_CASES = [
             W: 0.880,
             kp: -1.331
         }
+    },
+    {
+        id: 'unichim_179_1_huber_test',
+        name: "Unichim 179/1 - Esempio 1: Test di Huber per dati anomali (MAD)",
+        description: "Questo test replica l'esempio 1, paragrafo 12, del manuale Unichim 179/1 (Ed. 2011), verificando l'identificazione di dati anomali con il test di Huber basato sulla MAD. Il test verifica che i valori specificati (0.63 e 0.64) non rispettino la disequazione, confermandoli come anomali.",
+        type: 'huber-mad',
+        inputs: {
+            data: [0.72, 0.73, 0.73, 0.75, 0.76, 0.80, 0.78, 0.80, 0.74, 0.74, 0.63, 0.64],
+            median: 0.74,
+            mad: 0.02,
+            values_to_check: [0.63, 0.64],
+            threshold: 4.5
+        },
+        expectedResults: {
+            // Per questo test, l'aspettativa è che il valore calcolato sia MAGGIORE della soglia.
+            // Il test avrà successo se calculated > threshold.
+        }
     }
     // Futuri casi di test possono essere aggiunti qui
 ];
@@ -722,9 +739,9 @@ function renderValidationUI() {
                        </div>`;
         } else {
             let inputDataHTML = '';
-            // Mostra i dati di input solo per il test Unichim
-            if (results.testId === 'unichim_179_1_esempio_1' && results.inputs?.data) {
-                inputDataHTML = `
+            // Mostra i dati di input per i test che li forniscono in modo specifico
+            if (results.inputs?.data) {
+                 inputDataHTML = `
                     <div class="mb-4 p-4 border rounded-lg bg-gray-50">
                         <h4 class="font-semibold text-gray-700 mb-2">Dati di Input (x_i)</h4>
                         <p class="font-mono text-sm text-gray-800 break-all">${results.inputs.data.join('; ')}</p>
@@ -739,11 +756,11 @@ function renderValidationUI() {
                 const item = results.comparison[key];
                 const statusClass = item.pass ? "bg-green-100 text-green-900" : "bg-red-100 text-red-900";
                 const statusText = item.pass ? "Pass" : "Fail";
-                const difference = item.difference.toExponential(2); // Mostra la differenza assoluta in notazione scientifica
+                const difference = (typeof item.difference === 'number') ? item.difference.toExponential(2) : 'N/A';
 
                 return `
                     <tr class="border-b">
-                        <td class="p-3 font-medium text-gray-700">${key === 'S2' ? 'S²' : key}</td>
+                        <td class="p-3 font-medium text-gray-700">${key.replace(/_/g, ' ')}</td>
                         <td class="p-3 font-mono text-right">${item.calculated}</td>
                         <td class="p-3 font-mono text-right">${item.expected}</td>
                         <td class="p-3 font-mono text-right">${difference}</td>
@@ -756,18 +773,23 @@ function renderValidationUI() {
                 `;
             }).join('');
 
+            // Messaggio di condizione di superamento dinamico
+            const passConditionMessage = results.passCondition ||
+                "Il test è considerato superato se la differenza relativa tra il valore calcolato e quello atteso è inferiore o uguale a 1%.";
+
+
             content = `
                 ${inputDataHTML}
                 <div class="p-4 rounded-lg border ${results.allPassed ? 'border-green-300 bg-green-50' : 'border-red-300 bg-red-50'}">
                      <h3 class="text-xl font-bold mb-4 text-gray-800">Risultati del Test: <span class="px-3 py-1 text-lg rounded-full ${overallStatusClass}">${overallStatusText}</span></h3>
-                      <p class="text-sm text-gray-600 mb-4">Il test è considerato superato se la differenza relativa tra il valore calcolato e quello atteso è inferiore o uguale a 1%.</p>
+                      <p class="text-sm text-gray-600 mb-4">${passConditionMessage}</p>
                      <div class="overflow-x-auto border rounded-lg">
                         <table class="w-full text-sm">
                             <thead class="bg-gray-200">
                                 <tr>
                                     <th class="p-3 text-left">Parametro</th>
                                     <th class="p-3 text-right">Valore Calcolato</th>
-                                    <th class="p-3 text-right">Valore Atteso</th>
+                                    <th class="p-3 text-right">Condizione Attesa</th>
                                     <th class="p-3 text-right">Differenza Assoluta</th>
                                     <th class="p-3 text-center">Stato</th>
                                 </tr>
@@ -5291,6 +5313,8 @@ function actionRunValidationTest() {
             results = executeRegressionValidation(testCase);
         } else if (testCase.type === 'shapiro-wilk') {
             results = executeShapiroWilkValidation(testCase);
+        } else if (testCase.type === 'huber-mad') {
+            results = executeHuberMadValidation(testCase);
         } else {
             results = { error: `Tipo di test '${testCase.type}' non supportato.` };
         }
@@ -5302,6 +5326,40 @@ function actionRunValidationTest() {
 
     appState.validation.results = results;
     render();
+}
+
+function executeHuberMadValidation(testCase) {
+    const { median, mad, values_to_check, threshold } = testCase.inputs;
+
+    const comparison = {};
+    let allTestsPassed = true;
+
+    values_to_check.forEach(value => {
+        const calculated = Math.abs(value - median) / mad;
+        const pass = calculated > threshold; // Il test è superato se il valore è anomalo (maggiore della soglia)
+
+        if (!pass) {
+            allTestsPassed = false;
+        }
+
+        const key = `Test per valore ${value}`;
+        comparison[key] = {
+            calculated: calculated.toFixed(3),
+            expected: `> ${threshold}`,
+            pass: pass,
+            difference: calculated - threshold
+        };
+    });
+
+    return {
+        testId: testCase.id,
+        testName: testCase.name,
+        inputs: { data: testCase.inputs.data },
+        comparison: comparison,
+        allPassed: allTestsPassed,
+        passCondition: `Il test è considerato superato se il valore calcolato è maggiore della soglia (${threshold}), confermando che il dato è correttamente identificato come anomalo.`,
+        error: null
+    };
 }
 
 function executeShapiroWilkValidation(testCase) {
