@@ -73,6 +73,23 @@ const VALIDATION_TEST_CASES = [
             median: 0.74,
             mad: 0.02
         }
+    },
+    {
+        id: 'unichim_179_1_grubbs_test',
+        name: "Unichim 179/1 - Esempio 1: Test di Grubbs per dati anomali",
+        description: "Questo test replica l'esempio 1, paragrafo 12, del manuale Unichim 179/1 (Ed. 2011). Verifica il calcolo della statistica di Grubbs per l'identificazione di un valore anomalo (0.63). Il test verifica che il valore G calcolato sia inferiore al valore critico, indicando che il dato non è un outlier secondo questo specifico test.",
+        type: 'grubbs',
+        inputs: {
+            data: [0.72, 0.73, 0.73, 0.75, 0.76, 0.80, 0.78, 0.80, 0.74, 0.74, 0.63, 0.64],
+            suspect_value: 0.63
+        },
+        expectedResults: {
+            mean: 0.735,
+            std_dev: 0.0537,
+            G_calculated: 1.955,
+            G_critical: 2.412,
+            is_outlier: false
+        }
     }
     // Futuri casi di test possono essere aggiunti qui
 ];
@@ -228,6 +245,88 @@ function calculateRegressionLine(cal_x, cal_y) {
         n_cal: n,
         y_medio_cal: y_medio,
         sum_sq_diff_x_cal: sum_sq_diff_x
+    };
+}
+
+function executeGrubbsValidation(testCase) {
+    const { data, suspect_value } = testCase.inputs;
+    const { expectedResults } = testCase;
+    const n = data.length;
+
+    const comparison = {};
+    let allTestsPassed = true;
+
+    // 1. Calcola e verifica la media
+    const calculatedMean = ss.mean(data);
+    const expectedMean = expectedResults.mean;
+    const meanRelDiff = Math.abs((calculatedMean - expectedMean) / expectedMean);
+    const meanPass = meanRelDiff <= 0.01;
+    if (!meanPass) allTestsPassed = false;
+    comparison['Media'] = {
+        calculated: calculatedMean.toPrecision(6),
+        expected: expectedMean.toPrecision(6),
+        pass: meanPass,
+        difference: calculatedMean - expectedMean
+    };
+
+    // 2. Calcola e verifica la deviazione standard
+    const calculatedStdDev = ss.sampleStandardDeviation(data);
+    const expectedStdDev = expectedResults.std_dev;
+    const stdDevRelDiff = Math.abs((calculatedStdDev - expectedStdDev) / expectedStdDev);
+    const stdDevPass = stdDevRelDiff <= 0.01;
+    if (!stdDevPass) allTestsPassed = false;
+    comparison['Deviazione Standard'] = {
+        calculated: calculatedStdDev.toPrecision(6),
+        expected: expectedStdDev.toPrecision(6),
+        pass: stdDevPass,
+        difference: calculatedStdDev - expectedStdDev
+    };
+
+    // 3. Calcola e verifica la statistica G
+    const calculatedG = Math.abs(suspect_value - calculatedMean) / calculatedStdDev;
+    const expectedG = expectedResults.G_calculated;
+    const gRelDiff = Math.abs((calculatedG - expectedG) / expectedG);
+    const gPass = gRelDiff <= 0.01;
+    if (!gPass) allTestsPassed = false;
+    comparison['G Calcolato'] = {
+        calculated: calculatedG.toPrecision(6),
+        expected: expectedG.toPrecision(6),
+        pass: gPass,
+        difference: calculatedG - expectedG
+    };
+
+    // 4. Verifica il valore G critico
+    const criticalG = GRUBBS_CRITICAL_VALUES_0_05[n];
+    const expectedCriticalG = expectedResults.G_critical;
+    const criticalGPass = criticalG === expectedCriticalG;
+    if (!criticalGPass) allTestsPassed = false;
+    comparison['G Critico'] = {
+        calculated: criticalG.toString(),
+        expected: expectedCriticalG.toString(),
+        pass: criticalGPass,
+        difference: criticalG - expectedCriticalG
+    };
+
+    // 5. Verifica il risultato del test
+    const isOutlier = calculatedG > criticalG;
+    const expectedIsOutlier = expectedResults.is_outlier;
+    const outlierPass = isOutlier === expectedIsOutlier;
+    if (!outlierPass) allTestsPassed = false;
+    comparison['È Outlier'] = {
+        calculated: isOutlier.toString(),
+        expected: expectedIsOutlier.toString(),
+        pass: outlierPass,
+        difference: NaN
+    };
+
+    return {
+        testId: testCase.id,
+        testName: testCase.name,
+        inputs: { data: data },
+        comparison: comparison,
+        allPassed: allTestsPassed,
+        passCondition: `Il test è superato se i valori numerici hanno una differenza relativa <= 1% rispetto all'atteso e il risultato del test (È Outlier) è corretto.`,
+        error: null
     };
 }
 
@@ -5313,6 +5412,8 @@ function actionRunValidationTest() {
             results = executeShapiroWilkValidation(testCase);
         } else if (testCase.type === 'huber-mad') {
             results = executeHuberMadValidation(testCase);
+        } else if (testCase.type === 'grubbs') {
+            results = executeGrubbsValidation(testCase);
         } else {
             results = { error: `Tipo di test '${testCase.type}' non supportato.` };
         }
