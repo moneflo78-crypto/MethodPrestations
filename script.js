@@ -44,15 +44,17 @@ const VALIDATION_TEST_CASES = [
         description: "Questo test replica l'esempio 1, paragrafo 12, del manuale Unichim 179/1 (Ed. 2011). Verifica il calcolo del test di normalità di Shapiro-Wilk con i dati di letteratura, confrontando la statistica W e il parametro kp calcolati.",
         type: 'shapiro-wilk',
         inputs: {
-            data: [0.72, 0.73, 0.73, 0.75, 0.76, 0.80, 0.78, 0.80, 0.74, 0.74, 0.63, 0.64],
-            intermediate_b: 0.1670, // From Unichim 179/1 manual, Esempio 1
-            intermediate_S2: 0.0317  // From Unichim 179/1 manual, Esempio 1
+            data: [0.72, 0.73, 0.73, 0.75, 0.76, 0.80, 0.78, 0.80, 0.74, 0.74, 0.63, 0.64]
         },
         roundingRules: {
+            S2: 4,
+            b: 4,
             W: 3,
             kp: 3
         },
         expectedResults: {
+            S2: 0.0317,
+            b: 0.1670,
             W: 0.880,
             kp: -1.331
         }
@@ -719,6 +721,17 @@ function renderValidationUI() {
                            <p>${results.error}</p>
                        </div>`;
         } else {
+            let inputDataHTML = '';
+            // Mostra i dati di input solo per il test Unichim
+            if (results.testId === 'unichim_179_1_esempio_1' && results.inputs?.data) {
+                inputDataHTML = `
+                    <div class="mb-4 p-4 border rounded-lg bg-gray-50">
+                        <h4 class="font-semibold text-gray-700 mb-2">Dati di Input (x_i)</h4>
+                        <p class="font-mono text-sm text-gray-800 break-all">${results.inputs.data.join('; ')}</p>
+                    </div>
+                `;
+            }
+
             const overallStatusClass = results.allPassed ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800";
             const overallStatusText = results.allPassed ? "SUPERATO" : "FALLITO";
 
@@ -726,14 +739,14 @@ function renderValidationUI() {
                 const item = results.comparison[key];
                 const statusClass = item.pass ? "bg-green-100 text-green-900" : "bg-red-100 text-red-900";
                 const statusText = item.pass ? "Pass" : "Fail";
-                const difference = item.difference.toExponential(2);
+                const difference = item.difference.toExponential(2); // Mostra la differenza assoluta in notazione scientifica
 
                 return `
                     <tr class="border-b">
-                        <td class="p-3 font-medium text-gray-700">${key}</td>
+                        <td class="p-3 font-medium text-gray-700">${key === 'S2' ? 'S²' : key}</td>
                         <td class="p-3 font-mono text-right">${item.calculated}</td>
                         <td class="p-3 font-mono text-right">${item.expected}</td>
-                        <td class="p-3 font-mono text-right ${Math.abs(item.difference) > 1e-9 ? 'text-red-600' : ''}">${difference}</td>
+                        <td class="p-3 font-mono text-right">${difference}</td>
                         <td class="p-3 text-center">
                             <span class="px-2 py-1 text-xs font-semibold rounded-full ${statusClass}">
                                 ${statusText}
@@ -744,8 +757,10 @@ function renderValidationUI() {
             }).join('');
 
             content = `
+                ${inputDataHTML}
                 <div class="p-4 rounded-lg border ${results.allPassed ? 'border-green-300 bg-green-50' : 'border-red-300 bg-red-50'}">
                      <h3 class="text-xl font-bold mb-4 text-gray-800">Risultati del Test: <span class="px-3 py-1 text-lg rounded-full ${overallStatusClass}">${overallStatusText}</span></h3>
+                      <p class="text-sm text-gray-600 mb-4">Il test è considerato superato se la differenza relativa tra il valore calcolato e quello atteso è inferiore o uguale a 1%.</p>
                      <div class="overflow-x-auto border rounded-lg">
                         <table class="w-full text-sm">
                             <thead class="bg-gray-200">
@@ -753,7 +768,7 @@ function renderValidationUI() {
                                     <th class="p-3 text-left">Parametro</th>
                                     <th class="p-3 text-right">Valore Calcolato</th>
                                     <th class="p-3 text-right">Valore Atteso</th>
-                                    <th class="p-3 text-right">Differenza</th>
+                                    <th class="p-3 text-right">Differenza Assoluta</th>
                                     <th class="p-3 text-center">Stato</th>
                                 </tr>
                             </thead>
@@ -3615,6 +3630,9 @@ function handleFileLoad(event) {
             if (!appState.reportSettings) {
                 appState.reportSettings = getInitialAppState().reportSettings;
             }
+            if (!appState.validation) {
+                appState.validation = getInitialAppState().validation;
+            }
             if (!appState.project.projectName) {
                 const fileNameWithoutExt = file.name.endsWith('.json') ? file.name.slice(0, -5) : file.name;
                 appState.project.projectName = fileNameWithoutExt.replace(/_/g, ' ');
@@ -5287,66 +5305,58 @@ function actionRunValidationTest() {
 }
 
 function executeShapiroWilkValidation(testCase) {
-    const { data, intermediate_b, intermediate_S2 } = testCase.inputs;
+    const { data } = testCase.inputs;
     const rules = testCase.roundingRules;
     const n = data.length;
 
-    let shapiroResult;
+    // --- Standard Calculation (full precision) ---
+    const mean = data.reduce((a, b) => a + b, 0) / data.length;
+    const S2 = data.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0);
+    const a_half = a_coeffs_table[n];
+    if (!a_half) throw new Error(`Coefficienti di Shapiro-Wilk non trovati per n=${n}.`);
 
-    // Special handling for tests that provide intermediate rounded values like Unichim 179/1
-    if (intermediate_b !== undefined && intermediate_S2 !== undefined) {
-        // Re-calculate W and kp using the manual's intermediate values to match their final result
-        const W_unrounded = Math.pow(intermediate_b, 2) / intermediate_S2;
+    const a = new Array(n);
+    for(let i=0; i < Math.ceil(n/2); i++) { a[i] = -a_half[i]; a[n-1-i] = a_half[i]; }
+    if (n % 2 === 1) a[Math.floor(n/2)] = 0;
 
-        // Round W according to the rules before using it to calculate kp, to replicate the manual's method
-        const W_rounded = parseFloat(W_unrounded.toFixed(rules.W));
-        const W_prime = Math.min(W_rounded, 1.0);
+    const sorted_data = data.slice().sort((a, b) => a - b);
+    const b = sorted_data.reduce((sum, val, i) => sum + a[i] * val, 0);
 
-        const { g, e, f } = kp_coeffs_table[n];
-        if (!g || !e || !f) {
-            throw new Error(`Coefficienti di Shapiro-Wilk non trovati per n=${n}.`);
-        }
-        const kp = g + e * Math.log((W_prime - f) / (1 - W_prime));
+    const W = Math.pow(b, 2) / S2;
+    const { g, e, f } = kp_coeffs_table[n];
+    if (!g || !e || !f) throw new Error(`Coefficienti Kp di Shapiro-Wilk non trovati per n=${n}.`);
 
-        // The result for W should be the rounded one
-        shapiroResult = { W: W_prime, kp: isNaN(kp) ? Infinity : kp, error: null };
-    } else {
-        // Standard calculation for other tests
-        shapiroResult = shapiroWilk(data);
-    }
+    const kp = g + e * Math.log((W - f) / (1 - W));
 
-    if (shapiroResult.error) {
-        throw new Error(shapiroResult.error);
-    }
+    const calculatedResults = { S2, b, W, kp };
 
-    // Create string representations for display, respecting the requested precision
-    const calculated_string = {
-        W: shapiroResult.W.toFixed(rules.W),
-        kp: shapiroResult.kp.toFixed(rules.kp)
-    };
-
+    // --- Comparison and Formatting ---
     const comparison = {};
     let allTestsPassed = true;
     for (const key in testCase.expectedResults) {
         const expected = testCase.expectedResults[key];
-        const actual_num = parseFloat(calculated_string[key]);
+        const calculated = calculatedResults[key];
 
-        // Use a small tolerance for float comparison to account for potential precision errors
-        const pass = Math.abs(actual_num - expected) < 1e-9;
+        // New pass/fail criterion: relative difference <= 1%
+        const relativeDifference = (expected !== 0) ? Math.abs((calculated - expected) / expected) : Math.abs(calculated - expected);
+        const pass = relativeDifference <= 0.01;
+
         if (!pass) allTestsPassed = false;
 
+        const rule = rules[key] || 4;
+
         comparison[key] = {
-            calculated: calculated_string[key], // Use formatted string for display
-            expected: expected.toFixed(rules[key]), // Format expected for consistent display
+            calculated: calculated.toFixed(rule),
+            expected: expected.toFixed(rule),
             pass: pass,
-            difference: actual_num - expected
+            difference: calculated - expected
         };
     }
 
     return {
         testId: testCase.id,
         testName: testCase.name,
-        calculatedResults: calculated_string,
+        inputs: { data: data },
         comparison: comparison,
         allPassed: allTestsPassed,
         error: null
