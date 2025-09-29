@@ -61,19 +61,17 @@ const VALIDATION_TEST_CASES = [
     },
     {
         id: 'unichim_179_1_huber_test',
-        name: "Unichim 179/1 - Esempio 1: Test di Huber per dati anomali (MAD)",
-        description: "Questo test replica l'esempio 1, paragrafo 12, del manuale Unichim 179/1 (Ed. 2011), verificando l'identificazione di dati anomali con il test di Huber basato sulla MAD. Il test verifica che i valori specificati (0.63 e 0.64) non rispettino la disequazione, confermandoli come anomali.",
+        name: "Unichim 179/1 - Esempio 1: Test di Huber (Mediana, MAD e anomalie)",
+        description: "Questo test replica l'esempio 1, paragrafo 12, del manuale Unichim 179/1 (Ed. 2011). Verifica il calcolo della Mediana e della MAD con una tolleranza dell'1% e l'identificazione di dati anomali con il test di Huber. Il test verifica che i valori specificati (0.63 e 0.64) non rispettino la disequazione, confermandoli come anomali.",
         type: 'huber-mad',
         inputs: {
             data: [0.72, 0.73, 0.73, 0.75, 0.76, 0.80, 0.78, 0.80, 0.74, 0.74, 0.63, 0.64],
-            median: 0.74,
-            mad: 0.02,
             values_to_check: [0.63, 0.64],
             threshold: 4.5
         },
         expectedResults: {
-            // Per questo test, l'aspettativa è che il valore calcolato sia MAGGIORE della soglia.
-            // Il test avrà successo se calculated > threshold.
+            median: 0.74,
+            mad: 0.02
         }
     }
     // Futuri casi di test possono essere aggiunti qui
@@ -5329,35 +5327,67 @@ function actionRunValidationTest() {
 }
 
 function executeHuberMadValidation(testCase) {
-    const { median, mad, values_to_check, threshold } = testCase.inputs;
+    const { data, values_to_check, threshold } = testCase.inputs;
+    const { expectedResults } = testCase;
 
     const comparison = {};
     let allTestsPassed = true;
 
+    // 1. Calcola e verifica la Mediana
+    const calculatedMedian = median(data);
+    const expectedMedian = expectedResults.median;
+    const medianRelDiff = Math.abs((calculatedMedian - expectedMedian) / expectedMedian);
+    const medianPass = medianRelDiff <= 0.01;
+    if (!medianPass) allTestsPassed = false;
+
+    comparison['Mediana'] = {
+        calculated: calculatedMedian.toFixed(4),
+        expected: expectedMedian.toFixed(4),
+        pass: medianPass,
+        difference: calculatedMedian - expectedMedian
+    };
+
+    // 2. Calcola e verifica la MAD
+    const deviations = data.map(d => Math.abs(d - calculatedMedian));
+    const calculatedMad = median(deviations);
+    const expectedMad = expectedResults.mad;
+    const madRelDiff = Math.abs((calculatedMad - expectedMad) / expectedMad);
+    const madPass = madRelDiff <= 0.01;
+    if (!madPass) allTestsPassed = false;
+
+    comparison['MAD'] = {
+        calculated: calculatedMad.toFixed(4),
+        expected: expectedMad.toFixed(4),
+        pass: madPass,
+        difference: calculatedMad - expectedMad
+    };
+
+    // 3. Verifica i dati anomali
     values_to_check.forEach(value => {
-        const calculated = Math.abs(value - median) / mad;
-        const pass = calculated > threshold; // Il test è superato se il valore è anomalo (maggiore della soglia)
+        // Usa i valori calcolati di mediana e MAD per il test di anomalia
+        const huberStatistic = Math.abs(value - calculatedMedian) / calculatedMad;
+        const pass = huberStatistic > threshold; // Il test è superato se il valore è anomalo
 
         if (!pass) {
             allTestsPassed = false;
         }
 
-        const key = `Test per valore ${value}`;
+        const key = `Test_anomalia_per_${value}`;
         comparison[key] = {
-            calculated: calculated.toFixed(3),
+            calculated: huberStatistic.toFixed(3),
             expected: `> ${threshold}`,
             pass: pass,
-            difference: calculated - threshold
+            difference: huberStatistic - threshold
         };
     });
 
     return {
         testId: testCase.id,
         testName: testCase.name,
-        inputs: { data: testCase.inputs.data },
+        inputs: { data: data },
         comparison: comparison,
         allPassed: allTestsPassed,
-        passCondition: `Il test è considerato superato se il valore calcolato è maggiore della soglia (${threshold}), confermando che il dato è correttamente identificato come anomalo.`,
+        passCondition: `Il test è superato se la Mediana e la MAD calcolate hanno una differenza relativa <= 1% rispetto all'atteso, e se i valori di test per le anomalie sono > ${threshold}.`,
         error: null
     };
 }
