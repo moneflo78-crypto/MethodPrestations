@@ -60,6 +60,7 @@
                     </div>
                 </div>
             </div>
+
         </header>
 
         <main>
@@ -84,11 +85,11 @@
                     <button data-tab-name="librerie" id="tab-librerie" class="tab-btn whitespace-nowrap py-4 px-1 border-b-2 font-medium text-lg text-gray-500 hover:text-blue-600 hover:border-blue-300">
                         Gestione Librerie
                     </button>
-                     <button data-tab-name="validazione" id="tab-validazione" class="tab-btn whitespace-nowrap py-4 px-1 border-b-2 font-medium text-lg text-gray-500 hover:text-blue-600 hover:border-blue-300">
-                        Verifica Validazione
-                    </button>
                     <button data-tab-name="report-progetto" id="tab-report-progetto" class="tab-btn whitespace-nowrap py-4 px-1 border-b-2 font-medium text-lg text-gray-500 hover:text-blue-600 hover:border-blue-300">
                         Report
+                    </button>
+                     <button data-tab-name="validazione" id="tab-validazione" class="tab-btn whitespace-nowrap py-4 px-1 border-b-2 font-medium text-lg text-gray-500 hover:text-blue-600 hover:border-blue-300">
+                        Verifica Validazione
                     </button>
                 </nav>
             </div>
@@ -355,34 +356,6 @@
                 </div>
             </div>
 
-            <!-- NUOVA SCHEDA: Verifica Validazione -->
-            <div id="content-validazione" class="hidden">
-                 <div class="bg-white p-6 rounded-lg shadow-md border border-gray-200">
-                    <h2 class="text-2xl font-bold text-gray-700 mb-2">Verifica della Validazione del Software</h2>
-                    <p class="text-gray-600 mb-6">Questa sezione esegue calcoli su set di dati di riferimento (da norme o letteratura) e confronta i risultati ottenuti con quelli attesi per verificare la correttezza degli algoritmi. Per garantire un confronto fedele, i calcoli in questa modalità replicano anche gli arrotondamenti intermedi previsti dalle norme di riferimento, a differenza delle sezioni di analisi principali dove i calcoli vengono eseguiti con la massima precisione possibile.</p>
-
-                    <div class="mb-6">
-                        <label for="validation-test-select" class="block text-sm font-medium text-gray-700">Seleziona un caso di test di validazione</label>
-                        <select id="validation-test-select" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
-                            <!-- Opzioni generate da JS -->
-                        </select>
-                    </div>
-
-                    <div id="test-details-container" class="space-y-4 mb-6 p-4 border rounded-md bg-gray-50 hidden">
-                        <!-- Dettagli del test selezionato -->
-                    </div>
-
-                    <button id="run-validation-btn" class="bg-indigo-600 text-white font-bold py-2 px-5 rounded-lg shadow-lg hover:bg-indigo-700 transition disabled:bg-gray-400" disabled>
-                        Esegui Test di Verifica
-                    </button>
-
-                    <div id="validation-results-container" class="mt-8 hidden">
-                        <!-- Risultati del test -->
-                    </div>
-
-                 </div>
-            </div>
-
             <!-- NUOVA SCHEDA: Report -->
             <div id="content-report-progetto" class="hidden">
                 <div class="bg-white p-6 rounded-lg shadow-md border border-gray-200">
@@ -568,6 +541,33 @@
                 </div>
             </div>
 
+            <!-- NUOVA SCHEDA: Verifica Validazione -->
+            <div id="content-validazione" class="hidden">
+                 <div class="bg-white p-6 rounded-lg shadow-md border border-gray-200">
+                    <h2 class="text-2xl font-bold text-gray-700 mb-2">Verifica della Validazione del Software</h2>
+                    <p class="text-gray-600 mb-6">Questa sezione esegue calcoli su set di dati di riferimento (da norme o letteratura) e confronta i risultati ottenuti con quelli attesi per verificare la correttezza degli algoritmi. Per garantire un confronto fedele, i calcoli in questa modalità replicano anche gli arrotondamenti intermedi previsti dalle norme di riferimento, a differenza delle sezioni di analisi principali dove i calcoli vengono eseguiti con la massima precisione possibile.</p>
+
+                    <div class="mb-6">
+                        <label for="validation-test-select" class="block text-sm font-medium text-gray-700">Seleziona un caso di test di validazione</label>
+                        <select id="validation-test-select" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                            <!-- Opzioni generate da JS -->
+                        </select>
+                    </div>
+
+                    <div id="test-details-container" class="space-y-4 mb-6 p-4 border rounded-md bg-gray-50 hidden">
+                        <!-- Dettagli del test selezionato -->
+                    </div>
+
+                    <button id="run-validation-btn" class="bg-indigo-600 text-white font-bold py-2 px-5 rounded-lg shadow-lg hover:bg-indigo-700 transition disabled:bg-gray-400" disabled>
+                        Esegui Test di Verifica
+                    </button>
+
+                    <div id="validation-results-container" class="mt-8 hidden">
+                        <!-- Risultati del test -->
+                    </div>
+
+                 </div>
+            </div>
         </main>
     </div>
 

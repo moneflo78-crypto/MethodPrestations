@@ -4,6 +4,44 @@
 
 // --- UTILITY & CONSTANTS ---
 
+// --- VALIDATION TEST CASES ---
+const VALIDATION_TEST_CASES = [
+    {
+        id: 'eurachem_example_a1',
+        name: "Eurachem Guide - Esempio A1: Retta di Taratura",
+        description: "Questo test replica l'esempio A1 della guida Eurachem 'The Fitness for Purpose of Analytical Methods' (2nd ed. 2014), pag. 104. Verifica il calcolo dell'incertezza di taratura da una retta dei minimi quadrati, applicando gli arrotondamenti intermedi specificati per garantire la confrontabilità dei risultati.",
+        type: 'regression',
+        inputs: {
+            cal_x: [0, 20, 40, 60, 80, 100], // mg/l
+            cal_y: [2.1, 19.3, 43.2, 58.3, 82.0, 103.2], // mV
+            sample_y_k: 45.0, // mV
+            sample_p: 3
+        },
+        roundingRules: {
+            // Specifica il numero di cifre decimali per ogni calcolo intermedio
+            Sxx: 2,
+            Syy: 2,
+            Sxy: 2,
+            slope_b: 6, // 6 cifre significative
+            intercept_a: 3,
+            s_yx: 4,
+            y_medio_cal: 3,
+            x_k: 2,
+            ux: 2
+        },
+        expectedResults: {
+            // Valori attesi dopo aver applicato le regole di arrotondamento
+            slope_b: 1.02029,
+            intercept_a: 1.453,
+            s_yx: 1.341,
+            x_k: 42.68,
+            ux: 0.85
+        }
+    }
+    // Futuri casi di test possono essere aggiunti qui
+];
+
+
 // --- STATISTICAL CONSTANTS & BUSINESS LOGIC ---
 const a_coeffs_table = { 3:[0.7071],4:[0.6872,0.1677],5:[0.6646,0.2413],6:[0.6431,0.2806,0.0875],7:[0.6233,0.3031,0.1401],8:[0.6052,0.3164,0.1743,0.0561],9:[0.5888,0.3244,0.1976,0.0947],10:[0.5739,0.3291,0.2141,0.1224,0.0399],11:[0.5601,0.3315,0.2260,0.1429,0.0695],12:[0.5475,0.3325,0.2347,0.1586,0.0922,0.0303],13:[0.5359,0.3325,0.2412,0.1707,0.1099,0.0539],14:[0.5251,0.3318,0.2460,0.1802,0.1240,0.0727,0.0240],15:[0.5150,0.3306,0.2495,0.1878,0.1353,0.0880,0.0433],16:[0.5056,0.3290,0.2521,0.1939,0.1447,0.1005,0.0593,0.0196],17:[0.4968,0.3273,0.2540,0.1988,0.1524,0.1109,0.0725,0.0359],18:[0.4886,0.3253,0.2553,0.2027,0.1587,0.1197,0.0837,0.0496,0.0153],19:[0.4808,0.3232,0.2561,0.2059,0.1641,0.1271,0.0932,0.0612,0.0303],20:[0.4734,0.3211,0.2565,0.2085,0.1686,0.1334,0.1013,0.0711,0.0422,0.0140],21:[0.4643,0.3185,0.2578,0.2119,0.1736,0.1399,0.1092,0.0804,0.0530,0.0263],22:[0.4590,0.3156,0.2571,0.2131,0.1764,0.1443,0.1150,0.0878,0.0618,0.0368,0.0122],23:[0.4542,0.3126,0.2563,0.2139,0.1787,0.1480,0.1201,0.0941,0.0696,0.0459,0.0228],24:[0.4493,0.3098,0.2554,0.2145,0.1807,0.1512,0.1245,0.0997,0.0764,0.0539,0.0321,0.0107],25:[0.4450,0.3069,0.2543,0.2148,0.1822,0.1539,0.1283,0.1046,0.0823,0.0610,0.0403,0.0200],26:[0.4407,0.3043,0.2533,0.2151,0.1836,0.1563,0.1316,0.1089,0.0876,0.0672,0.0476,0.0284,0.0094]};
 const kp_coeffs_table = { 3:{g:-0.625,e:0.386,f:0.75},4:{g:-1.107,e:0.714,f:0.6297},5:{g:-1.53,e:0.935,f:0.5521},6:{g:-2.01,e:1.138,f:0.4963},7:{g:-2.356,e:1.245,f:0.4533},8:{g:-2.696,e:1.333,f:0.4186},9:{g:-2.968,e:1.4,f:0.39},10:{g:-3.262,e:1.471,f:0.366},11:{g:-3.485,e:1.515,f:0.3451},12:{g:-3.731,e:1.571,f:0.327},13:{g:-3.936,e:1.613,f:0.3111},14:{g:-4.155,e:1.655,f:0.2969},15:{g:-4.373,e:1.695,f:0.2842},16:{g:-4.567,e:1.724,f:0.2727},17:{g:-4.713,e:1.739,f:0.2622},18:{g:-4.885,e:1.77,f:0.2528},19:{g:-5.018,e:1.786,f:0.244},20:{g:-5.153,e:1.802,f:0.2359},21:{g:-5.291,e:1.818,f:0.2284},22:{g:-5.413,e:1.835,f:0.2207},23:{g:-5.508,e:1.848,f:0.2157},24:{g:-5.605,e:1.862,f:0.2106},25:{g:-5.704,e:1.876,f:0.2063},26:{g:-5.803,e:1.89,f:0.202}};
@@ -540,6 +578,10 @@ function getInitialAppState() {
                     risultati: false,
                 }
             }
+        },
+        validation: {
+            selectedTestId: null,
+            results: null
         }
     };
 }
@@ -607,6 +649,109 @@ function render() {
     renderLibraryTabs(); // <-- Funzione per le librerie
     renderReportSubTabs();
     renderLibraries(); // <-- Funzione per le tabelle delle librerie
+    renderValidationUI(); // <-- NUOVA FUNZIONE
+}
+
+function renderValidationUI() {
+    const selectEl = document.getElementById('validation-test-select');
+    const detailsContainer = document.getElementById('test-details-container');
+    const runBtn = document.getElementById('run-validation-btn');
+    const resultsContainer = document.getElementById('validation-results-container');
+
+    if (!selectEl || !detailsContainer || !runBtn || !resultsContainer) return;
+
+    // --- Popola il dropdown ---
+    // Salva il valore corrente per non perdere la selezione durante il re-render
+    const currentSelection = selectEl.value;
+    selectEl.innerHTML = '<option value="">-- Seleziona un test --</option>';
+    VALIDATION_TEST_CASES.forEach(test => {
+        const isSelected = test.id === appState.validation.selectedTestId ? 'selected' : '';
+        selectEl.innerHTML += `<option value="${test.id}" ${isSelected}>${test.name}</option>`;
+    });
+    // Se il valore salvato esiste ancora, ripristinalo
+    if (appState.validation.selectedTestId) {
+        selectEl.value = appState.validation.selectedTestId;
+    }
+
+
+    // --- Mostra/Nascondi dettagli e gestisci bottone ---
+    const selectedTest = VALIDATION_TEST_CASES.find(t => t.id === appState.validation.selectedTestId);
+
+    if (selectedTest) {
+        detailsContainer.innerHTML = `
+            <h4 class="font-semibold text-gray-800">Descrizione del Test</h4>
+            <p class="text-sm text-gray-600">${selectedTest.description}</p>
+        `;
+        detailsContainer.classList.remove('hidden');
+        runBtn.disabled = false;
+    } else {
+        detailsContainer.innerHTML = '';
+        detailsContainer.classList.add('hidden');
+        runBtn.disabled = true;
+    }
+
+    // --- Mostra i risultati ---
+    const results = appState.validation.results;
+    if (results) {
+        let content = '';
+        if (results.error) {
+            content = `<div class="p-4 bg-red-100 border-l-4 border-red-500 text-red-700">
+                           <p class="font-bold">Errore nel Test</p>
+                           <p>${results.error}</p>
+                       </div>`;
+        } else {
+            const overallStatusClass = results.allPassed ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800";
+            const overallStatusText = results.allPassed ? "SUPERATO" : "FALLITO";
+
+            const rowsHTML = Object.keys(results.comparison).map(key => {
+                const item = results.comparison[key];
+                const statusClass = item.pass ? "bg-green-100 text-green-900" : "bg-red-100 text-red-900";
+                const statusText = item.pass ? "Pass" : "Fail";
+                const difference = item.difference.toExponential(2);
+
+                return `
+                    <tr class="border-b">
+                        <td class="p-3 font-medium text-gray-700">${key}</td>
+                        <td class="p-3 font-mono text-right">${item.calculated}</td>
+                        <td class="p-3 font-mono text-right">${item.expected}</td>
+                        <td class="p-3 font-mono text-right ${Math.abs(item.difference) > 1e-9 ? 'text-red-600' : ''}">${difference}</td>
+                        <td class="p-3 text-center">
+                            <span class="px-2 py-1 text-xs font-semibold rounded-full ${statusClass}">
+                                ${statusText}
+                            </span>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            content = `
+                <div class="p-4 rounded-lg border ${results.allPassed ? 'border-green-300 bg-green-50' : 'border-red-300 bg-red-50'}">
+                     <h3 class="text-xl font-bold mb-4 text-gray-800">Risultati del Test: <span class="px-3 py-1 text-lg rounded-full ${overallStatusClass}">${overallStatusText}</span></h3>
+                     <div class="overflow-x-auto border rounded-lg">
+                        <table class="w-full text-sm">
+                            <thead class="bg-gray-200">
+                                <tr>
+                                    <th class="p-3 text-left">Parametro</th>
+                                    <th class="p-3 text-right">Valore Calcolato</th>
+                                    <th class="p-3 text-right">Valore Atteso</th>
+                                    <th class="p-3 text-right">Differenza</th>
+                                    <th class="p-3 text-center">Stato</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white">
+                                ${rowsHTML}
+                            </tbody>
+                        </table>
+                     </div>
+                </div>
+            `;
+        }
+        resultsContainer.innerHTML = content;
+        resultsContainer.classList.remove('hidden');
+    } else {
+        resultsContainer.innerHTML = '';
+        resultsContainer.classList.add('hidden');
+    }
 }
 
 function renderCalibrationSolutionUncertainty() {
@@ -5091,6 +5236,116 @@ async function generateDocxReport(reportData) {
     document.body.removeChild(a);
 }
 
+function actionRunValidationTest() {
+    const testId = appState.validation.selectedTestId;
+    if (!testId) return;
+
+    const testCase = VALIDATION_TEST_CASES.find(t => t.id === testId);
+    if (!testCase) {
+        console.error("Test case not found!");
+        appState.validation.results = { error: "Caso di test non trovato." };
+        render();
+        return;
+    }
+
+    let results;
+    try {
+        if (testCase.type === 'regression') {
+            results = executeRegressionValidation(testCase);
+        } else {
+            results = { error: `Tipo di test '${testCase.type}' non supportato.` };
+        }
+    } catch (e) {
+        console.error(`Errore durante l'esecuzione del test di validazione '${testId}':`, e);
+        results = { error: e.message };
+    }
+
+
+    appState.validation.results = results;
+    render();
+}
+
+function executeRegressionValidation(testCase) {
+    const { cal_x, cal_y, sample_y_k, sample_p } = testCase.inputs;
+    const rules = testCase.roundingRules;
+    const n = cal_x.length;
+
+    const calculated = {};
+    const intermediate = {}; // Per salvare i valori non arrotondati dove necessario
+
+    // Basic sums using simple-statistics for consistency
+    const sum_x = ss.sum(cal_x);
+    const sum_y = ss.sum(cal_y);
+    const sum_xy = ss.sum(cal_x.map((x, i) => x * cal_y[i]));
+    const sum_x2 = ss.sum(cal_x.map(x => x * x));
+    const sum_y2 = ss.sum(cal_y.map(y => y * y));
+
+    // Intermediate calculations with specified rounding
+    intermediate.Sxx = sum_x2 - (sum_x * sum_x) / n;
+    intermediate.Syy = sum_y2 - (sum_y * sum_y) / n;
+    intermediate.Sxy = sum_xy - (sum_x * sum_y) / n;
+
+    const Sxx = parseFloat(intermediate.Sxx.toFixed(rules.Sxx));
+    const Syy = parseFloat(intermediate.Syy.toFixed(rules.Syy));
+    const Sxy = parseFloat(intermediate.Sxy.toFixed(rules.Sxy));
+
+    // Slope b (using toPrecision for significant figures)
+    intermediate.slope_b = Sxy / Sxx;
+    calculated.slope_b = parseFloat(intermediate.slope_b.toPrecision(rules.slope_b));
+
+    // Intercept a
+    const x_medio = ss.mean(cal_x);
+    const y_medio_unrounded = ss.mean(cal_y);
+    intermediate.intercept_a = y_medio_unrounded - calculated.slope_b * x_medio;
+    calculated.intercept_a = parseFloat(intermediate.intercept_a.toFixed(rules.intercept_a));
+
+    // s_yx (Standard deviation of the residuals)
+    const sum_sq_err = Syy - (Sxy * Sxy) / Sxx;
+    intermediate.s_yx = Math.sqrt(sum_sq_err / (n - 2));
+     // Eurachem example uses toPrecision for s_yx
+    calculated.s_yx = parseFloat(intermediate.s_yx.toPrecision(rules.s_yx));
+
+    // x_k (calculated concentration for the sample)
+    intermediate.x_k = (sample_y_k - calculated.intercept_a) / calculated.slope_b;
+    calculated.x_k = parseFloat(intermediate.x_k.toFixed(rules.x_k));
+
+    // ux (standard uncertainty)
+    // The Eurachem guide rounds y_medio here for the calculation, so we will too.
+    const y_medio_cal = parseFloat(y_medio_unrounded.toFixed(rules.y_medio_cal));
+    const term1 = 1 / sample_p;
+    const term2 = 1 / n;
+    const term3 = Math.pow(sample_y_k - y_medio_cal, 2) / (Math.pow(calculated.slope_b, 2) * Sxx);
+    const rootTerm = Math.sqrt(term1 + term2 + term3);
+    intermediate.ux = (calculated.s_yx / Math.abs(calculated.slope_b)) * rootTerm;
+    calculated.ux = parseFloat(intermediate.ux.toFixed(rules.ux));
+
+    // --- Final Comparison ---
+    const comparison = {};
+    let allTestsPassed = true;
+    for (const key in testCase.expectedResults) {
+        const expected = testCase.expectedResults[key];
+        const actual = calculated[key];
+        const pass = actual === expected;
+        if (!pass) allTestsPassed = false;
+
+        comparison[key] = {
+            calculated: actual,
+            expected: expected,
+            pass: pass,
+            difference: actual - expected
+        };
+    }
+
+    return {
+        testId: testCase.id,
+        testName: testCase.name,
+        calculatedResults: calculated,
+        comparison: comparison,
+        allPassed: allTestsPassed,
+        error: null
+    };
+}
+
 function actionGenerateReport(format) {
     const reportData = gatherReportData();
     if (!reportData || reportData.groups.length === 0) {
@@ -6588,6 +6843,22 @@ function main() {
             content.classList.toggle('open');
         });
     });
+
+    // --- Event Listeners per la Scheda di Validazione ---
+    const validationSelect = document.getElementById('validation-test-select');
+    if (validationSelect) {
+        validationSelect.addEventListener('change', e => {
+            appState.validation.selectedTestId = e.target.value;
+            appState.validation.results = null; // Resetta i risultati quando si cambia test
+            render();
+        });
+    }
+
+    const runValidationBtn = document.getElementById('run-validation-btn');
+    if (runValidationBtn) {
+        runValidationBtn.addEventListener('click', actionRunValidationTest);
+    }
+
 
     actionAddSample();
     render(); // Initial render to draw everything, which includes renderFileStatus
