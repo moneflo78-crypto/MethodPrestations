@@ -53,6 +53,8 @@ const VALIDATION_TEST_CASES = [
             kp: 3
         },
         expectedResults: {
+            S2: 0.0317,
+            b: 0.1670,
             W: 0.880,
             kp: -1.331
         }
@@ -719,6 +721,17 @@ function renderValidationUI() {
                            <p>${results.error}</p>
                        </div>`;
         } else {
+            let inputDataHTML = '';
+            // Mostra i dati di input solo per il test Unichim
+            if (results.testId === 'unichim_179_1_esempio_1' && results.inputs?.data) {
+                inputDataHTML = `
+                    <div class="mb-4 p-4 border rounded-lg bg-gray-50">
+                        <h4 class="font-semibold text-gray-700 mb-2">Dati di Input (x_i)</h4>
+                        <p class="font-mono text-sm text-gray-800 break-all">${results.inputs.data.join('; ')}</p>
+                    </div>
+                `;
+            }
+
             const overallStatusClass = results.allPassed ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800";
             const overallStatusText = results.allPassed ? "SUPERATO" : "FALLITO";
 
@@ -730,9 +743,10 @@ function renderValidationUI() {
 
                 return `
                     <tr class="border-b">
-                        <td class="p-3 font-medium text-gray-700">${key}</td>
+                        <td class="p-3 font-medium text-gray-700">${key === 'S2' ? 'S²' : key}</td>
                         <td class="p-3 font-mono text-right">${item.calculated}</td>
                         <td class="p-3 font-mono text-right">${item.expected}</td>
+                        <td class="p-3 font-mono text-right">${item.standard}</td>
                         <td class="p-3 font-mono text-right ${Math.abs(item.difference) > 1e-9 ? 'text-red-600' : ''}">${difference}</td>
                         <td class="p-3 text-center">
                             <span class="px-2 py-1 text-xs font-semibold rounded-full ${statusClass}">
@@ -744,6 +758,7 @@ function renderValidationUI() {
             }).join('');
 
             content = `
+                ${inputDataHTML}
                 <div class="p-4 rounded-lg border ${results.allPassed ? 'border-green-300 bg-green-50' : 'border-red-300 bg-red-50'}">
                      <h3 class="text-xl font-bold mb-4 text-gray-800">Risultati del Test: <span class="px-3 py-1 text-lg rounded-full ${overallStatusClass}">${overallStatusText}</span></h3>
                      <div class="overflow-x-auto border rounded-lg">
@@ -751,8 +766,9 @@ function renderValidationUI() {
                             <thead class="bg-gray-200">
                                 <tr>
                                     <th class="p-3 text-left">Parametro</th>
-                                    <th class="p-3 text-right">Valore Calcolato</th>
+                                    <th class="p-3 text-right">Valore Calcolato (da Manuale)</th>
                                     <th class="p-3 text-right">Valore Atteso</th>
+                                    <th class="p-3 text-right">Valore con Arrotondamento Standard</th>
                                     <th class="p-3 text-right">Differenza</th>
                                     <th class="p-3 text-center">Stato</th>
                                 </tr>
@@ -5294,62 +5310,74 @@ function executeShapiroWilkValidation(testCase) {
     const rules = testCase.roundingRules;
     const n = data.length;
 
-    let shapiroResult;
+    // --- 1. Standard Calculation (full precision) ---
+    const mean_standard = data.reduce((a, b) => a + b, 0) / data.length;
+    const S2_standard = data.reduce((acc, val) => acc + Math.pow(val - mean_standard, 2), 0);
+    const a_half_standard = a_coeffs_table[n];
+    if (!a_half_standard) throw new Error(`Coefficienti di Shapiro-Wilk non trovati per n=${n}.`);
+    const a_standard = new Array(n);
+    for(let i=0; i < Math.ceil(n/2); i++) { a_standard[i] = -a_half_standard[i]; a_standard[n-1-i] = a_half_standard[i]; }
+    if (n % 2 === 1) a_standard[Math.floor(n/2)] = 0;
+    const sorted_data = data.slice().sort((a, b) => a - b);
+    const b_standard = sorted_data.reduce((sum, val, i) => sum + a_standard[i] * val, 0);
 
-    // Special handling for tests that provide intermediate rounded values like Unichim 179/1
-    if (intermediate_b !== undefined && intermediate_S2 !== undefined) {
-        // Re-calculate W and kp using the manual's intermediate values to match their final result
-        const W_unrounded = Math.pow(intermediate_b, 2) / intermediate_S2;
+    const W_standard = Math.pow(b_standard, 2) / S2_standard;
+    const { g, e, f } = kp_coeffs_table[n];
+    if (!g || !e || !f) throw new Error(`Coefficienti Kp di Shapiro-Wilk non trovati per n=${n}.`);
 
-        // Round W according to the rules before using it to calculate kp, to replicate the manual's method
-        const W_rounded = parseFloat(W_unrounded.toFixed(rules.W));
-        const W_prime = Math.min(W_rounded, 1.0);
+    const kp_standard = g + e * Math.log((W_standard - f) / (1 - W_standard));
 
-        const { g, e, f } = kp_coeffs_table[n];
-        if (!g || !e || !f) {
-            throw new Error(`Coefficienti di Shapiro-Wilk non trovati per n=${n}.`);
-        }
-        const kp = g + e * Math.log((W_prime - f) / (1 - W_prime));
-
-        // The result for W should be the rounded one
-        shapiroResult = { W: W_prime, kp: isNaN(kp) ? Infinity : kp, error: null };
-    } else {
-        // Standard calculation for other tests
-        shapiroResult = shapiroWilk(data);
-    }
-
-    if (shapiroResult.error) {
-        throw new Error(shapiroResult.error);
-    }
-
-    // Create string representations for display, respecting the requested precision
-    const calculated_string = {
-        W: shapiroResult.W.toFixed(rules.W),
-        kp: shapiroResult.kp.toFixed(rules.kp)
+    const standardResults = {
+        S2: S2_standard,
+        b: b_standard,
+        W: W_standard,
+        kp: kp_standard
     };
 
+    // --- 2. Manual-based Calculation (with intermediate rounding) ---
+    let manualResults;
+    if (intermediate_b !== undefined && intermediate_S2 !== undefined) {
+        const W_manual_unrounded = Math.pow(intermediate_b, 2) / intermediate_S2;
+        const W_manual_rounded = parseFloat(W_manual_unrounded.toFixed(rules.W));
+        const W_prime = Math.min(W_manual_rounded, 1.0);
+        const kp_manual_unrounded = g + e * Math.log((W_prime - f) / (1 - W_prime));
+        const kp_manual_rounded = parseFloat(kp_manual_unrounded.toFixed(rules.kp));
+
+        manualResults = {
+            S2: intermediate_S2,
+            b: intermediate_b,
+            W: W_prime,
+            kp: isNaN(kp_manual_rounded) ? Infinity : kp_manual_rounded
+        };
+    } else {
+        manualResults = standardResults;
+    }
+
+    // --- 3. Comparison and Formatting ---
     const comparison = {};
     let allTestsPassed = true;
     for (const key in testCase.expectedResults) {
         const expected = testCase.expectedResults[key];
-        const actual_num = parseFloat(calculated_string[key]);
+        const actual_manual = manualResults[key];
 
-        // Use a small tolerance for float comparison to account for potential precision errors
-        const pass = Math.abs(actual_num - expected) < 1e-9;
+        const pass = Math.abs(actual_manual - expected) < 1e-9;
         if (!pass) allTestsPassed = false;
 
+        const rule = rules[key] || 4; // Default to 4 decimal places for S2 and b
+
         comparison[key] = {
-            calculated: calculated_string[key], // Use formatted string for display
-            expected: expected.toFixed(rules[key]), // Format expected for consistent display
+            calculated: actual_manual.toFixed(rule),
+            expected: expected.toFixed(rule),
+            standard: formatNumberWithRules(standardResults[key]),
             pass: pass,
-            difference: actual_num - expected
+            difference: actual_manual - expected
         };
     }
 
     return {
         testId: testCase.id,
         testName: testCase.name,
-        calculatedResults: calculated_string,
+        inputs: { data: data },
         comparison: comparison,
         allPassed: allTestsPassed,
         error: null
