@@ -133,7 +133,7 @@ function hubersTest(data) {
     const deviations = data.map(d => Math.abs(d - med));
     const mad = median(deviations);
     if (mad < 1e-9) return [];
-    const threshold = 3.5;
+    const threshold = 4.5;
     const outliers = [];
     data.forEach((value, index) => {
         if ((Math.abs(value - med) / mad) > threshold) {
