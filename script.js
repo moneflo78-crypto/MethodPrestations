@@ -3615,6 +3615,9 @@ function handleFileLoad(event) {
             if (!appState.reportSettings) {
                 appState.reportSettings = getInitialAppState().reportSettings;
             }
+            if (!appState.validation) {
+                appState.validation = getInitialAppState().validation;
+            }
             if (!appState.project.projectName) {
                 const fileNameWithoutExt = file.name.endsWith('.json') ? file.name.slice(0, -5) : file.name;
                 appState.project.projectName = fileNameWithoutExt.replace(/_/g, ' ');
