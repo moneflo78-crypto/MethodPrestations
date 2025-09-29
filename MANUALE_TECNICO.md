@@ -92,8 +92,8 @@ Questo è un test robusto per l'identificazione di outlier, che non richiede la 
 2.  **Calcolo delle Deviazioni Assolute dalla Mediana:** `d_i = |x_i - med|`
 3.  **Calcolo della Deviazione Mediana Assoluta (MAD):** `MAD = mediana(d_1, d_2, ..., d_n)`
 4.  **Identificazione Outlier:** Un valore `x_i` è considerato anomalo se soddisfa la seguente condizione:
-    - **Formula:** `|x_i - med| / MAD > 3.5`
-    - La soglia di 3.5 è un valore comunemente usato in letteratura per questo test.
+    - **Formula:** `|x_i - med| / MAD > 4.5`
+    - La soglia di 4.5 è il valore utilizzato in questa implementazione, come da specifica.
 
 #### 2.3 Test di Grubbs per Dati Anomali
 Questo test è utilizzato per identificare un singolo outlier in un campione di dati che si presume provenga da una popolazione normalmente distribuita. Il test rileva il valore che ha la massima deviazione dalla media e lo confronta con un valore critico.
