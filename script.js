@@ -90,6 +90,21 @@ const VALIDATION_TEST_CASES = [
             G_critical: 2.412,
             is_outlier: false
         }
+    },
+    {
+        id: 'unichim_179_1_dixon_test',
+        name: "Unichim 179/1 - Esempio 1: Test di Dixon per dati anomali",
+        description: "Questo test replica l'esempio 1, paragrafo 12, del manuale Unichim 179/1 (Ed. 2011). Verifica il calcolo della statistica Q di Dixon per l'identificazione del valore minimo (0.63) come potenziale anomalo. Il test verifica che Q calcolato sia inferiore al valore critico, portando a un risultato corretto di non anomalia.",
+        type: 'dixon',
+        inputs: {
+            data: [0.72, 0.73, 0.73, 0.75, 0.76, 0.80, 0.78, 0.80, 0.74, 0.74, 0.63, 0.64],
+            suspect_value: 0.63 // Il valore minimo sospetto
+        },
+        expectedResults: {
+            Q_calculated: 0.0588,
+            Q_critical: 0.479,
+            is_outlier: false
+        }
     }
     // Futuri casi di test possono essere aggiunti qui
 ];
@@ -316,6 +331,84 @@ function calculateRegressionLine(cal_x, cal_y) {
         n_cal: n,
         y_medio_cal: y_medio,
         sum_sq_diff_x_cal: sum_sq_diff_x
+    };
+}
+
+function executeDixonValidation(testCase) {
+    const { data, suspect_value } = testCase.inputs;
+    const { expectedResults } = testCase;
+    const n = data.length;
+
+    if (n < 3 || n > 26) {
+        return { error: `Il test di Dixon non è applicabile per n=${n}.` };
+    }
+
+    const sortedData = data.slice().sort((a, b) => a - b);
+    const x = sortedData;
+
+    let q_calculated;
+    // La formula cambia in base a n. Per n=12, si usa la statistica r11.
+    if (suspect_value === x[0]) {
+        if (n >= 3 && n <= 7) q_calculated = (x[1] - x[0]) / (x[n - 1] - x[0]); // r10
+        else if (n >= 8 && n <= 12) q_calculated = (x[1] - x[0]) / (x[n - 2] - x[0]); // r11
+        else q_calculated = (x[2] - x[0]) / (x[n - 3] - x[0]); // r22
+    } else if (suspect_value === x[n - 1]) {
+        if (n >= 3 && n <= 7) q_calculated = (x[n - 1] - x[n - 2]) / (x[n - 1] - x[0]); // r10
+        else if (n >= 8 && n <= 12) q_calculated = (x[n - 1] - x[n - 2]) / (x[n - 1] - x[1]); // r11
+        else q_calculated = (x[n - 1] - x[n - 3]) / (x[n - 1] - x[2]); // r22
+    } else {
+        return { error: `Il valore sospetto (${suspect_value}) non è né il minimo né il massimo dei dati.` };
+    }
+
+
+    const criticalValue = DIXON_CRITICAL_VALUES[n]['0.05'];
+
+    const comparison = {};
+    let allTestsPassed = true;
+
+    // 1. Verifica Q Calcolato
+    const expectedQ = expectedResults.Q_calculated;
+    const qRelDiff = Math.abs((q_calculated - expectedQ) / expectedQ);
+    const qPass = qRelDiff <= 0.01;
+    if (!qPass) allTestsPassed = false;
+    comparison['Q Calcolato'] = {
+        calculated: q_calculated.toPrecision(4),
+        expected: expectedQ.toPrecision(4),
+        pass: qPass,
+        difference: q_calculated - expectedQ
+    };
+
+    // 2. Verifica Q Critico
+    const expectedCriticalQ = expectedResults.Q_critical;
+    const criticalQPass = criticalValue === expectedCriticalQ;
+    if (!criticalQPass) allTestsPassed = false;
+    comparison['Q Critico (α=0.05)'] = {
+        calculated: criticalValue.toString(),
+        expected: expectedCriticalQ.toString(),
+        pass: criticalQPass,
+        difference: criticalValue - expectedCriticalQ
+    };
+
+    // 3. Verifica il risultato del test
+    const isOutlier = q_calculated > criticalValue;
+    const expectedIsOutlier = expectedResults.is_outlier;
+    const outlierPass = isOutlier === expectedIsOutlier;
+    if (!outlierPass) allTestsPassed = false;
+    comparison['È Outlier'] = {
+        calculated: isOutlier.toString(),
+        expected: expectedIsOutlier.toString(),
+        pass: outlierPass,
+        difference: NaN
+    };
+
+     return {
+        testId: testCase.id,
+        testName: testCase.name,
+        inputs: { data: data },
+        comparison: comparison,
+        allPassed: allTestsPassed,
+        passCondition: `Il test è superato se Q calcolato ha una differenza relativa <= 1% rispetto all'atteso, Q critico è corretto e il risultato del test (È Outlier) è corretto.`,
+        error: null
     };
 }
 
@@ -5492,6 +5585,8 @@ function actionRunValidationTest() {
             results = executeHuberMadValidation(testCase);
         } else if (testCase.type === 'grubbs') {
             results = executeGrubbsValidation(testCase);
+        } else if (testCase.type === 'dixon') {
+            results = executeDixonValidation(testCase);
         } else {
             results = { error: `Tipo di test '${testCase.type}' non supportato.` };
         }
