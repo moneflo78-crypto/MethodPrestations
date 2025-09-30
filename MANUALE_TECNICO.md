@@ -113,7 +113,7 @@ Questo test è utilizzato per identificare un singolo outlier in un campione di 
     - L'applicazione utilizza una tabella interna di valori critici per `n` da 3 a 26.
 
 #### 2.4 Test di Dixon per Dati Anomali
-Questo test è utilizzato per identificare un singolo outlier in un piccolo campione di dati (da 3 a 25 valori) che si presume provenga da una popolazione normalmente distribuita. La formula per calcolare la statistica Q cambia in base alla dimensione del campione `n`.
+Questo test è utilizzato per identificare un singolo outlier in un piccolo campione di dati (da 3 a 26 valori) che si presume provenga da una popolazione normalmente distribuita. La formula per calcolare la statistica Q cambia in base alla dimensione del campione `n`.
 
 1.  **Ordinamento dei Dati:** I dati vengono ordinati in senso crescente: `x(1), x(2), ..., x(n)`.
 
@@ -121,13 +121,10 @@ Questo test è utilizzato per identificare un singolo outlier in un piccolo camp
     -   **Per n da 3 a 7 (r10):**
         -   `Q = (x(2) - x(1)) / (x(n) - x(1))` per il minimo.
         -   `Q = (x(n) - x(n-1)) / (x(n) - x(1))` per il massimo.
-    -   **Per n da 8 a 10 (r11):**
+    -   **Per n da 8 a 12 (r11):**
         -   `Q = (x(2) - x(1)) / (x(n-1) - x(1))` per il minimo.
         -   `Q = (x(n) - x(n-1)) / (x(n) - x(2))` per il massimo.
-    -   **Per n da 11 a 13 (r21):**
-        -   `Q = (x(3) - x(1)) / (x(n-1) - x(1))` per il minimo.
-        -   `Q = (x(n) - x(n-2)) / (x(n) - x(2))` per il massimo.
-    -   **Per n da 14 a 25 (r22):**
+    -   **Per n da 13 a 26 (r22):**
         -   `Q = (x(3) - x(1)) / (x(n-2) - x(1))` per il minimo.
         -   `Q = (x(n) - x(n-2)) / (x(n) - x(3))` per il massimo.
 
@@ -138,21 +135,22 @@ Questo test è utilizzato per identificare un singolo outlier in un piccolo camp
     -   Se `Q <= Q_critico(α=0.05)`, il dato è considerato **corretto**.
 
 **Tabella dei Valori Critici del Test di Dixon (Q)**
+*(Fonte: Manuale Unichim 179/1, Ed. 2011, Prospetto 5)*
 
 | n  | Q critico (α=0.05) | Q critico (α=0.01) |   | n  | Q critico (α=0.05) | Q critico (α=0.01) |
 |----|--------------------|--------------------|---|----|--------------------|--------------------|
-| 3  | 0.941              | 0.988              |   | 15 | 0.525              | 0.616              |
-| 4  | 0.765              | 0.889              |   | 16 | 0.507              | 0.595              |
-| 5  | 0.642              | 0.780              |   | 17 | 0.490              | 0.577              |
-| 6  | 0.560              | 0.698              |   | 18 | 0.475              | 0.561              |
-| 7  | 0.507              | 0.637              |   | 19 | 0.462              | 0.547              |
-| 8  | 0.554              | 0.683              |   | 20 | 0.450              | 0.535              |
-| 9  | 0.512              | 0.635              |   | 21 | 0.440              | 0.524              |
-| 10 | 0.477              | 0.597              |   | 22 | 0.430              | 0.514              |
-| 11 | 0.576              | 0.679              |   | 23 | 0.421              | 0.505              |
-| 12 | 0.546              | 0.642              |   | 24 | 0.413              | 0.497              |
-| 13 | 0.521              | 0.615              |   | 25 | 0.406              | 0.489              |
-| 14 | 0.546              | 0.641              |   |    |                    |                    |
+| 3  | 0.970              | 0.994              |   | 15 | 0.565              | 0.647              |
+| 4  | 0.829              | 0.926              |   | 16 | 0.546              | 0.627              |
+| 5  | 0.710              | 0.821              |   | 17 | 0.529              | 0.610              |
+| 6  | 0.628              | 0.740              |   | 18 | 0.514              | 0.594              |
+| 7  | 0.569              | 0.680              |   | 19 | 0.501              | 0.580              |
+| 8  | 0.608              | 0.717              |   | 20 | 0.489              | 0.567              |
+| 9  | 0.564              | 0.672              |   | 21 | 0.478              | 0.555              |
+| 10 | 0.530              | 0.635              |   | 22 | 0.468              | 0.544              |
+| 11 | 0.502              | 0.605              |   | 23 | 0.459              | 0.535              |
+| 12 | 0.479              | 0.579              |   | 24 | 0.451              | 0.526              |
+| 13 | 0.611              | 0.697              |   | 25 | 0.443              | 0.517              |
+| 14 | 0.586              | 0.670              |   | 26 | 0.436              | 0.510              |
 
 ---------------------------------------------------
 
