@@ -160,9 +160,87 @@ function hubersTest(data) {
     return outliers;
 }
 
+const DIXON_CRITICAL_VALUES = {
+    // N: { '0.05': value, '0.01': value }
+    3: { '0.05': 0.941, '0.01': 0.988 },
+    4: { '0.05': 0.765, '0.01': 0.889 },
+    5: { '0.05': 0.642, '0.01': 0.780 },
+    6: { '0.05': 0.560, '0.01': 0.698 },
+    7: { '0.05': 0.507, '0.01': 0.637 },
+    8: { '0.05': 0.554, '0.01': 0.683 },
+    9: { '0.05': 0.512, '0.01': 0.635 },
+    10: { '0.05': 0.477, '0.01': 0.597 },
+    11: { '0.05': 0.576, '0.01': 0.679 },
+    12: { '0.05': 0.546, '0.01': 0.642 },
+    13: { '0.05': 0.521, '0.01': 0.615 },
+    14: { '0.05': 0.546, '0.01': 0.641 },
+    15: { '0.05': 0.525, '0.01': 0.616 },
+    16: { '0.05': 0.507, '0.01': 0.595 },
+    17: { '0.05': 0.490, '0.01': 0.577 },
+    18: { '0.05': 0.475, '0.01': 0.561 },
+    19: { '0.05': 0.462, '0.01': 0.547 },
+    20: { '0.05': 0.450, '0.01': 0.535 },
+    21: { '0.05': 0.440, '0.01': 0.524 },
+    22: { '0.05': 0.430, '0.01': 0.514 },
+    23: { '0.05': 0.421, '0.01': 0.505 },
+    24: { '0.05': 0.413, '0.01': 0.497 },
+    25: { '0.05': 0.406, '0.01': 0.489 },
+};
+
 function dixonsTest(data) {
-    console.warn("Dixon's test is not yet implemented.");
-    return [];
+    const n = data.length;
+    if (n < 3 || n > 25) {
+        return []; // Test not applicable for this sample size in this implementation.
+    }
+
+    const sortedData = data
+        .map((value, index) => ({ value, index }))
+        .sort((a, b) => a.value - b.value);
+
+    const x = sortedData.map(d => d.value);
+
+    const criticalValues = DIXON_CRITICAL_VALUES[n];
+    if (!criticalValues) {
+        return []; // Safeguard
+    }
+    const q_crit_001 = criticalValues['0.01'];
+    const q_crit_005 = criticalValues['0.05'];
+
+    let q_min, q_max;
+
+    // Calculate Q statistic based on sample size N, using symmetrical formulas.
+    if (n >= 3 && n <= 7) {        // r10
+        q_min = (x[1] - x[0]) / (x[n - 1] - x[0]);
+        q_max = (x[n - 1] - x[n - 2]) / (x[n - 1] - x[0]);
+    } else if (n >= 8 && n <= 10) {  // r11
+        q_min = (x[1] - x[0]) / (x[n - 2] - x[0]);
+        q_max = (x[n - 1] - x[n - 2]) / (x[n - 1] - x[1]);
+    } else if (n >= 11 && n <= 13) { // r21
+        q_min = (x[2] - x[0]) / (x[n - 2] - x[0]);
+        q_max = (x[n - 1] - x[n - 3]) / (x[n - 1] - x[1]);
+    } else { // n >= 14 && n <= 25   // r22
+        q_min = (x[2] - x[0]) / (x[n - 3] - x[0]);
+        q_max = (x[n - 1] - x[n - 3]) / (x[n - 1] - x[2]);
+    }
+
+    const results = [];
+
+    // Check min value against both critical levels
+    if (q_min > q_crit_001) {
+        results.push({ value: sortedData[0].value, index: sortedData[0].index, status: 'anomalo' });
+    } else if (q_min > q_crit_005) {
+        results.push({ value: sortedData[0].value, index: sortedData[0].index, status: 'disperso' });
+    }
+
+    // Check max value against both critical levels
+    if (q_max > q_crit_001) {
+        results.push({ value: sortedData[n-1].value, index: sortedData[n-1].index, status: 'anomalo' });
+    } else if (q_max > q_crit_005) {
+        results.push({ value: sortedData[n-1].value, index: sortedData[n-1].index, status: 'disperso' });
+    }
+
+    // Remove duplicates if the same point is identified by both min and max checks (unlikely but possible)
+    return results.filter((v,i,a)=>a.findIndex(t=>(t.index === v.index))===i);
 }
 
 function grubbsTest(data) {
@@ -2953,7 +3031,6 @@ async function processSample(sample) {
 
         function addLog(type, message) {
             appState.results[sample.id].log.push({ type, message });
-            // Rendering is now handled by a single call in actionCalculateAll
         }
 
         addLog('info', 'Inizio analisi...');
@@ -3056,7 +3133,6 @@ async function processSample(sample) {
 
             if (testChoices.length === 0) {
                 addLog('decision', 'Nessun test per outlier selezionato.');
-                // No further action needed if user cancels.
                 return;
             }
 
@@ -3070,7 +3146,14 @@ async function processSample(sample) {
                grubbsTest(currentData).forEach(o => allOutliers.set(o.index, o.value));
            }
            if (testChoices.includes('dixon')) {
-               dixonsTest(currentData).forEach(o => allOutliers.set(o.index, o.value));
+                const dixonResults = dixonsTest(currentData);
+                dixonResults.forEach(o => {
+                    if (o.status === 'anomalo') {
+                        allOutliers.set(o.index, o.value);
+                    } else if (o.status === 'disperso') {
+                        addLog('info', `Test di Dixon: il valore ${o.value} è stato identificato come disperso (sospetto), ma non rimosso.`);
+                    }
+                });
            }
 
            if (allOutliers.size > 0) {
@@ -3102,7 +3185,6 @@ async function processSample(sample) {
            }
         }
 
-        // --- CALCOLO STATISTICHE DESCRITTIVE FINALI ---
         if (!appState.results[sample.id].error) {
             const finalData = appState.results[sample.id].currentData;
             addLog('info', `Calcolo delle statistiche descrittive su ${finalData.length} punti dati finali.`);
