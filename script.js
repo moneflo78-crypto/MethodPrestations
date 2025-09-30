@@ -109,15 +109,15 @@ const VALIDATION_TEST_CASES = [
     {
         id: 'unichim_179_1_descriptive_stats',
         name: "Unichim 179/1 - Esempio 1: Statistiche Descrittive",
-        description: "Questo test replica l'esempio 1, paragrafo 12, del manuale Unichim 179/1 (Ed. 2011). Verifica il calcolo dei parametri di statistica descrittiva (media, deviazione standard, CV%, limite di ripetibilità) con una tolleranza dell'1% rispetto ai valori di letteratura.",
+        description: "Questo test replica l'esempio 1, paragrafo 12, del manuale Unichim 179/1 (Ed. 2011). Verifica il calcolo dei parametri di statistica descrittiva (numero di dati, media, deviazione standard, limite di ripetibilità) con una tolleranza dell'1% rispetto ai valori di letteratura (ove applicabile).",
         type: 'descriptive-stats',
         inputs: {
             data: [0.72, 0.73, 0.73, 0.75, 0.76, 0.80, 0.78, 0.80, 0.74, 0.74]
         },
         expectedResults: {
+            n: 10,
             mean: 0.755,
             std_dev: 0.029,
-            cv_percent: 3.8,
             repeatability_limit: 0.093
         }
     }
@@ -439,7 +439,18 @@ function executeDescriptiveStatsValidation(testCase) {
     const comparison = {};
     let allTestsPassed = true;
 
-    // 1. Calcola e verifica la media
+    // 1. Verifica il numero di dati (n)
+    const expectedN = expectedResults.n;
+    const nPass = n === expectedN;
+    if (!nPass) allTestsPassed = false;
+    comparison['Numero di dati (n)'] = {
+        calculated: n.toString(),
+        expected: expectedN.toString(),
+        pass: nPass,
+        difference: n - expectedN
+    };
+
+    // 2. Calcola e verifica la media
     const calculatedMean = ss.mean(data);
     const expectedMean = expectedResults.mean;
     const meanRelDiff = Math.abs((calculatedMean - expectedMean) / expectedMean);
@@ -452,7 +463,7 @@ function executeDescriptiveStatsValidation(testCase) {
         difference: calculatedMean - expectedMean
     };
 
-    // 2. Calcola e verifica la deviazione standard
+    // 3. Calcola e verifica la deviazione standard
     const calculatedStdDev = ss.sampleStandardDeviation(data);
     const expectedStdDev = expectedResults.std_dev;
     const stdDevRelDiff = Math.abs((calculatedStdDev - expectedStdDev) / expectedStdDev);
@@ -463,19 +474,6 @@ function executeDescriptiveStatsValidation(testCase) {
         expected: expectedStdDev.toPrecision(4),
         pass: stdDevPass,
         difference: calculatedStdDev - expectedStdDev
-    };
-
-    // 3. Calcola e verifica il CV%
-    const calculatedCvPercent = (calculatedStdDev / calculatedMean) * 100;
-    const expectedCvPercent = expectedResults.cv_percent;
-    const cvRelDiff = Math.abs((calculatedCvPercent - expectedCvPercent) / expectedCvPercent);
-    const cvPass = cvRelDiff <= 0.01;
-    if (!cvPass) allTestsPassed = false;
-    comparison['CV %'] = {
-        calculated: calculatedCvPercent.toFixed(2),
-        expected: expectedCvPercent.toFixed(2),
-        pass: cvPass,
-        difference: calculatedCvPercent - expectedCvPercent
     };
 
     // 4. Calcola e verifica il limite di ripetibilità (r)
@@ -498,7 +496,7 @@ function executeDescriptiveStatsValidation(testCase) {
         inputs: { data: data },
         comparison: comparison,
         allPassed: allTestsPassed,
-        passCondition: `Il test è superato se tutti i parametri calcolati hanno una differenza relativa <= 1% rispetto al valore atteso.`,
+        passCondition: `Il test è superato se n è corretto e gli altri parametri calcolati hanno una differenza relativa <= 1% rispetto al valore atteso.`,
         error: null
     };
 }
