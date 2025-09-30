@@ -105,6 +105,21 @@ const VALIDATION_TEST_CASES = [
             Q_critical: 0.479,
             is_outlier: false
         }
+    },
+    {
+        id: 'unichim_179_1_descriptive_stats',
+        name: "Unichim 179/1 - Esempio 1: Statistiche Descrittive",
+        description: "Questo test replica l'esempio 1, paragrafo 12, del manuale Unichim 179/1 (Ed. 2011). Verifica il calcolo dei parametri di statistica descrittiva (media, deviazione standard, CV%, limite di ripetibilità) con una tolleranza dell'1% rispetto ai valori di letteratura.",
+        type: 'descriptive-stats',
+        inputs: {
+            data: [0.72, 0.73, 0.73, 0.75, 0.76, 0.80, 0.78, 0.80, 0.74, 0.74]
+        },
+        expectedResults: {
+            mean: 0.755,
+            std_dev: 0.029,
+            cv_percent: 3.8,
+            repeatability_limit: 0.093
+        }
     }
     // Futuri casi di test possono essere aggiunti qui
 ];
@@ -408,6 +423,82 @@ function executeDixonValidation(testCase) {
         comparison: comparison,
         allPassed: allTestsPassed,
         passCondition: `Il test è superato se Q calcolato ha una differenza relativa <= 1% rispetto all'atteso, Q critico è corretto e il risultato del test (È Outlier) è corretto.`,
+        error: null
+    };
+}
+
+function executeDescriptiveStatsValidation(testCase) {
+    const { data } = testCase.inputs;
+    const { expectedResults } = testCase;
+    const n = data.length;
+
+    if (n < 2) {
+        return { error: `Sono necessari almeno 2 dati per calcolare la deviazione standard.` };
+    }
+
+    const comparison = {};
+    let allTestsPassed = true;
+
+    // 1. Calcola e verifica la media
+    const calculatedMean = ss.mean(data);
+    const expectedMean = expectedResults.mean;
+    const meanRelDiff = Math.abs((calculatedMean - expectedMean) / expectedMean);
+    const meanPass = meanRelDiff <= 0.01;
+    if (!meanPass) allTestsPassed = false;
+    comparison['Media'] = {
+        calculated: calculatedMean.toPrecision(5),
+        expected: expectedMean.toPrecision(5),
+        pass: meanPass,
+        difference: calculatedMean - expectedMean
+    };
+
+    // 2. Calcola e verifica la deviazione standard
+    const calculatedStdDev = ss.sampleStandardDeviation(data);
+    const expectedStdDev = expectedResults.std_dev;
+    const stdDevRelDiff = Math.abs((calculatedStdDev - expectedStdDev) / expectedStdDev);
+    const stdDevPass = stdDevRelDiff <= 0.01;
+    if (!stdDevPass) allTestsPassed = false;
+    comparison['Deviazione Standard (s)'] = {
+        calculated: calculatedStdDev.toPrecision(4),
+        expected: expectedStdDev.toPrecision(4),
+        pass: stdDevPass,
+        difference: calculatedStdDev - expectedStdDev
+    };
+
+    // 3. Calcola e verifica il CV%
+    const calculatedCvPercent = (calculatedStdDev / calculatedMean) * 100;
+    const expectedCvPercent = expectedResults.cv_percent;
+    const cvRelDiff = Math.abs((calculatedCvPercent - expectedCvPercent) / expectedCvPercent);
+    const cvPass = cvRelDiff <= 0.01;
+    if (!cvPass) allTestsPassed = false;
+    comparison['CV %'] = {
+        calculated: calculatedCvPercent.toFixed(2),
+        expected: expectedCvPercent.toFixed(2),
+        pass: cvPass,
+        difference: calculatedCvPercent - expectedCvPercent
+    };
+
+    // 4. Calcola e verifica il limite di ripetibilità (r)
+    const tValue = getStudentTValue(n - 1); // Usa la funzione helper esistente per i gradi di libertà
+    const calculatedRepeatability = tValue * calculatedStdDev * Math.sqrt(2);
+    const expectedRepeatability = expectedResults.repeatability_limit;
+    const rRelDiff = Math.abs((calculatedRepeatability - expectedRepeatability) / expectedRepeatability);
+    const rPass = rRelDiff <= 0.01;
+    if (!rPass) allTestsPassed = false;
+    comparison['Limite di Ripetibilità (r)'] = {
+        calculated: calculatedRepeatability.toPrecision(4),
+        expected: expectedRepeatability.toPrecision(4),
+        pass: rPass,
+        difference: calculatedRepeatability - expectedRepeatability
+    };
+
+    return {
+        testId: testCase.id,
+        testName: testCase.name,
+        inputs: { data: data },
+        comparison: comparison,
+        allPassed: allTestsPassed,
+        passCondition: `Il test è superato se tutti i parametri calcolati hanno una differenza relativa <= 1% rispetto al valore atteso.`,
         error: null
     };
 }
@@ -5587,6 +5678,8 @@ function actionRunValidationTest() {
             results = executeGrubbsValidation(testCase);
         } else if (testCase.type === 'dixon') {
             results = executeDixonValidation(testCase);
+        } else if (testCase.type === 'descriptive-stats') {
+            results = executeDescriptiveStatsValidation(testCase);
         } else {
             results = { error: `Tipo di test '${testCase.type}' non supportato.` };
         }
