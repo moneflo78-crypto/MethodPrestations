@@ -637,6 +637,25 @@ const DEFAULT_METHODS_LIBRARY = {
     "metodo_PO4": { "name": "Fosfati (Sonda Spettrofotometrica)" },
     "metodo_NO3": { "name": "Nitrati (Sonda Spettrofotometrica)" }
 };
+
+const DEFAULT_GUARANTEED_CRITERIA = {
+  "materiale_riferimento": {
+    "metodo_pH": 0.5, "metodo_anioni": 0.5, "metodo_CrVI": 0.5, "metodo_metalli": 1.5,
+    "metodo_IPA": 15.0, "metodo_VPH": 10.0, "metodo_HOI": 3.0, "metodo_NH4": 0.5,
+    "metodo_VOC": 6.0, "metodo_COD": 0.1, "metodo_PO4": 0.5, "metodo_NO3": 0.5
+  },
+  "controllo_taratura": {
+    "metodo_pH": 2.0, "metodo_anioni": 5.0, "metodo_CrVI": 5.0, "metodo_metalli": 10.0,
+    "metodo_IPA": 20.0, "metodo_VPH": 20.0, "metodo_HOI": 15.0, "metodo_NH4": 5.0,
+    "metodo_VOC": 20.0, "metodo_COD": 5.0, "metodo_PO4": 5.0, "metodo_NO3": 5.0
+  },
+  "coefficiente_variazione": {
+    "metodo_pH": 1.0, "metodo_anioni": 5.0, "metodo_CrVI": 5.0, "metodo_metalli": 10.0,
+    "metodo_IPA": 15.0, "metodo_VPH": 15.0, "metodo_HOI": 10.0, "metodo_NH4": 5.0,
+    "metodo_VOC": 15.0, "metodo_COD": 5.0, "metodo_PO4": 5.0, "metodo_NO3": 5.0
+  }
+};
+
 const DEFAULT_PIPETTE_LIBRARY = {
     "041CHR": { "calibrationPoints": [ { "volume": 0.002, "U_rel_percent": 3.9 }, { "volume": 0.01, "U_rel_percent": 0.95 }, { "volume": 0.02, "U_rel_percent": 0.49 } ] },
     "042CHR": { "calibrationPoints": [ { "volume": 0.05, "U_rel_percent": 0.74 }, { "volume": 0.1, "U_rel_percent": 0.52 }, { "volume": 0.2, "U_rel_percent": 0.32 } ] },
@@ -936,12 +955,8 @@ function getInitialAppState() {
             pipettes: deepCopy(DEFAULT_PIPETTE_LIBRARY),
             methods: deepCopy(DEFAULT_METHODS_LIBRARY) // NUOVA LIBRERIA
         },
-        // NUOVO OGGETTO PER I CRITERI CARICATI
-        guaranteedCriteria: {
-            materiale_riferimento: {},
-            controllo_taratura: {},
-            coefficiente_variazione: {}
-        },
+        // I criteri ora vengono caricati direttamente dalla costante di default
+        guaranteedCriteria: deepCopy(DEFAULT_GUARANTEED_CRITERIA),
         calibration: {
             max_rsd_icv: null, // NUOVO CAMPO OPZIONALE
             points: [
@@ -2846,8 +2861,12 @@ function actionLoadLibraries() {
         const librariesString = localStorage.getItem('unccalib_libraries');
         if (librariesString) {
             const loadedLibraries = JSON.parse(librariesString);
-            // Basic validation
+            // Validazione robusta e retrocompatibilità
             if (loadedLibraries && loadedLibraries.glassware && loadedLibraries.pipettes) {
+                // Se la libreria dei metodi non esiste nei dati salvati, la inizializza.
+                if (!loadedLibraries.methods) {
+                    loadedLibraries.methods = deepCopy(DEFAULT_METHODS_LIBRARY);
+                }
                 appState.libraries = loadedLibraries;
                 console.log('Libraries loaded from localStorage.');
             }
@@ -4091,23 +4110,6 @@ async function actionLoadMultipleProjects(event) {
     } finally {
         // Reset the file input so the same files can be loaded again
         event.target.value = null;
-    }
-}
-
-async function actionLoadGuaranteedCriteria() {
-    try {
-        // Aggiunto un parametro di cache-busting per assicurare che il file venga sempre ricaricato
-        const response = await fetch(`criteri_garantiti.json?_=${new Date().getTime()}`);
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const criteria = await response.json();
-        appState.guaranteedCriteria = criteria;
-        console.log("Criteri garantiti caricati con successo.");
-    } catch (e) {
-        console.error("Impossibile caricare il file criteri_garantiti.json:", e);
-        // L'applicazione può continuare a funzionare, ma la funzionalità di incertezza garantita non sarà disponibile.
-        // Potremmo mostrare un avviso all'utente se necessario.
     }
 }
 
@@ -6838,17 +6840,10 @@ async function actionRemoveMethod(id) {
 
 
 // --- MAIN APP SETUP ---
-async function main() {
+function main() {
     actionLoadLibraries();
-    await actionLoadGuaranteedCriteria(); // ATTENDE IL CARICAMENTO
     renderRecentFiles();
     setupReportEventListeners();
-
-    // Nasconde l'overlay di caricamento solo quando l'app è pronta
-    const loadingOverlay = document.getElementById('loading-overlay');
-    if (loadingOverlay) {
-        loadingOverlay.classList.add('opacity-0', 'invisible');
-    }
 
     // --- Event Listeners Scheda Report Progetto ---
     document.getElementById('btn-export-pdf').addEventListener('click', () => actionGenerateReport('pdf'));
