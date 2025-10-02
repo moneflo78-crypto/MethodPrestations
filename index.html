@@ -322,10 +322,7 @@
                                 Pipette
                             </button>
                              <button data-subtab-name="metodi" id="subtab-metodi" class="subtab-btn whitespace-nowrap pb-2 px-1 border-b-2 font-medium text-md text-gray-500 hover:text-blue-600 hover:border-blue-300">
-                                Metodi
-                            </button>
-                             <button data-subtab-name="criteri" id="subtab-criteri" class="subtab-btn whitespace-nowrap pb-2 px-1 border-b-2 font-medium text-md text-gray-500 hover:text-blue-600 hover:border-blue-300">
-                                Criteri Garantiti
+                                Metodi e Criteri
                             </button>
                         </nav>
                     </div>
@@ -377,9 +374,9 @@
                     </div>
 
                     <div id="subcontent-metodi" class="hidden">
-                        <!-- Sezione Metodi -->
+                        <!-- Sezione Metodi e Criteri -->
                         <div class="flex justify-between items-center mb-4">
-                            <h3 class="text-xl font-semibold text-gray-800">Libreria Metodi</h3>
+                            <h3 class="text-xl font-semibold text-gray-800">Libreria Metodi e Criteri di Accettabilità</h3>
                             <button id="btn-add-method" class="text-sm bg-blue-100 text-blue-800 font-semibold py-1 px-3 rounded-md hover:bg-blue-200">+ Aggiungi Metodo</button>
                         </div>
                         <div class="overflow-x-auto border rounded-lg">
@@ -388,6 +385,9 @@
                                     <tr>
                                         <th>ID Metodo</th>
                                         <th>Nome Metodo</th>
+                                        <th title="Incertezza massima del materiale di riferimento (%)">U rif. (%)</th>
+                                        <th title="Incertezza massima del controllo di taratura (ICV, %)">U ICV (%)</th>
+                                        <th title="Coefficiente di variazione massimo (%)">CV max (%)</th>
                                         <th>Azioni</th>
                                     </tr>
                                 </thead>
@@ -399,14 +399,7 @@
                     </div>
 
                     <div id="subcontent-criteri" class="hidden">
-                        <!-- Sezione Criteri Garantiti -->
-                        <div class="flex justify-between items-center mb-4">
-                            <h3 class="text-xl font-semibold text-gray-800">Criteri di Accettabilità Massimi Garantiti</h3>
-                             <p class="text-sm text-gray-500">Questi valori sono di sola lettura e vengono caricati dal file <code>criteri_garantiti.json</code>.</p>
-                        </div>
-                        <div id="guaranteed-criteria-container" class="space-y-6">
-                            <!-- Le tabelle dei criteri verranno generate qui da JS -->
-                        </div>
+                        <!-- QUESTA SEZIONE NON È PIÙ UTILIZZATA -->
                     </div>
 
                 </div>
