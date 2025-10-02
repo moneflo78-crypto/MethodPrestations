@@ -1130,8 +1130,8 @@ function renderMethods() {
             <td class="p-3 font-mono">${id}</td>
             <td class="p-3">${item.name}</td>
             <td class="p-3 space-x-2 whitespace-nowrap">
-                <button data-library="methods" data-id="${id}" class="btn-edit-library-item text-xs bg-yellow-100 text-yellow-800 font-semibold py-1 px-2 rounded-md hover:bg-yellow-200">Modifica</button>
-                <button data-library="methods" data-id="${id}" class="btn-remove-library-item text-xs bg-red-100 text-red-800 font-semibold py-1 px-2 rounded-md hover:bg-red-200">Rimuovi</button>
+                <button data-library="methods" data-name="${id}" class="btn-edit-library-item text-xs bg-yellow-100 text-yellow-800 font-semibold py-1 px-2 rounded-md hover:bg-yellow-200">Modifica</button>
+                <button data-library="methods" data-name="${id}" class="btn-remove-library-item text-xs bg-red-100 text-red-800 font-semibold py-1 px-2 rounded-md hover:bg-red-200">Rimuovi</button>
             </td>
         `;
         tableBody.appendChild(row);
