@@ -114,8 +114,11 @@
                             <textarea id="project-objective" rows="3" class="mt-1 w-full p-2 border border-gray-300 rounded-md" placeholder="Descrivi lo scopo dell'analisi..."></textarea>
                         </div>
                         <div>
-                            <label for="project-method" class="block text-sm font-medium text-gray-700">Metodo</label>
-                            <input type="text" id="project-method" class="mt-1 w-full p-2 border border-gray-300 rounded-md" placeholder="Es: EPA 8270D, Metodo Interno...">
+                            <label for="project-method-select" class="block text-sm font-medium text-gray-700">Metodo</label>
+                            <select id="project-method-select" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                                <!-- Opzioni popolate da JS dalla libreria metodi -->
+                                <option value="">-- Seleziona un metodo --</option>
+                            </select>
                         </div>
                         <div>
                             <label for="project-component" class="block text-sm font-medium text-gray-700">Componente di Interesse</label>
@@ -275,6 +278,20 @@
                 <div class="bg-white p-6 rounded-lg shadow-md border border-gray-200">
                     <h2 class="text-2xl font-bold text-gray-700 mb-4">Calcolo Incertezza Estesa</h2>
                     <p class="text-gray-600 mb-6">Questa sezione riepiloga tutti i contributi e calcola l'incertezza estesa per ogni campione analizzato.</p>
+
+                    <!-- Sezione Incertezza Massima Garantita -->
+                    <div class="my-6 p-4 bg-blue-50 border-l-4 border-blue-400 rounded-r-lg">
+                        <div class="flex items-center">
+                            <input id="toggle-guaranteed-uncertainty" type="checkbox" class="h-5 w-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                            <label for="toggle-guaranteed-uncertainty" class="ml-3 block text-md font-medium text-gray-800">
+                                Calcola Incertezza Massima Garantita
+                            </label>
+                        </div>
+                        <p class="text-sm text-gray-600 mt-2 ml-8">
+                            Attiva questa opzione per calcolare l'incertezza usando i criteri di accettabilità massimi del laboratorio invece dei dati sperimentali.
+                        </p>
+                    </div>
+
                     <div id="extended-uncertainty-container">
                         <!-- I risultati verranno renderizzati qui da script.js -->
                         <p class="text-center text-gray-500 italic p-8">Nessun dato da visualizzare. Esegui prima i calcoli nelle altre sezioni.</p>
@@ -303,6 +320,12 @@
                             </button>
                             <button data-subtab-name="pipette" id="subtab-pipette" class="subtab-btn whitespace-nowrap pb-2 px-1 border-b-2 font-medium text-md text-gray-500 hover:text-blue-600 hover:border-blue-300">
                                 Pipette
+                            </button>
+                             <button data-subtab-name="metodi" id="subtab-metodi" class="subtab-btn whitespace-nowrap pb-2 px-1 border-b-2 font-medium text-md text-gray-500 hover:text-blue-600 hover:border-blue-300">
+                                Metodi
+                            </button>
+                             <button data-subtab-name="criteri" id="subtab-criteri" class="subtab-btn whitespace-nowrap pb-2 px-1 border-b-2 font-medium text-md text-gray-500 hover:text-blue-600 hover:border-blue-300">
+                                Criteri Garantiti
                             </button>
                         </nav>
                     </div>
@@ -350,6 +373,39 @@
                                     <!-- Righe generate da JS -->
                                 </tbody>
                             </table>
+                        </div>
+                    </div>
+
+                    <div id="subcontent-metodi" class="hidden">
+                        <!-- Sezione Metodi -->
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-xl font-semibold text-gray-800">Libreria Metodi</h3>
+                            <button id="btn-add-method" class="text-sm bg-blue-100 text-blue-800 font-semibold py-1 px-3 rounded-md hover:bg-blue-200">+ Aggiungi Metodo</button>
+                        </div>
+                        <div class="overflow-x-auto border rounded-lg">
+                            <table class="w-full text-sm library-table">
+                                <thead class="bg-gray-100">
+                                    <tr>
+                                        <th>ID Metodo</th>
+                                        <th>Nome Metodo</th>
+                                        <th>Azioni</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="methods-library-table">
+                                    <!-- Righe generate da JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div id="subcontent-criteri" class="hidden">
+                        <!-- Sezione Criteri Garantiti -->
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-xl font-semibold text-gray-800">Criteri di Accettabilità Massimi Garantiti</h3>
+                             <p class="text-sm text-gray-500">Questi valori sono di sola lettura e vengono caricati dal file <code>criteri_garantiti.json</code>.</p>
+                        </div>
+                        <div id="guaranteed-criteria-container" class="space-y-6">
+                            <!-- Le tabelle dei criteri verranno generate qui da JS -->
                         </div>
                     </div>
 
@@ -600,6 +656,6 @@
         </div>
     </div>
 
-    <script src="script.js"></script>
+    <script src="script.js?v=3.1.0"></script>
 </body>
 </html>
