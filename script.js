@@ -4148,33 +4148,38 @@ async function handleFileLoad(event) {
                 if (matchingMethodId) {
                     appState.project.method = matchingMethodId; // Trovata corrispondenza automatica
                 } else {
-                    // Nessuna corrispondenza: chiedi all'utente
-                    const methodChoices = Object.entries(appState.libraries.methods).map(([id, data]) => ({
-                        id: id,
-                        label: data.name
-                    }));
+                    // Nessuna corrispondenza: chiedi all'utente con un modal robusto
+                    const methodOptionsHTML = Object.entries(appState.libraries.methods)
+                        .map(([id, data]) => `<option value="${id}">${data.name}</option>`)
+                        .join('');
 
-                    const selectedMethodId = await choiceModal.show({
-                        title: 'Aggiornamento Metodo Progetto',
-                        bodyContent: `Il progetto caricato usa il metodo "${oldMethodName}", che non è nella libreria. Seleziona il metodo corretto a cui associarlo:`,
+                    const confirmed = await formModal.show({
+                        title: 'Metodo non Riconosciuto',
+                        bodyHTML: `
+                            <p class="mb-4">Il progetto caricato usa il metodo "<strong>${oldMethodName}</strong>", che non è presente nella libreria. Per favore, associa un metodo valido o annulla il caricamento.</p>
+                            <label for="modal-method-select" class="block text-sm font-medium text-gray-700">Seleziona un metodo esistente:</label>
+                            <select id="modal-method-select" class="mt-1 block w-full p-2 border border-gray-300 rounded-md">
+                                <option value="">-- Scegli un'opzione --</option>
+                                ${methodOptionsHTML}
+                            </select>
+                        `,
                         buttons: [
-                             // Aggiungiamo un pulsante "Crea nuovo" per gestire il caso in cui il metodo non esista affatto
-                            { text: 'Crea Nuovo Metodo', value: 'create_new', class: secondaryBtnClass },
-                            { text: 'Associa Metodo', value: 'associate', class: primaryBtnClass }
-                        ],
-                        // Questo è un esempio di come estendere il modal, ma per ora usiamo un select nel body.
-                        // Per semplicità, implementiamo la logica di richiesta con un prompt o un modal più semplice.
-                        // La logica qui sotto è una semplificazione.
+                            { text: 'Annulla Caricamento', isConfirm: false, class: secondaryBtnClass },
+                            { text: 'Associa e Continua', isConfirm: true, class: primaryBtnClass }
+                        ]
                     });
 
-                    // Questa parte è semplificata. Un'implementazione reale richiederebbe un modal con un select.
-                    // Per ora, simuliamo la scelta.
-                    const newMethodId = prompt(`Metodo "${oldMethodName}" non trovato. Inserisci l'ID del metodo corretto dalla libreria:`, Object.keys(appState.libraries.methods)[0]);
-                    if (newMethodId && appState.libraries.methods[newMethodId]) {
-                        appState.project.method = newMethodId;
+                    if (confirmed) {
+                        const selectedId = document.getElementById('modal-method-select').value;
+                        if (selectedId) {
+                            appState.project.method = selectedId;
+                        } else {
+                            appState = getInitialAppState(); // Resetta lo stato se l'utente non sceglie
+                            throw new Error("Associazione del metodo annullata dall'utente.");
+                        }
                     } else {
-                        alert("Associazione fallita. Il progetto verrà caricato senza un metodo associato.");
-                        appState.project.method = null;
+                        appState = getInitialAppState(); // Resetta lo stato se l'utente annulla
+                        throw new Error("Caricamento del progetto annullato dall'utente.");
                     }
                 }
             } else if (typeof appState.project.method !== 'string') {
@@ -5265,15 +5270,15 @@ function calculateGuaranteedPreparationUncertainty(treatmentSample, projectState
 
 function calculateGuaranteedExpandedUncertainty(sampleId, projectState) {
     try {
-        // --- MODIFICA DIAGNOSTICA ---
-        // Ignora il projectState ricevuto e usa direttamente lo stato globale
-        const state = window.appState;
-        const sample = state.samples.find(s => s.id === sampleId);
-        const methodId = state.project.method;
-        const criteria = state.guaranteedCriteria;
+        const sample = projectState.samples.find(s => s.id === sampleId);
+        const methodId = projectState.project.method;
+        const criteria = projectState.guaranteedCriteria;
 
         if (!sample) return { error: "Campione non trovato." };
-        if (!methodId) return { error: "Nessun metodo selezionato nel progetto." };
+        // CONTROLLO DI ROBUSTEZZA: Verifica che un metodo sia stato selezionato.
+        if (!methodId) {
+            return { error: "Nessun metodo selezionato. Per favore, seleziona un metodo dal Frontespizio." };
+        }
 
         const contributions = [];
 
@@ -6999,16 +7004,18 @@ function main() {
         if (!button) return;
 
         const library = button.dataset.library;
-        const name = button.dataset.name;
+        const identifier = library === 'methods' ? button.dataset.id : button.dataset.name;
+
+        if (!identifier) return;
 
         if (button.classList.contains('btn-edit-library-item')) {
-            if (library === 'glassware') actionEditGlassware(name);
-            else if (library === 'pipettes') actionEditPipette(name);
-            else if (library === 'methods') actionEditMethod(name); // 'name' qui è l'ID
+            if (library === 'glassware') actionEditGlassware(identifier);
+            else if (library === 'pipettes') actionEditPipette(identifier);
+            else if (library === 'methods') actionEditMethod(identifier);
         } else if (button.classList.contains('btn-remove-library-item')) {
-            if (library === 'glassware') actionRemoveGlassware(name);
-            else if (library === 'pipettes') actionRemovePipette(name);
-            else if (library === 'methods') actionRemoveMethod(name); // 'name' qui è l'ID
+            if (library === 'glassware') actionRemoveGlassware(identifier);
+            else if (library === 'pipettes') actionRemovePipette(identifier);
+            else if (library === 'methods') actionRemoveMethod(identifier);
         } else if (button.classList.contains('btn-duplicate-library-item')) {
             if (library === 'glassware') actionDuplicateGlassware(name);
             else if (library === 'pipettes') actionDuplicatePipette(name);
