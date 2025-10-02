@@ -624,36 +624,18 @@ const DEFAULT_GLASSWARE_LIBRARY = {
     "Matraccio 5000 mL": { "volume": 5000, "uncertainty": 1.2 }
 };
 const DEFAULT_METHODS_LIBRARY = {
-    "metodo_pH": { "name": "pH" },
-    "metodo_anioni": { "name": "Anioni (Cromatografia Ionica)" },
-    "metodo_CrVI": { "name": "Cromo VI (Sonda Spettrofotometrica)" },
-    "metodo_metalli": { "name": "Metalli (ICP-MS)" },
-    "metodo_IPA": { "name": "Idrocarburi Policiclici Aromatici (GC-MS)" },
-    "metodo_VPH": { "name": "Idrocarburi Volatili del Petrolio (GC-FID)" },
-    "metodo_HOI": { "name": "Indice di Idrocarburi (GC-FID)" },
-    "metodo_NH4": { "name": "Ammonio (Sonda Spettrofotometrica)" },
-    "metodo_VOC": { "name": "Composti Organici Volatili (GC-MS)" },
-    "metodo_COD": { "name": "Richiesta Chimica di Ossigeno (COD)" },
-    "metodo_PO4": { "name": "Fosfati (Sonda Spettrofotometrica)" },
-    "metodo_NO3": { "name": "Nitrati (Sonda Spettrofotometrica)" }
-};
-
-const DEFAULT_GUARANTEED_CRITERIA = {
-  "materiale_riferimento": {
-    "metodo_pH": 0.5, "metodo_anioni": 0.5, "metodo_CrVI": 0.5, "metodo_metalli": 1.5,
-    "metodo_IPA": 15.0, "metodo_VPH": 10.0, "metodo_HOI": 3.0, "metodo_NH4": 0.5,
-    "metodo_VOC": 6.0, "metodo_COD": 0.1, "metodo_PO4": 0.5, "metodo_NO3": 0.5
-  },
-  "controllo_taratura": {
-    "metodo_pH": 2.0, "metodo_anioni": 5.0, "metodo_CrVI": 5.0, "metodo_metalli": 10.0,
-    "metodo_IPA": 20.0, "metodo_VPH": 20.0, "metodo_HOI": 15.0, "metodo_NH4": 5.0,
-    "metodo_VOC": 20.0, "metodo_COD": 5.0, "metodo_PO4": 5.0, "metodo_NO3": 5.0
-  },
-  "coefficiente_variazione": {
-    "metodo_pH": 1.0, "metodo_anioni": 5.0, "metodo_CrVI": 5.0, "metodo_metalli": 10.0,
-    "metodo_IPA": 15.0, "metodo_VPH": 15.0, "metodo_HOI": 10.0, "metodo_NH4": 5.0,
-    "metodo_VOC": 15.0, "metodo_COD": 5.0, "metodo_PO4": 5.0, "metodo_NO3": 5.0
-  }
+    "metodo_pH": { "name": "pH", "u_rif_perc": 0.5, "u_icv_perc": 2.0, "cv_perc": 1.0 },
+    "metodo_anioni": { "name": "Anioni (Cromatografia Ionica)", "u_rif_perc": 0.5, "u_icv_perc": 5.0, "cv_perc": 5.0 },
+    "metodo_CrVI": { "name": "Cromo VI (Sonda Spettrofotometrica)", "u_rif_perc": 0.5, "u_icv_perc": 5.0, "cv_perc": 5.0 },
+    "metodo_metalli": { "name": "Metalli (ICP-MS)", "u_rif_perc": 1.5, "u_icv_perc": 10.0, "cv_perc": 10.0 },
+    "metodo_IPA": { "name": "Idrocarburi Policiclici Aromatici (GC-MS)", "u_rif_perc": 15.0, "u_icv_perc": 20.0, "cv_perc": 15.0 },
+    "metodo_VPH": { "name": "Idrocarburi Volatili del Petrolio (GC-FID)", "u_rif_perc": 10.0, "u_icv_perc": 20.0, "cv_perc": 15.0 },
+    "metodo_HOI": { "name": "Indice di Idrocarburi (GC-FID)", "u_rif_perc": 3.0, "u_icv_perc": 15.0, "cv_perc": 10.0 },
+    "metodo_NH4": { "name": "Ammonio (Sonda Spettrofotometrica)", "u_rif_perc": 0.5, "u_icv_perc": 5.0, "cv_perc": 5.0 },
+    "metodo_VOC": { "name": "Composti Organici Volatili (GC-MS)", "u_rif_perc": 6.0, "u_icv_perc": 20.0, "cv_perc": 15.0 },
+    "metodo_COD": { "name": "Richiesta Chimica di Ossigeno (COD)", "u_rif_perc": 0.1, "u_icv_perc": 5.0, "cv_perc": 5.0 },
+    "metodo_PO4": { "name": "Fosfati (Sonda Spettrofotometrica)", "u_rif_perc": 0.5, "u_icv_perc": 5.0, "cv_perc": 5.0 },
+    "metodo_NO3": { "name": "Nitrati (Sonda Spettrofotometrica)", "u_rif_perc": 0.5, "u_icv_perc": 5.0, "cv_perc": 5.0 }
 };
 
 const DEFAULT_PIPETTE_LIBRARY = {
@@ -955,8 +937,6 @@ function getInitialAppState() {
             pipettes: deepCopy(DEFAULT_PIPETTE_LIBRARY),
             methods: deepCopy(DEFAULT_METHODS_LIBRARY) // NUOVA LIBRERIA
         },
-        // I criteri ora vengono caricati direttamente dalla costante di default
-        guaranteedCriteria: deepCopy(DEFAULT_GUARANTEED_CRITERIA),
         calibration: {
             max_rsd_icv: null, // NUOVO CAMPO OPZIONALE
             points: [
@@ -1076,47 +1056,9 @@ function render() {
     renderLibraryTabs();
     renderReportSubTabs();
     renderLibraries();
-    renderMethods(); // NUOVA
-    renderGuaranteedCriteria(); // NUOVA
+    renderMethods();
     renderValidationUI();
 }
-
-function renderGuaranteedCriteria() {
-    const container = document.getElementById('guaranteed-criteria-container');
-    if (!container) return;
-
-    const criteria = appState.guaranteedCriteria;
-    if (Object.keys(criteria.materiale_riferimento).length === 0) {
-        container.innerHTML = `<p class="text-gray-500 italic">Nessun criterio trovato. Assicurarsi che il file <code>criteri_garantiti.json</code> sia presente e caricato correttamente.</p>`;
-        return;
-    }
-
-    const createTableHTML = (title, data) => {
-        const rows = Object.entries(data).map(([methodId, value]) => {
-            const methodName = appState.libraries.methods[methodId]?.name || methodId;
-            return `<tr class="border-b"><td class="p-2">${methodName}</td><td class="p-2 font-mono text-right">${value} %</td></tr>`;
-        }).join('');
-
-        return `
-            <div class="bg-white p-4 rounded-lg shadow-md border">
-                <h4 class="text-lg font-semibold text-gray-800 mb-2">${title}</h4>
-                <div class="overflow-x-auto rounded-md border max-h-60">
-                    <table class="w-full text-sm data-table">
-                        <thead class="bg-gray-100"><tr><th class="p-2 text-left">Metodo</th><th class="p-2 text-right">Valore Massimo (U %)</th></tr></thead>
-                        <tbody>${rows}</tbody>
-                    </table>
-                </div>
-            </div>
-        `;
-    };
-
-    container.innerHTML = `
-        ${createTableHTML('Incertezza Materiale di Riferimento', criteria.materiale_riferimento)}
-        ${createTableHTML('Controllo di Taratura (ICV)', criteria.controllo_taratura)}
-        ${createTableHTML('Coefficiente di Variazione (CV%)', criteria.coefficiente_variazione)}
-    `;
-}
-
 
 function renderMethods() {
     const tableBody = document.getElementById('methods-library-table');
@@ -1129,6 +1071,9 @@ function renderMethods() {
         row.innerHTML = `
             <td class="p-3 font-mono">${id}</td>
             <td class="p-3">${item.name}</td>
+            <td class="p-3 font-mono text-center">${item.u_rif_perc}</td>
+            <td class="p-3 font-mono text-center">${item.u_icv_perc}</td>
+            <td class="p-3 font-mono text-center">${item.cv_perc}</td>
             <td class="p-3 space-x-2 whitespace-nowrap">
                 <button data-library="methods" data-name="${id}" class="btn-edit-library-item text-xs bg-yellow-100 text-yellow-800 font-semibold py-1 px-2 rounded-md hover:bg-yellow-200">Modifica</button>
                 <button data-library="methods" data-name="${id}" class="btn-remove-library-item text-xs bg-red-100 text-red-800 font-semibold py-1 px-2 rounded-md hover:bg-red-200">Rimuovi</button>
@@ -4128,9 +4073,23 @@ async function handleFileLoad(event) {
             // Compatibility checks
             if (!appState.reportSettings) appState.reportSettings = getInitialAppState().reportSettings;
             if (!appState.validation) appState.validation = getInitialAppState().validation;
-            if (!appState.libraries.methods) appState.libraries.methods = deepCopy(DEFAULT_METHODS_LIBRARY); // Aggiunge libreria metodi se non esiste
-            if (!appState.guaranteedCriteria) appState.guaranteedCriteria = getInitialAppState().guaranteedCriteria; // Aggiunge se non esiste
+            if (!appState.libraries.methods) appState.libraries.methods = deepCopy(DEFAULT_METHODS_LIBRARY);
             if (typeof appState.ui.showGuaranteedUncertainty === 'undefined') appState.ui.showGuaranteedUncertainty = false; // Aggiunge se non esiste
+
+            // --- GESTIONE RETROCOMPATIBILITÀ CRITERI GARANTITI ---
+            if (appState.guaranteedCriteria && appState.libraries.methods) {
+                console.log("Rilevato vecchio formato di progetto. Migrazione dei criteri in corso...");
+                for (const methodId in appState.libraries.methods) {
+                    if (appState.libraries.methods.hasOwnProperty(methodId)) {
+                        const method = appState.libraries.methods[methodId];
+                        method.u_rif_perc = appState.guaranteedCriteria.materiale_riferimento?.[methodId] ?? 0;
+                        method.u_icv_perc = appState.guaranteedCriteria.controllo_taratura?.[methodId] ?? 0;
+                        method.cv_perc = appState.guaranteedCriteria.coefficiente_variazione?.[methodId] ?? 0;
+                    }
+                }
+                delete appState.guaranteedCriteria; // Rimuove la vecchia struttura
+                console.log("Migrazione completata.");
+            }
 
 
             if (!appState.project.projectName) {
@@ -5215,15 +5174,17 @@ function calcola_criteri_matracci_max(glasswareLibrary) {
 
 function calculateGuaranteedPreparationUncertainty(treatmentSample, projectState) {
     const methodId = projectState.project.method;
-    const criteria = projectState.guaranteedCriteria;
+    const method = projectState.libraries.methods[methodId];
+    if (!method) throw new Error(`Dati per il metodo ${methodId} non trovati.`);
+
     const maxPipetteUncertainties = calcola_criteri_pipette_max(projectState.libraries.pipettes);
     const maxFlaskUncertainties = calcola_criteri_matracci_max(projectState.libraries.glassware);
 
     let sum_u_rel_sq = 0;
 
     // 1. Contributo del materiale di riferimento
-    const U_ref_mat_perc = criteria.materiale_riferimento[methodId];
-    if (U_ref_mat_perc === undefined) throw new Error(`Criterio 'materiale_riferimento' non definito per il metodo ${methodId}.`);
+    const U_ref_mat_perc = method.u_rif_perc;
+    if (U_ref_mat_perc === undefined) throw new Error(`Criterio 'u_rif_perc' non definito per il metodo ${methodId}.`);
     sum_u_rel_sq += Math.pow(U_ref_mat_perc / 200, 2); // U% -> u_rel (k=2)
 
     // 2. Contributi dalla catena di trattamento
@@ -5265,26 +5226,24 @@ function calculateGuaranteedPreparationUncertainty(treatmentSample, projectState
 
 function calculateGuaranteedExpandedUncertainty(sampleId, projectState) {
     try {
-        // --- MODIFICA DIAGNOSTICA ---
-        // Ignora il projectState ricevuto e usa direttamente lo stato globale
-        const state = window.appState;
-        const sample = state.samples.find(s => s.id === sampleId);
-        const methodId = state.project.method;
-        const criteria = state.guaranteedCriteria;
+        const sample = projectState.samples.find(s => s.id === sampleId);
+        const methodId = projectState.project.method;
+        const method = projectState.libraries.methods[methodId];
 
         if (!sample) return { error: "Campione non trovato." };
         if (!methodId) return { error: "Nessun metodo selezionato nel progetto." };
+        if (!method) return { error: `Dati per il metodo ${methodId} non trovati.` };
 
         const contributions = [];
 
         // 1. Contributo Ripetibilità (da CV% massimo)
-        const U_rep_perc = criteria.coefficiente_variazione[methodId];
-        if (U_rep_perc === undefined) return { error: `Criterio 'coefficiente_variazione' non definito per il metodo ${methodId}.` };
+        const U_rep_perc = method.cv_perc;
+        if (U_rep_perc === undefined) return { error: `Criterio 'cv_perc' non definito per il metodo ${methodId}.` };
         contributions.push({ name: 'Ripetibilità (CV% max)', value: U_rep_perc / 100 }); // CV% è già una incertezza tipo (s/media)
 
         // 2. Contributo Taratura (da controllo di taratura massimo)
-        const U_cal_perc = criteria.controllo_taratura[methodId];
-        if (U_cal_perc === undefined) return { error: `Criterio 'controllo_taratura' non definito per il metodo ${methodId}.` };
+        const U_cal_perc = method.u_icv_perc;
+        if (U_cal_perc === undefined) return { error: `Criterio 'u_icv_perc' non definito per il metodo ${methodId}.` };
         contributions.push({ name: 'Taratura (Criterio ICV max)', value: U_cal_perc / 200 }); // U% (k=2) -> u_rel
 
         // 3. Contributo Preparazione (ricalcolato con criteri massimi)
@@ -6738,7 +6697,7 @@ function setupReportEventListeners() {
 // --- AZIONI PER LA LIBRERIA METODI ---
 async function actionAddMethod() {
     const confirmed = await formModal.show({
-        title: 'Aggiungi Nuovo Metodo',
+        title: 'Aggiungi Nuovo Metodo e Criteri',
         bodyHTML: `
             <div class="space-y-4">
                 <div>
@@ -6748,6 +6707,20 @@ async function actionAddMethod() {
                 <div>
                     <label for="form-field-name" class="block text-sm font-medium text-gray-700">Nome Descrittivo</label>
                     <input type="text" id="form-field-name" class="mt-1 w-full p-2 border border-gray-300 rounded-md" placeholder="Es: Idrocarburi Policiclici Aromatici (GC-MS)">
+                </div>
+                <div class="grid grid-cols-3 gap-4 pt-4 border-t">
+                     <div>
+                        <label for="form-field-u-rif" class="block text-sm font-medium text-gray-700" title="Incertezza massima del materiale di riferimento (%)">U rif. (%)</label>
+                        <input type="number" id="form-field-u-rif" class="mt-1 w-full p-2 border border-gray-300 rounded-md" placeholder="Es: 15.0">
+                    </div>
+                    <div>
+                        <label for="form-field-u-icv" class="block text-sm font-medium text-gray-700" title="Incertezza massima del controllo di taratura (ICV, %)">U ICV (%)</label>
+                        <input type="number" id="form-field-u-icv" class="mt-1 w-full p-2 border border-gray-300 rounded-md" placeholder="Es: 20.0">
+                    </div>
+                    <div>
+                        <label for="form-field-cv" class="block text-sm font-medium text-gray-700" title="Coefficiente di variazione massimo (%)">CV max (%)</label>
+                        <input type="number" id="form-field-cv" class="mt-1 w-full p-2 border border-gray-300 rounded-md" placeholder="Es: 15.0">
+                    </div>
                 </div>
             </div>
         `,
@@ -6761,9 +6734,16 @@ async function actionAddMethod() {
         const modalBody = document.getElementById('form-modal-body');
         const id = modalBody.querySelector('#form-field-id').value.trim();
         const name = modalBody.querySelector('#form-field-name').value.trim();
+        const u_rif_perc = parseFloat(modalBody.querySelector('#form-field-u-rif').value);
+        const u_icv_perc = parseFloat(modalBody.querySelector('#form-field-u-icv').value);
+        const cv_perc = parseFloat(modalBody.querySelector('#form-field-cv').value);
 
         if (!id || !name) {
             alert("ID e Nome non possono essere vuoti.");
+            return;
+        }
+        if (isNaN(u_rif_perc) || isNaN(u_icv_perc) || isNaN(cv_perc)) {
+            alert("Tutti i campi dei criteri devono essere numeri validi.");
             return;
         }
         if (appState.libraries.methods[id]) {
@@ -6771,10 +6751,10 @@ async function actionAddMethod() {
             return;
         }
 
-        appState.libraries.methods[id] = { name };
+        appState.libraries.methods[id] = { name, u_rif_perc, u_icv_perc, cv_perc };
         setDirty();
         render();
-        actionSaveLibraries(); // Salva anche la nuova libreria metodi
+        actionSaveLibraries();
     }
 }
 
@@ -6783,7 +6763,7 @@ async function actionEditMethod(id) {
     if (!item) return;
 
     const confirmed = await formModal.show({
-        title: 'Modifica Metodo',
+        title: 'Modifica Metodo e Criteri',
         bodyHTML: `
             <div class="space-y-4">
                 <div>
@@ -6793,6 +6773,20 @@ async function actionEditMethod(id) {
                 <div>
                     <label for="form-field-name" class="block text-sm font-medium text-gray-700">Nome Descrittivo</label>
                     <input type="text" id="form-field-name" class="mt-1 w-full p-2 border border-gray-300 rounded-md" value="${item.name}">
+                </div>
+                 <div class="grid grid-cols-3 gap-4 pt-4 border-t">
+                     <div>
+                        <label for="form-field-u-rif" class="block text-sm font-medium text-gray-700" title="Incertezza massima del materiale di riferimento (%)">U rif. (%)</label>
+                        <input type="number" id="form-field-u-rif" class="mt-1 w-full p-2 border border-gray-300 rounded-md" value="${item.u_rif_perc}">
+                    </div>
+                    <div>
+                        <label for="form-field-u-icv" class="block text-sm font-medium text-gray-700" title="Incertezza massima del controllo di taratura (ICV, %)">U ICV (%)</label>
+                        <input type="number" id="form-field-u-icv" class="mt-1 w-full p-2 border border-gray-300 rounded-md" value="${item.u_icv_perc}">
+                    </div>
+                    <div>
+                        <label for="form-field-cv" class="block text-sm font-medium text-gray-700" title="Coefficiente di variazione massimo (%)">CV max (%)</label>
+                        <input type="number" id="form-field-cv" class="mt-1 w-full p-2 border border-gray-300 rounded-md" value="${item.cv_perc}">
+                    </div>
                 </div>
             </div>
         `,
@@ -6805,11 +6799,19 @@ async function actionEditMethod(id) {
     if (confirmed) {
         const modalBody = document.getElementById('form-modal-body');
         const newName = modalBody.querySelector('#form-field-name').value.trim();
+        const u_rif_perc = parseFloat(modalBody.querySelector('#form-field-u-rif').value);
+        const u_icv_perc = parseFloat(modalBody.querySelector('#form-field-u-icv').value);
+        const cv_perc = parseFloat(modalBody.querySelector('#form-field-cv').value);
+
         if (!newName) {
             alert("Il nome non può essere vuoto.");
             return;
         }
-        appState.libraries.methods[id].name = newName;
+        if (isNaN(u_rif_perc) || isNaN(u_icv_perc) || isNaN(cv_perc)) {
+            alert("Tutti i campi dei criteri devono essere numeri validi.");
+            return;
+        }
+        appState.libraries.methods[id] = { name: newName, u_rif_perc, u_icv_perc, cv_perc };
         setDirty();
         render();
         actionSaveLibraries();
