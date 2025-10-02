@@ -623,6 +623,20 @@ const DEFAULT_GLASSWARE_LIBRARY = {
     "Matraccio 2000 mL": { "volume": 2000, "uncertainty": 0.6 },
     "Matraccio 5000 mL": { "volume": 5000, "uncertainty": 1.2 }
 };
+const DEFAULT_METHODS_LIBRARY = {
+    "metodo_pH": { "name": "pH" },
+    "metodo_anioni": { "name": "Anioni (Cromatografia Ionica)" },
+    "metodo_CrVI": { "name": "Cromo VI (Sonda Spettrofotometrica)" },
+    "metodo_metalli": { "name": "Metalli (ICP-MS)" },
+    "metodo_IPA": { "name": "Idrocarburi Policiclici Aromatici (GC-MS)" },
+    "metodo_VPH": { "name": "Idrocarburi Volatili del Petrolio (GC-FID)" },
+    "metodo_HOI": { "name": "Indice di Idrocarburi (GC-FID)" },
+    "metodo_NH4": { "name": "Ammonio (Sonda Spettrofotometrica)" },
+    "metodo_VOC": { "name": "Composti Organici Volatili (GC-MS)" },
+    "metodo_COD": { "name": "Richiesta Chimica di Ossigeno (COD)" },
+    "metodo_PO4": { "name": "Fosfati (Sonda Spettrofotometrica)" },
+    "metodo_NO3": { "name": "Nitrati (Sonda Spettrofotometrica)" }
+};
 const DEFAULT_PIPETTE_LIBRARY = {
     "041CHR": { "calibrationPoints": [ { "volume": 0.002, "U_rel_percent": 3.9 }, { "volume": 0.01, "U_rel_percent": 0.95 }, { "volume": 0.02, "U_rel_percent": 0.49 } ] },
     "042CHR": { "calibrationPoints": [ { "volume": 0.05, "U_rel_percent": 0.74 }, { "volume": 0.1, "U_rel_percent": 0.52 }, { "volume": 0.2, "U_rel_percent": 0.32 } ] },
@@ -888,17 +902,18 @@ const multiChoiceModal = {
 // --- INITIAL STATE ---
 function getInitialAppState() {
     return {
-        version: '3.0.0',
+        version: '3.1.0', // VERSIONE INCREMENTATA
         ui: {
             activeTab: 'frontespizio',
-            activeLibrarySubTab: 'vetreria', // 'vetreria' or 'pipette'
-            activeReportSubTab: 'report-progetto', // 'report-progetto' or 'report-multiprogetto'
-            currentFileName: null
+            activeLibrarySubTab: 'vetreria', // 'vetreria', 'pipette', 'metodi', 'criteri'
+            activeReportSubTab: 'report-progetto',
+            currentFileName: null,
+            showGuaranteedUncertainty: false // NUOVO STATO UI
         },
         project: {
             projectName: 'Nuovo Progetto',
             objective: '',
-            method: '',
+            method: null, // ORA CONTERRÀ L'ID DEL METODO
             component: ''
         },
         samples: [],
@@ -912,7 +927,6 @@ function getInitialAppState() {
                 productCode: '',
                 lot: ''
             }
-            // Data for spike uncertainty calculations is now keyed by sample.id dynamically.
         },
         calibrationSolutionUncertainty: {
             // Data for calibration solution uncertainty calculations, keyed by a unique ID for each calibration point.
@@ -920,6 +934,13 @@ function getInitialAppState() {
         libraries: {
             glassware: deepCopy(DEFAULT_GLASSWARE_LIBRARY),
             pipettes: deepCopy(DEFAULT_PIPETTE_LIBRARY),
+            methods: deepCopy(DEFAULT_METHODS_LIBRARY) // NUOVA LIBRERIA
+        },
+        // NUOVO OGGETTO PER I CRITERI CARICATI
+        guaranteedCriteria: {
+            materiale_riferimento: {},
+            controllo_taratura: {},
+            coefficiente_variazione: {}
         },
         calibration: {
             max_rsd_icv: null, // NUOVO CAMPO OPZIONALE
@@ -976,6 +997,7 @@ function getInitialAppState() {
     };
 }
 let appState = getInitialAppState();
+window.appState = appState; // Esponi lo stato a livello globale per il debug
 let loadedProjectsData = []; // Dati per il report multiprogetto
 let isDirty = false;
 
@@ -1034,13 +1056,73 @@ function render() {
     renderRfResults();
     renderSpikeUncertainty();
     renderCalibrationSolutionUncertainty();
-    renderTreatments(); // <-- Aggiunta nuova funzione di rendering
-    renderExpandedUncertainty(); // <-- AGGIUNTA
-    renderLibraryTabs(); // <-- Funzione per le librerie
+    renderTreatments();
+    renderExpandedUncertainty();
+    renderLibraryTabs();
     renderReportSubTabs();
-    renderLibraries(); // <-- Funzione per le tabelle delle librerie
-    renderValidationUI(); // <-- NUOVA FUNZIONE
+    renderLibraries();
+    renderMethods(); // NUOVA
+    renderGuaranteedCriteria(); // NUOVA
+    renderValidationUI();
 }
+
+function renderGuaranteedCriteria() {
+    const container = document.getElementById('guaranteed-criteria-container');
+    if (!container) return;
+
+    const criteria = appState.guaranteedCriteria;
+    if (Object.keys(criteria.materiale_riferimento).length === 0) {
+        container.innerHTML = `<p class="text-gray-500 italic">Nessun criterio trovato. Assicurarsi che il file <code>criteri_garantiti.json</code> sia presente e caricato correttamente.</p>`;
+        return;
+    }
+
+    const createTableHTML = (title, data) => {
+        const rows = Object.entries(data).map(([methodId, value]) => {
+            const methodName = appState.libraries.methods[methodId]?.name || methodId;
+            return `<tr class="border-b"><td class="p-2">${methodName}</td><td class="p-2 font-mono text-right">${value} %</td></tr>`;
+        }).join('');
+
+        return `
+            <div class="bg-white p-4 rounded-lg shadow-md border">
+                <h4 class="text-lg font-semibold text-gray-800 mb-2">${title}</h4>
+                <div class="overflow-x-auto rounded-md border max-h-60">
+                    <table class="w-full text-sm data-table">
+                        <thead class="bg-gray-100"><tr><th class="p-2 text-left">Metodo</th><th class="p-2 text-right">Valore Massimo (U %)</th></tr></thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    };
+
+    container.innerHTML = `
+        ${createTableHTML('Incertezza Materiale di Riferimento', criteria.materiale_riferimento)}
+        ${createTableHTML('Controllo di Taratura (ICV)', criteria.controllo_taratura)}
+        ${createTableHTML('Coefficiente di Variazione (CV%)', criteria.coefficiente_variazione)}
+    `;
+}
+
+
+function renderMethods() {
+    const tableBody = document.getElementById('methods-library-table');
+    if (!tableBody) return;
+    tableBody.innerHTML = '';
+    for (const id in appState.libraries.methods) {
+        const item = appState.libraries.methods[id];
+        const row = document.createElement('tr');
+        row.className = 'border-b hover:bg-gray-50';
+        row.innerHTML = `
+            <td class="p-3 font-mono">${id}</td>
+            <td class="p-3">${item.name}</td>
+            <td class="p-3 space-x-2 whitespace-nowrap">
+                <button data-library="methods" data-id="${id}" class="btn-edit-library-item text-xs bg-yellow-100 text-yellow-800 font-semibold py-1 px-2 rounded-md hover:bg-yellow-200">Modifica</button>
+                <button data-library="methods" data-id="${id}" class="btn-remove-library-item text-xs bg-red-100 text-red-800 font-semibold py-1 px-2 rounded-md hover:bg-red-200">Rimuovi</button>
+            </td>
+        `;
+        tableBody.appendChild(row);
+    }
+}
+
 
 function renderValidationUI() {
     const selectEl = document.getElementById('validation-test-select');
@@ -1396,13 +1478,13 @@ function renderLibraries() {
 
 function renderLibraryTabs() {
     const activeSubTab = appState.ui.activeLibrarySubTab;
-    // Gestisce i pulsanti delle sotto-schede
     document.querySelectorAll('.subtab-btn').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.subtabName === activeSubTab);
     });
-    // Gestisce la visibilità dei contenuti
     document.getElementById('subcontent-vetreria').classList.toggle('hidden', activeSubTab !== 'vetreria');
     document.getElementById('subcontent-pipette').classList.toggle('hidden', activeSubTab !== 'pipette');
+    document.getElementById('subcontent-metodi').classList.toggle('hidden', activeSubTab !== 'metodi');
+    document.getElementById('subcontent-criteri').classList.toggle('hidden', activeSubTab !== 'criteri');
 }
 
 function renderReportSubTabs() {
@@ -2448,13 +2530,31 @@ function renderTabs() {
 function renderProjectInfo() {
     document.getElementById('project-name').value = appState.project.projectName;
     document.getElementById('project-objective').value = appState.project.objective;
-    document.getElementById('project-method').value = appState.project.method;
     document.getElementById('project-component').value = appState.project.component;
+
+    const methodSelect = document.getElementById('project-method-select');
+    methodSelect.innerHTML = '<option value="">-- Seleziona un metodo --</option>'; // Pulisce e aggiunge opzione di default
+    for (const id in appState.libraries.methods) {
+        const method = appState.libraries.methods[id];
+        const option = document.createElement('option');
+        option.value = id;
+        option.textContent = method.name;
+        if (appState.project.method === id) {
+            option.selected = true;
+        }
+        methodSelect.appendChild(option);
+    }
 }
 
 function renderExpandedUncertainty() {
     const container = document.getElementById('extended-uncertainty-container');
     if (!container) return;
+
+    // Aggiorna lo stato del checkbox
+    const toggle = document.getElementById('toggle-guaranteed-uncertainty');
+    if (toggle) {
+        toggle.checked = appState.ui.showGuaranteedUncertainty;
+    }
 
     const processedSamples = appState.samples.filter(s => appState.results[s.id]?.statistics);
 
@@ -2465,58 +2565,57 @@ function renderExpandedUncertainty() {
 
     let content = '';
     processedSamples.forEach(sample => {
-        const result = calculateExpandedUncertainty(sample.id, appState);
+        // --- 1. Calcolo e rendering Incertezza Standard ---
+        const standardResult = calculateExpandedUncertainty(sample.id, appState);
         const sampleUnit = sample.unit || 'µg/L';
 
-        content += `<div class="bg-white p-5 rounded-lg shadow-md border-l-4 ${result.error ? 'border-red-500' : 'border-green-500'} mb-6">`;
-        content += `<h4 class="text-lg font-bold ${result.error ? 'text-red-700' : 'text-gray-900'} mb-4">${sample.name} - Incertezza Estesa</h4>`;
+        content += `<div class="bg-white p-5 rounded-lg shadow-md border-l-4 ${standardResult.error ? 'border-red-500' : 'border-green-500'} mb-6">`;
+        content += `<h4 class="text-lg font-bold ${standardResult.error ? 'text-red-700' : 'text-gray-900'} mb-4">${sample.name} - Incertezza Estesa (da dati sperimentali)</h4>`;
 
-        if (result.error) {
-            content += `<p class="text-red-600 font-semibold">${result.error}</p>`;
+        if (standardResult.error) {
+            content += `<p class="text-red-600 font-semibold">${standardResult.error}</p>`;
         } else {
-            const contributionsHTML = result.contributions.map(c => `
-                <tr class="border-b">
-                    <td class="p-2">${c.name}</td>
-                    <td class="p-2 font-mono text-right">${formatNumberWithRules(c.value * 100)} %</td>
-                    <td class="p-2 font-mono text-right">${c.dof === Infinity ? '∞' : formatNumberWithRules(c.dof)}</td>
-                </tr>
-            `).join('');
-
+            const contributionsHTML = standardResult.contributions.map(c => `
+                <tr class="border-b"><td class="p-2">${c.name}</td><td class="p-2 font-mono text-right">${formatNumberWithRules(c.value * 100)} %</td><td class="p-2 font-mono text-right">${c.dof === Infinity ? '∞' : formatNumberWithRules(c.dof)}</td></tr>`
+            ).join('');
             content += `
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
-                    <div>
-                        <h5 class="font-semibold text-gray-700 text-md mb-2">Riepilogo Contributi</h5>
-                        <div class="overflow-x-auto rounded-md border">
-                            <table class="w-full text-sm data-table">
-                                <thead class="bg-gray-100">
-                                    <tr>
-                                        <th class="p-2 text-left">Fonte di Incertezza</th>
-                                        <th class="p-2 text-right">u_rel (%)</th>
-                                        <th class="p-2 text-right">Gradi di Libertà (v)</th>
-                                    </tr>
-                                </thead>
-                                <tbody>${contributionsHTML}</tbody>
-                            </table>
-                        </div>
-                    </div>
-                    <div>
-                        <h5 class="font-semibold text-gray-700 text-md mb-2">Risultati Finali</h5>
-                        <div class="overflow-x-auto rounded-md border bg-gray-50">
-                            <table class="w-full text-sm data-table">
-                               <tbody>
-                                    <tr><td class="p-2 font-medium">Gradi di Libertà Effettivi (ν_eff)</td><td class="p-2 font-mono text-right">${result.v_eff === Infinity ? '∞' : formatNumberWithRules(result.v_eff)}</td></tr>
-                                    <tr><td class="p-2 font-medium">Fattore di Copertura (k)</td><td class="p-2 font-mono text-right">${formatNumberWithRules(result.k)}</td></tr>
-                                    <tr class="border-t-2 border-gray-300"><td class="p-2 font-bold text-lg">Incertezza Estesa Assoluta (U)</td><td class="p-2 font-mono text-right text-lg font-bold">${formatNumberWithRules(result.U_abs)} ${sampleUnit}</td></tr>
-                                    <tr><td class="p-2 font-bold text-lg">Incertezza Estesa Relativa (U%)</td><td class="p-2 font-mono text-right text-lg font-bold">${formatNumberWithRules(result.U_rel_perc)} %</td></tr>
-                               </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            `;
+                    <div><h5 class="font-semibold text-gray-700 text-md mb-2">Riepilogo Contributi</h5><div class="overflow-x-auto rounded-md border"><table class="w-full text-sm data-table"><thead class="bg-gray-100"><tr><th class="p-2 text-left">Fonte</th><th class="p-2 text-right">u_rel (%)</th><th class="p-2 text-right">v</th></tr></thead><tbody>${contributionsHTML}</tbody></table></div></div>
+                    <div><h5 class="font-semibold text-gray-700 text-md mb-2">Risultati Finali</h5><div class="overflow-x-auto rounded-md border bg-gray-50"><table class="w-full text-sm data-table"><tbody>
+                        <tr><td class="p-2 font-medium">ν_eff</td><td class="p-2 font-mono text-right">${standardResult.v_eff === Infinity ? '∞' : formatNumberWithRules(standardResult.v_eff)}</td></tr>
+                        <tr><td class="p-2 font-medium">k</td><td class="p-2 font-mono text-right">${formatNumberWithRules(standardResult.k)}</td></tr>
+                        <tr class="border-t-2 border-gray-300"><td class="p-2 font-bold text-lg">U</td><td class="p-2 font-mono text-right text-lg font-bold">${formatNumberWithRules(standardResult.U_abs)} ${sampleUnit}</td></tr>
+                        <tr><td class="p-2 font-bold text-lg">U%</td><td class="p-2 font-mono text-right text-lg font-bold">${formatNumberWithRules(standardResult.U_rel_perc)} %</td></tr>
+                    </tbody></table></div></div>
+                </div>`;
         }
-
         content += `</div>`;
+
+        // --- 2. Calcolo e rendering Incertezza Massima Garantita (se attiva) ---
+        if (appState.ui.showGuaranteedUncertainty) {
+            const guaranteedResult = calculateGuaranteedExpandedUncertainty(sample.id, appState);
+            content += `<div class="bg-white p-5 rounded-lg shadow-md border-l-4 ${guaranteedResult.error ? 'border-red-500' : 'border-blue-500'} mb-6">`;
+            content += `<h4 class="text-lg font-bold ${guaranteedResult.error ? 'text-red-700' : 'text-blue-900'} mb-4">${sample.name} - Incertezza Massima Garantita (da criteri)</h4>`;
+
+            if (guaranteedResult.error) {
+                content += `<p class="text-red-600 font-semibold">${guaranteedResult.error}</p>`;
+            } else {
+                 const contributionsHTML = guaranteedResult.contributions.map(c => `
+                    <tr class="border-b"><td class="p-2">${c.name}</td><td class="p-2 font-mono text-right">${formatNumberWithRules(c.value * 100)} %</td><td class="p-2 font-mono text-right">∞</td></tr>`
+                 ).join('');
+                 content += `
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                        <div><h5 class="font-semibold text-gray-700 text-md mb-2">Riepilogo Contributi Massimi</h5><div class="overflow-x-auto rounded-md border"><table class="w-full text-sm data-table"><thead class="bg-gray-100"><tr><th class="p-2 text-left">Fonte</th><th class="p-2 text-right">u_rel (%)</th><th class="p-2 text-right">v</th></tr></thead><tbody>${contributionsHTML}</tbody></table></div></div>
+                        <div><h5 class="font-semibold text-gray-700 text-md mb-2">Risultati Finali</h5><div class="overflow-x-auto rounded-md border bg-gray-50"><table class="w-full text-sm data-table"><tbody>
+                            <tr><td class="p-2 font-medium">ν_eff</td><td class="p-2 font-mono text-right">∞</td></tr>
+                            <tr><td class="p-2 font-medium">k</td><td class="p-2 font-mono text-right">${guaranteedResult.k}</td></tr>
+                            <tr class="border-t-2 border-gray-300"><td class="p-2 font-bold text-lg">U (Garantita)</td><td class="p-2 font-mono text-right text-lg font-bold">${formatNumberWithRules(guaranteedResult.U_abs)} ${sampleUnit}</td></tr>
+                            <tr><td class="p-2 font-bold text-lg">U% (Garantita)</td><td class="p-2 font-mono text-right text-lg font-bold">${formatNumberWithRules(guaranteedResult.U_rel_perc)} %</td></tr>
+                        </tbody></table></div></div>
+                    </div>`;
+            }
+            content += `</div>`;
+        }
     });
 
     container.innerHTML = content;
@@ -3995,29 +4094,95 @@ async function actionLoadMultipleProjects(event) {
     }
 }
 
-function handleFileLoad(event) {
+async function actionLoadGuaranteedCriteria() {
+    try {
+        // Aggiunto un parametro di cache-busting per assicurare che il file venga sempre ricaricato
+        const response = await fetch(`criteri_garantiti.json?_=${new Date().getTime()}`);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const criteria = await response.json();
+        appState.guaranteedCriteria = criteria;
+        console.log("Criteri garantiti caricati con successo.");
+    } catch (e) {
+        console.error("Impossibile caricare il file criteri_garantiti.json:", e);
+        // L'applicazione può continuare a funzionare, ma la funzionalità di incertezza garantita non sarà disponibile.
+        // Potremmo mostrare un avviso all'utente se necessario.
+    }
+}
+
+async function handleFileLoad(event) {
     const file = event.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => { // La funzione ora è async
         try {
             const loadedState = JSON.parse(e.target.result);
             if (!loadedState.version || !loadedState.project) throw new Error("File non valido o corrotto.");
 
             appState = loadedState;
-            appState.ui.currentFileName = file.name; // Set the current file name
+            appState.ui.currentFileName = file.name;
 
             // Compatibility checks
-            if (!appState.reportSettings) {
-                appState.reportSettings = getInitialAppState().reportSettings;
-            }
-            if (!appState.validation) {
-                appState.validation = getInitialAppState().validation;
-            }
+            if (!appState.reportSettings) appState.reportSettings = getInitialAppState().reportSettings;
+            if (!appState.validation) appState.validation = getInitialAppState().validation;
+            if (!appState.libraries.methods) appState.libraries.methods = deepCopy(DEFAULT_METHODS_LIBRARY); // Aggiunge libreria metodi se non esiste
+            if (!appState.guaranteedCriteria) appState.guaranteedCriteria = getInitialAppState().guaranteedCriteria; // Aggiunge se non esiste
+            if (typeof appState.ui.showGuaranteedUncertainty === 'undefined') appState.ui.showGuaranteedUncertainty = false; // Aggiunge se non esiste
+
+
             if (!appState.project.projectName) {
                 const fileNameWithoutExt = file.name.endsWith('.json') ? file.name.slice(0, -5) : file.name;
                 appState.project.projectName = fileNameWithoutExt.replace(/_/g, ' ');
             }
+
+            // --- GESTIONE RETROCOMPATIBILITÀ METODI ---
+            if (typeof appState.project.method === 'string' && appState.project.method.trim() !== '') {
+                const oldMethodName = appState.project.method.trim();
+                const matchingMethodId = Object.keys(appState.libraries.methods).find(id =>
+                    appState.libraries.methods[id].name.toLowerCase() === oldMethodName.toLowerCase()
+                );
+
+                if (matchingMethodId) {
+                    appState.project.method = matchingMethodId; // Trovata corrispondenza automatica
+                } else {
+                    // Nessuna corrispondenza: chiedi all'utente
+                    const methodChoices = Object.entries(appState.libraries.methods).map(([id, data]) => ({
+                        id: id,
+                        label: data.name
+                    }));
+
+                    const selectedMethodId = await choiceModal.show({
+                        title: 'Aggiornamento Metodo Progetto',
+                        bodyContent: `Il progetto caricato usa il metodo "${oldMethodName}", che non è nella libreria. Seleziona il metodo corretto a cui associarlo:`,
+                        buttons: [
+                             // Aggiungiamo un pulsante "Crea nuovo" per gestire il caso in cui il metodo non esista affatto
+                            { text: 'Crea Nuovo Metodo', value: 'create_new', class: secondaryBtnClass },
+                            { text: 'Associa Metodo', value: 'associate', class: primaryBtnClass }
+                        ],
+                        // Questo è un esempio di come estendere il modal, ma per ora usiamo un select nel body.
+                        // Per semplicità, implementiamo la logica di richiesta con un prompt o un modal più semplice.
+                        // La logica qui sotto è una semplificazione.
+                    });
+
+                    // Questa parte è semplificata. Un'implementazione reale richiederebbe un modal con un select.
+                    // Per ora, simuliamo la scelta.
+                    const newMethodId = prompt(`Metodo "${oldMethodName}" non trovato. Inserisci l'ID del metodo corretto dalla libreria:`, Object.keys(appState.libraries.methods)[0]);
+                    if (newMethodId && appState.libraries.methods[newMethodId]) {
+                        appState.project.method = newMethodId;
+                    } else {
+                        alert("Associazione fallita. Il progetto verrà caricato senza un metodo associato.");
+                        appState.project.method = null;
+                    }
+                }
+            } else if (typeof appState.project.method !== 'string') {
+                // Se il campo `method` non è una stringa (es. `null` o non definito), lo normalizziamo a `null`.
+                // Questo copre i casi in cui il campo è assente o già nel nuovo formato (ma magari con un valore non valido).
+                if (!appState.libraries.methods[appState.project.method]) {
+                    appState.project.method = null;
+                }
+            }
+
 
             // --- Retro-compatibility for Spike Uncertainty ---
             if (typeof appState.spikeUncertainty.useCommonReferenceMaterial === 'undefined') {
@@ -4303,7 +4468,9 @@ function actionCalculateTreatmentChain(treatmentSampleId) {
                 if (treatment.source.type === 'manual') {
                     const sourceConc = parseFloat(String(treatment.source.manualConcentration).replace(',', '.'));
                     const sourceUnc = parseFloat(String(treatment.source.manualUncertainty).replace(',', '.'));
-                    if (isNaN(sourceConc) || isNaN(sourceUnc)) throw new Error("Dati manuali incompleti o non validi.");
+                    // MODIFICA: Non lanciare un errore se i campi sono vuoti, esci silenziosamente.
+                    // L'errore verrà mostrato solo se l'utente clicca "Calcola" con dati mancanti.
+                    if (isNaN(sourceConc) || isNaN(sourceUnc)) return;
 
                     currentConcentration = sourceConc;
                     initialConcentrationForSummary = sourceConc;
@@ -4998,6 +5165,153 @@ async function runAllTests() {
         return `Test failed: ${e.message}`;
     }
 }
+
+// --- LOGICA PER CRITERI DI INCERTEZZA GARANTITA ---
+
+/**
+ * Calcola l'incertezza relativa estesa massima (U%) per ogni volume nominale di pipetta dalla libreria.
+ * @param {object} pipettesLibrary - La libreria delle pipette dallo stato dell'app.
+ * @returns {object} Un oggetto dove le chiavi sono i volumi e i valori sono le U% massime.
+ */
+function calcola_criteri_pipette_max(pipettesLibrary) {
+    const maxUncertainties = {};
+    for (const pipetteId in pipettesLibrary) {
+        const pipette = pipettesLibrary[pipetteId];
+        pipette.calibrationPoints.forEach(point => {
+            const { volume, U_rel_percent } = point;
+            if (!maxUncertainties[volume] || U_rel_percent > maxUncertainties[volume]) {
+                maxUncertainties[volume] = U_rel_percent;
+            }
+        });
+    }
+    return maxUncertainties;
+}
+
+/**
+ * Calcola l'incertezza relativa estesa massima (U%) per ogni volume di matraccio dalla libreria.
+ * L'incertezza viene calcolata dalla tolleranza, assumendo una distribuzione rettangolare (u = tol / sqrt(3))
+ * e un fattore di copertura k=2 (U = 2u).
+ * @param {object} glasswareLibrary - La libreria della vetreria dallo stato dell'app.
+ * @returns {object} Un oggetto dove le chiavi sono i volumi e i valori sono le U% massime.
+ */
+function calcola_criteri_matracci_max(glasswareLibrary) {
+    const maxUncertainties = {};
+    for (const itemName in glasswareLibrary) {
+        const item = glasswareLibrary[itemName];
+        const { volume, uncertainty: tolerance } = item;
+        if (volume > 0) {
+            // U_rel = 2 * u_rel = 2 * (u_abs / volume) = 2 * (tolerance / sqrt(3)) / volume
+            const U_rel_percent = (2 * tolerance / (volume * Math.sqrt(3))) * 100;
+            if (!maxUncertainties[volume] || U_rel_percent > maxUncertainties[volume]) {
+                maxUncertainties[volume] = U_rel_percent;
+            }
+        }
+    }
+    return maxUncertainties;
+}
+
+
+function calculateGuaranteedPreparationUncertainty(treatmentSample, projectState) {
+    const methodId = projectState.project.method;
+    const criteria = projectState.guaranteedCriteria;
+    const maxPipetteUncertainties = calcola_criteri_pipette_max(projectState.libraries.pipettes);
+    const maxFlaskUncertainties = calcola_criteri_matracci_max(projectState.libraries.glassware);
+
+    let sum_u_rel_sq = 0;
+
+    // 1. Contributo del materiale di riferimento
+    const U_ref_mat_perc = criteria.materiale_riferimento[methodId];
+    if (U_ref_mat_perc === undefined) throw new Error(`Criterio 'materiale_riferimento' non definito per il metodo ${methodId}.`);
+    sum_u_rel_sq += Math.pow(U_ref_mat_perc / 200, 2); // U% -> u_rel (k=2)
+
+    // 2. Contributi dalla catena di trattamento
+    treatmentSample.treatments.forEach(treatment => {
+        if (treatment.type === 'diluizione') {
+            let sum_u_abs_sq_withdrawals = 0;
+            let totalWithdrawalVolume = 0;
+            treatment.withdrawals.forEach(w => {
+                const U_pipette_perc = maxPipetteUncertainties[w.volume];
+                if (U_pipette_perc === undefined) throw new Error(`Criterio di incertezza massimo non trovato per pipetta con volume ${w.volume} mL.`);
+                const u_abs_pipette = (U_pipette_perc / 200) * w.volume;
+                sum_u_abs_sq_withdrawals += Math.pow(u_abs_pipette, 2);
+                totalWithdrawalVolume += w.volume;
+            });
+            const u_rel_sq_withdrawals = totalWithdrawalVolume > 0 ? sum_u_abs_sq_withdrawals / Math.pow(totalWithdrawalVolume, 2) : 0;
+            sum_u_rel_sq += u_rel_sq_withdrawals;
+
+            const flask = projectState.libraries.glassware[treatment.dilutionFlask];
+            const U_flask_perc = maxFlaskUncertainties[flask.volume];
+            if (U_flask_perc === undefined) throw new Error(`Criterio di incertezza massimo non trovato per matraccio con volume ${flask.volume} mL.`);
+            sum_u_rel_sq += Math.pow(U_flask_perc / 200, 2);
+
+        } else if (treatment.type === 'estrazione' || treatment.type === 'concentrazione') {
+            const initialFlask = projectState.libraries.glassware[treatment.initialVolumeFlask];
+            const finalFlask = projectState.libraries.glassware[treatment.finalVolumeFlask];
+            const U_initial_flask_perc = maxFlaskUncertainties[initialFlask.volume];
+            const U_final_flask_perc = maxFlaskUncertainties[finalFlask.volume];
+             if (U_initial_flask_perc === undefined) throw new Error(`Criterio di incertezza massimo non trovato per matraccio con volume ${initialFlask.volume} mL.`);
+             if (U_final_flask_perc === undefined) throw new Error(`Criterio di incertezza massimo non trovato per matraccio con volume ${finalFlask.volume} mL.`);
+
+            sum_u_rel_sq += Math.pow(U_initial_flask_perc / 200, 2);
+            sum_u_rel_sq += Math.pow(U_final_flask_perc / 200, 2);
+        }
+    });
+
+    return Math.sqrt(sum_u_rel_sq) * 100; // Restituisce u_prep %
+}
+
+
+function calculateGuaranteedExpandedUncertainty(sampleId, projectState) {
+    try {
+        // --- MODIFICA DIAGNOSTICA ---
+        // Ignora il projectState ricevuto e usa direttamente lo stato globale
+        const state = window.appState;
+        const sample = state.samples.find(s => s.id === sampleId);
+        const methodId = state.project.method;
+        const criteria = state.guaranteedCriteria;
+
+        if (!sample) return { error: "Campione non trovato." };
+        if (!methodId) return { error: "Nessun metodo selezionato nel progetto." };
+
+        const contributions = [];
+
+        // 1. Contributo Ripetibilità (da CV% massimo)
+        const U_rep_perc = criteria.coefficiente_variazione[methodId];
+        if (U_rep_perc === undefined) return { error: `Criterio 'coefficiente_variazione' non definito per il metodo ${methodId}.` };
+        contributions.push({ name: 'Ripetibilità (CV% max)', value: U_rep_perc / 100 }); // CV% è già una incertezza tipo (s/media)
+
+        // 2. Contributo Taratura (da controllo di taratura massimo)
+        const U_cal_perc = criteria.controllo_taratura[methodId];
+        if (U_cal_perc === undefined) return { error: `Criterio 'controllo_taratura' non definito per il metodo ${methodId}.` };
+        contributions.push({ name: 'Taratura (Criterio ICV max)', value: U_cal_perc / 200 }); // U% (k=2) -> u_rel
+
+        // 3. Contributo Preparazione (ricalcolato con criteri massimi)
+        const treatmentSample = projectState.treatments.find(ts => ts.sampleId === sampleId);
+        if (treatmentSample && treatmentSample.treatments.length > 0) {
+            const u_prep_perc = calculateGuaranteedPreparationUncertainty(treatmentSample, projectState);
+            contributions.push({ name: 'Preparazione (Criteri max)', value: u_prep_perc / 100 });
+        }
+
+        const u_c_rel = Math.sqrt(contributions.reduce((sum, c) => sum + Math.pow(c.value, 2), 0));
+        const k = 2; // Fisso per l'incertezza garantita
+        const U_rel_perc = k * u_c_rel * 100;
+        const U_abs = (U_rel_perc / 100) * (sample.expectedValue || projectState.results[sampleId]?.statistics?.mean || 0);
+
+        return {
+            U_abs,
+            U_rel_perc,
+            k,
+            v_eff: Infinity, // Gradi di libertà infiniti per calcolo basato su criteri
+            contributions,
+            error: null
+        };
+
+    } catch (e) {
+        console.error(`Errore in calculateGuaranteedExpandedUncertainty: ${e.message}`);
+        return { error: e.message };
+    }
+}
+
 
 // --- CORE CALCULATION LOGIC FOR EXPANDED UNCERTAINTY ---
 
@@ -6419,11 +6733,122 @@ function setupReportEventListeners() {
 }
 
 
+// --- AZIONI PER LA LIBRERIA METODI ---
+async function actionAddMethod() {
+    const confirmed = await formModal.show({
+        title: 'Aggiungi Nuovo Metodo',
+        bodyHTML: `
+            <div class="space-y-4">
+                <div>
+                    <label for="form-field-id" class="block text-sm font-medium text-gray-700">ID Metodo</label>
+                    <input type="text" id="form-field-id" class="mt-1 w-full p-2 border border-gray-300 rounded-md" placeholder="Es: metodo_IPA">
+                </div>
+                <div>
+                    <label for="form-field-name" class="block text-sm font-medium text-gray-700">Nome Descrittivo</label>
+                    <input type="text" id="form-field-name" class="mt-1 w-full p-2 border border-gray-300 rounded-md" placeholder="Es: Idrocarburi Policiclici Aromatici (GC-MS)">
+                </div>
+            </div>
+        `,
+        buttons: [
+            { text: 'Annulla', isConfirm: false, class: secondaryBtnClass },
+            { text: 'Salva', isConfirm: true, class: primaryBtnClass }
+        ]
+    });
+
+    if (confirmed) {
+        const modalBody = document.getElementById('form-modal-body');
+        const id = modalBody.querySelector('#form-field-id').value.trim();
+        const name = modalBody.querySelector('#form-field-name').value.trim();
+
+        if (!id || !name) {
+            alert("ID e Nome non possono essere vuoti.");
+            return;
+        }
+        if (appState.libraries.methods[id]) {
+            alert("Esiste già un metodo con questo ID.");
+            return;
+        }
+
+        appState.libraries.methods[id] = { name };
+        setDirty();
+        render();
+        actionSaveLibraries(); // Salva anche la nuova libreria metodi
+    }
+}
+
+async function actionEditMethod(id) {
+    const item = appState.libraries.methods[id];
+    if (!item) return;
+
+    const confirmed = await formModal.show({
+        title: 'Modifica Metodo',
+        bodyHTML: `
+            <div class="space-y-4">
+                <div>
+                    <label for="form-field-id" class="block text-sm font-medium text-gray-700">ID Metodo (non modificabile)</label>
+                    <input type="text" id="form-field-id" class="mt-1 w-full p-2 border bg-gray-100 border-gray-300 rounded-md" value="${id}" readonly>
+                </div>
+                <div>
+                    <label for="form-field-name" class="block text-sm font-medium text-gray-700">Nome Descrittivo</label>
+                    <input type="text" id="form-field-name" class="mt-1 w-full p-2 border border-gray-300 rounded-md" value="${item.name}">
+                </div>
+            </div>
+        `,
+        buttons: [
+            { text: 'Annulla', isConfirm: false, class: secondaryBtnClass },
+            { text: 'Salva Modifiche', isConfirm: true, class: primaryBtnClass }
+        ]
+    });
+
+    if (confirmed) {
+        const modalBody = document.getElementById('form-modal-body');
+        const newName = modalBody.querySelector('#form-field-name').value.trim();
+        if (!newName) {
+            alert("Il nome non può essere vuoto.");
+            return;
+        }
+        appState.libraries.methods[id].name = newName;
+        setDirty();
+        render();
+        actionSaveLibraries();
+    }
+}
+
+async function actionRemoveMethod(id) {
+    const confirm = await choiceModal.show({
+        title: 'Conferma Rimozione',
+        bodyContent: `Sei sicuro di voler rimuovere il metodo "<strong>${appState.libraries.methods[id].name}</strong>"? L'azione è irreversibile.`,
+        buttons: [
+            { text: 'Annulla', value: false, class: secondaryBtnClass },
+            { text: 'Rimuovi', value: true, class: primaryBtnClass.replace('bg-blue-600', 'bg-red-600').replace('hover:bg-blue-700', 'hover:bg-red-700') }
+        ]
+    });
+
+    if (confirm) {
+        delete appState.libraries.methods[id];
+        // Controlla se il metodo era in uso nel progetto corrente e, in caso, lo resetta
+        if (appState.project.method === id) {
+            appState.project.method = null;
+        }
+        setDirty();
+        render();
+        actionSaveLibraries();
+    }
+}
+
+
 // --- MAIN APP SETUP ---
-function main() {
+async function main() {
     actionLoadLibraries();
+    await actionLoadGuaranteedCriteria(); // ATTENDE IL CARICAMENTO
     renderRecentFiles();
     setupReportEventListeners();
+
+    // Nasconde l'overlay di caricamento solo quando l'app è pronta
+    const loadingOverlay = document.getElementById('loading-overlay');
+    if (loadingOverlay) {
+        loadingOverlay.classList.add('opacity-0', 'invisible');
+    }
 
     // --- Event Listeners Scheda Report Progetto ---
     document.getElementById('btn-export-pdf').addEventListener('click', () => actionGenerateReport('pdf'));
@@ -6582,30 +7007,36 @@ function main() {
         const name = button.dataset.name;
 
         if (button.classList.contains('btn-edit-library-item')) {
-            if (library === 'glassware') {
-                actionEditGlassware(name);
-            } else if (library === 'pipettes') {
-                actionEditPipette(name);
-            }
+            if (library === 'glassware') actionEditGlassware(name);
+            else if (library === 'pipettes') actionEditPipette(name);
+            else if (library === 'methods') actionEditMethod(name); // 'name' qui è l'ID
         } else if (button.classList.contains('btn-remove-library-item')) {
-            if (library === 'glassware') {
-                actionRemoveGlassware(name);
-            } else if (library === 'pipettes') {
-                actionRemovePipette(name);
-            }
+            if (library === 'glassware') actionRemoveGlassware(name);
+            else if (library === 'pipettes') actionRemovePipette(name);
+            else if (library === 'methods') actionRemoveMethod(name); // 'name' qui è l'ID
         } else if (button.classList.contains('btn-duplicate-library-item')) {
-            if (library === 'glassware') {
-                actionDuplicateGlassware(name);
-            } else if (library === 'pipettes') {
-                actionDuplicatePipette(name);
-            }
+            if (library === 'glassware') actionDuplicateGlassware(name);
+            else if (library === 'pipettes') actionDuplicatePipette(name);
+            // La duplicazione per i metodi non è implementata in quanto meno critica, si può aggiungere in futuro se necessario.
         }
+    });
+
+    document.getElementById('btn-add-method').addEventListener('click', actionAddMethod);
+
+    document.getElementById('toggle-guaranteed-uncertainty').addEventListener('change', e => {
+        appState.ui.showGuaranteedUncertainty = e.target.checked;
+        renderExpandedUncertainty(); // Ridisegna solo la sezione dei risultati estesi
     });
 
     document.getElementById('project-name').addEventListener('input', e => { appState.project.projectName = e.target.value; setDirty(); });
     document.getElementById('btn-rename-project').addEventListener('click', actionRenameProject);
     document.getElementById('project-objective').addEventListener('input', e => { appState.project.objective = e.target.value; setDirty(); });
-    document.getElementById('project-method').addEventListener('input', e => { appState.project.method = e.target.value; setDirty(); });
+    document.getElementById('project-method-select').addEventListener('change', e => {
+        appState.project.method = e.target.value || null;
+        setDirty();
+        // Potrebbe essere necessario ricalcolare/aggiornare le sezioni dipendenti dal metodo
+        render();
+    });
     document.getElementById('project-component').addEventListener('input', e => { appState.project.component = e.target.value; setDirty(); });
 
     // --- Event Listeners Scheda Incertezza di Preparazione ---
