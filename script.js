@@ -5215,15 +5215,45 @@ function calculateGuaranteedPreparationUncertainty(treatmentSample, projectState
             sum_u_rel_sq += Math.pow(U_flask_perc / 200, 2);
 
         } else if (treatment.type === 'estrazione' || treatment.type === 'concentrazione') {
+            // --- GESTIONE VOLUME INIZIALE (COMUNE) ---
+            if (!treatment.initialVolumeFlask) throw new Error(`Estrazione/Concentrazione: Manca il matraccio del volume iniziale.`);
             const initialFlask = projectState.libraries.glassware[treatment.initialVolumeFlask];
-            const finalFlask = projectState.libraries.glassware[treatment.finalVolumeFlask];
             const U_initial_flask_perc = maxFlaskUncertainties[initialFlask.volume];
-            const U_final_flask_perc = maxFlaskUncertainties[finalFlask.volume];
-             if (U_initial_flask_perc === undefined) throw new Error(`Criterio di incertezza massimo non trovato per matraccio con volume ${initialFlask.volume} mL.`);
-             if (U_final_flask_perc === undefined) throw new Error(`Criterio di incertezza massimo non trovato per matraccio con volume ${finalFlask.volume} mL.`);
-
+            if (U_initial_flask_perc === undefined) throw new Error(`Criterio di incertezza massimo non trovato per matraccio con volume ${initialFlask.volume} mL.`);
             sum_u_rel_sq += Math.pow(U_initial_flask_perc / 200, 2);
-            sum_u_rel_sq += Math.pow(U_final_flask_perc / 200, 2);
+
+            // --- GESTIONE VOLUME FINALE (DIPENDE DAL METODO) ---
+            let u_rel_sq_final_volume = 0;
+
+            if (treatment.type === 'concentrazione' || (treatment.type === 'estrazione' && treatment.extractionMethod === 'matraccio')) {
+                if (!treatment.finalVolumeFlask) throw new Error(`Estrazione/Concentrazione: Manca il matraccio del volume finale.`);
+                const finalFlask = projectState.libraries.glassware[treatment.finalVolumeFlask];
+                const U_final_flask_perc = maxFlaskUncertainties[finalFlask.volume];
+                if (U_final_flask_perc === undefined) throw new Error(`Criterio di incertezza massimo non trovato per matraccio con volume ${finalFlask.volume} mL.`);
+                u_rel_sq_final_volume = Math.pow(U_final_flask_perc / 200, 2);
+            } else if (treatment.type === 'estrazione' && treatment.extractionMethod === 'pipetta') {
+                if (!treatment.finalVolumeAliquots || treatment.finalVolumeAliquots.length === 0) {
+                    throw new Error("Estrazione (Pipetta): Aggiungere almeno un'aliquota.");
+                }
+                let sum_u_abs_sq_aliquots = 0;
+                let totalAliquotVolume = 0;
+                treatment.finalVolumeAliquots.forEach(aliquot => {
+                    const aliquotVolume = parseFloat(String(aliquot.volume).replace(',', '.'));
+                    if (isNaN(aliquotVolume) || aliquotVolume <= 0) throw new Error("Estrazione (Pipetta): Volume aliquota non valido.");
+
+                    const U_pipette_perc = maxPipetteUncertainties[aliquotVolume];
+                    if (U_pipette_perc === undefined) throw new Error(`Criterio di incertezza massimo non trovato per pipetta con volume ${aliquotVolume} mL.`);
+
+                    const u_abs_pipette = (U_pipette_perc / 200) * aliquotVolume;
+                    sum_u_abs_sq_aliquots += Math.pow(u_abs_pipette, 2);
+                    totalAliquotVolume += aliquotVolume;
+                });
+
+                if (totalAliquotVolume > 0) {
+                    u_rel_sq_final_volume = sum_u_abs_sq_aliquots / Math.pow(totalAliquotVolume, 2);
+                }
+            }
+            sum_u_rel_sq += u_rel_sq_final_volume;
         }
     });
 
