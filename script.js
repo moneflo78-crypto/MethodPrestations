@@ -4067,7 +4067,11 @@ async function handleFileLoad(event) {
             const loadedState = JSON.parse(e.target.result);
             if (!loadedState.version || !loadedState.project) throw new Error("File non valido o corrotto.");
 
+            // Conserva le librerie correnti dell'utente per evitare che vengano sovrascritte
+            const currentUserLibraries = deepCopy(appState.libraries);
+
             appState = loadedState;
+            appState.libraries = currentUserLibraries; // Ripristina le librerie dell'utente
             appState.ui.currentFileName = file.name;
 
             // Compatibility checks
@@ -4168,11 +4172,14 @@ async function handleFileLoad(event) {
             }
             // --- End Retro-compatibility ---
 
-            setDirty(false); // A newly loaded project is not dirty.
+            setDirty(true); // A newly loaded project is considered a modification.
             addProjectToRecents(appState);
             render(); // Render everything with the new state
-            alert("Dati caricati con successo!");
+            // L'alert bloccava l'esecuzione e creava problemi con i test automatici.
+            // La modifica dello stato visivo è un feedback sufficiente.
+            console.log("Dati caricati con successo!");
         } catch (error) {
+            console.error(`Errore nel caricamento: ${error.message}`);
             alert(`Errore nel caricamento: ${error.message}`);
         } finally {
             event.target.value = null;
