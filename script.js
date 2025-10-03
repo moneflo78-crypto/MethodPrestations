@@ -2559,6 +2559,15 @@ function renderExpandedUncertainty() {
 
             if (guaranteedResult.error) {
                 content += `<p class="text-red-600 font-semibold">${guaranteedResult.error}</p>`;
+                // --- NUOVO: Mostra i dati di debug se presenti ---
+                if (guaranteedResult.debugData) {
+                    content += `
+                        <div class="mt-4">
+                            <label class="block text-sm font-medium text-gray-700">Dati di Debug (copia e incolla questo testo):</label>
+                            <textarea class="w-full h-48 mt-1 font-mono text-xs border rounded-md p-2 bg-gray-50" readonly>${guaranteedResult.debugData}</textarea>
+                        </div>
+                    `;
+                }
             } else {
                  const contributionsHTML = guaranteedResult.contributions.map(c => `
                     <tr class="border-b"><td class="p-2">${c.name}</td><td class="p-2 font-mono text-right">${formatNumberWithRules(c.value * 100)} %</td><td class="p-2 font-mono text-right">∞</td></tr>`
@@ -5379,6 +5388,7 @@ function calculateGuaranteedPreparationUncertainty(treatmentSample, projectState
 
 
 function calculateGuaranteedExpandedUncertainty(sampleId, projectState) {
+    let treatmentSampleForDebug = null;
     try {
         const sample = projectState.samples.find(s => s.id === sampleId);
         const methodId = projectState.project.method;
@@ -5402,6 +5412,7 @@ function calculateGuaranteedExpandedUncertainty(sampleId, projectState) {
 
         // 3. Contributo Preparazione (ricalcolato con criteri massimi)
         const treatmentSample = projectState.treatments.find(ts => ts.sampleId === sampleId);
+        treatmentSampleForDebug = treatmentSample; // Store for debugging
         if (treatmentSample && treatmentSample.treatments.length > 0) {
             const u_prep_perc = calculateGuaranteedPreparationUncertainty(treatmentSample, projectState);
             contributions.push({ name: 'Preparazione (Criteri max)', value: u_prep_perc / 100 });
@@ -5423,7 +5434,11 @@ function calculateGuaranteedExpandedUncertainty(sampleId, projectState) {
 
     } catch (e) {
         console.error(`Errore in calculateGuaranteedExpandedUncertainty: ${e.message}`);
-        return { error: e.message };
+        // Attach debug data to the error object to be rendered in the UI
+        return {
+            error: e.message,
+            debugData: JSON.stringify(treatmentSampleForDebug, null, 2)
+        };
     }
 }
 
