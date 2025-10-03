@@ -5293,6 +5293,9 @@ function calcola_criteri_matracci_max(glasswareLibrary) {
 
 
 function calculateGuaranteedPreparationUncertainty(treatmentSample, projectState) {
+    // DIAGNOSTIC LOGGING
+    console.log("DEBUG: Checking guaranteed preparation uncertainty for treatment chain:", JSON.stringify(treatmentSample, null, 2));
+
     const methodId = projectState.project.method;
     const method = projectState.libraries.methods[methodId];
     if (!method) throw new Error(`Dati per il metodo ${methodId} non trovati.`);
