@@ -5216,6 +5216,11 @@ function getGroupMaxUncertainties(groupPipetteIds, pipettesLibrary) {
  * @returns {number} L'incertezza massima garantita (U_rel_percent) da utilizzare.
  */
 function findGuaranteedPipetteUncertainty(pipetteId, withdrawalVolume, projectState) {
+    const numWithdrawalVolume = parseFloat(String(withdrawalVolume).replace(',', '.'));
+    if (isNaN(numWithdrawalVolume)) {
+        throw new Error(`Volume di prelievo "${withdrawalVolume}" non è un numero valido.`);
+    }
+
     const { pipettes: pipettesLibrary } = projectState.libraries;
     const pipetteInUse = pipettesLibrary[pipetteId];
     if (!pipetteInUse) {
@@ -5244,13 +5249,13 @@ function findGuaranteedPipetteUncertainty(pipetteId, withdrawalVolume, projectSt
     const sortedVols = [...groupMaxUncertainties.keys()].sort((a, b) => a - b);
 
     // Caso A: Corrispondenza esatta
-    if (groupMaxUncertainties.has(withdrawalVolume)) {
-        return groupMaxUncertainties.get(withdrawalVolume);
+    if (groupMaxUncertainties.has(numWithdrawalVolume)) {
+        return groupMaxUncertainties.get(numWithdrawalVolume);
     }
 
     // Caso B: Volume compreso in un intervallo
     for (let i = 0; i < sortedVols.length - 1; i++) {
-        if (withdrawalVolume > sortedVols[i] && withdrawalVolume < sortedVols[i+1]) {
+        if (numWithdrawalVolume > sortedVols[i] && numWithdrawalVolume < sortedVols[i+1]) {
             const lowerUncertainty = groupMaxUncertainties.get(sortedVols[i]);
             const upperUncertainty = groupMaxUncertainties.get(sortedVols[i+1]);
             return Math.max(lowerUncertainty, upperUncertainty);
@@ -5260,7 +5265,7 @@ function findGuaranteedPipetteUncertainty(pipetteId, withdrawalVolume, projectSt
     // Caso C: Il volume è fuori dall'intervallo di taratura (non dovrebbe accadere per la validazione dell'input)
     // Come fallback, si potrebbe lanciare un errore più specifico o usare il valore più vicino,
     // ma dato che il flusso di lavoro prevede la validazione del volume, questo errore indica un problema logico.
-    throw new Error(`Nessun criterio di incertezza applicabile trovato per il volume ${withdrawalVolume} mL con la pipetta ${pipetteId}.`);
+    throw new Error(`Nessun criterio di incertezza applicabile trovato per il volume ${numWithdrawalVolume} mL con la pipetta ${pipetteId}.`);
 }
 
 /**
@@ -5292,8 +5297,6 @@ function calculateGuaranteedPreparationUncertainty(treatmentSample, projectState
     const method = projectState.libraries.methods[methodId];
     if (!method) throw new Error(`Dati per il metodo ${methodId} non trovati.`);
 
-    // NOTA: La funzione `calcola_criteri_pipette_max` non è più necessaria qui,
-    // poiché la nuova logica è incapsulata in `findGuaranteedPipetteUncertainty`.
     const maxFlaskUncertainties = calcola_criteri_matracci_max(projectState.libraries.glassware);
 
     let sum_u_rel_sq = 0;
@@ -5304,14 +5307,14 @@ function calculateGuaranteedPreparationUncertainty(treatmentSample, projectState
     sum_u_rel_sq += Math.pow(U_ref_mat_perc / 200, 2); // U% -> u_rel (k=2)
 
     // 2. Contributi dalla catena di trattamento
-    treatmentSample.treatments.forEach(treatment => {
+    treatmentSample.treatments.forEach((treatment, index) => {
+        const stepNum = index + 1;
         if (treatment.type === 'diluizione') {
             let sum_u_abs_sq_withdrawals = 0;
             let totalWithdrawalVolume = 0;
             treatment.withdrawals.forEach(w => {
-                // *** INIZIO MODIFICA: Utilizzo della nuova funzione di ricerca ***
+                if (!w.pipette) throw new Error(`Diluizione (Passaggio ${stepNum}): Pipetta non selezionata.`);
                 const U_pipette_perc = findGuaranteedPipetteUncertainty(w.pipette, w.volume, projectState);
-                // *** FINE MODIFICA ***
                 const u_abs_pipette = (U_pipette_perc / 200) * w.volume;
                 sum_u_abs_sq_withdrawals += Math.pow(u_abs_pipette, 2);
                 totalWithdrawalVolume += w.volume;
@@ -5319,14 +5322,17 @@ function calculateGuaranteedPreparationUncertainty(treatmentSample, projectState
             const u_rel_sq_withdrawals = totalWithdrawalVolume > 0 ? sum_u_abs_sq_withdrawals / Math.pow(totalWithdrawalVolume, 2) : 0;
             sum_u_rel_sq += u_rel_sq_withdrawals;
 
+            if (!treatment.dilutionFlask) throw new Error(`Diluizione (Passaggio ${stepNum}): Matraccio di diluizione non selezionato.`);
             const flask = projectState.libraries.glassware[treatment.dilutionFlask];
+            if (!flask) throw new Error(`Diluizione (Passaggio ${stepNum}): Matraccio '${treatment.dilutionFlask}' non trovato in libreria.`);
             const U_flask_perc = maxFlaskUncertainties[flask.volume];
             if (U_flask_perc === undefined) throw new Error(`Criterio di incertezza massimo non trovato per matraccio con volume ${flask.volume} mL.`);
             sum_u_rel_sq += Math.pow(U_flask_perc / 200, 2);
 
         } else if (treatment.type === 'estrazione' || treatment.type === 'concentrazione') {
-            if (!treatment.initialVolumeFlask) throw new Error(`Estrazione/Concentrazione: Manca il matraccio del volume iniziale.`);
+            if (!treatment.initialVolumeFlask) throw new Error(`${treatment.type.charAt(0).toUpperCase() + treatment.type.slice(1)} (Passaggio ${stepNum}): Manca il matraccio del volume iniziale.`);
             const initialFlask = projectState.libraries.glassware[treatment.initialVolumeFlask];
+            if (!initialFlask) throw new Error(`${treatment.type.charAt(0).toUpperCase() + treatment.type.slice(1)} (Passaggio ${stepNum}): Matraccio iniziale '${treatment.initialVolumeFlask}' non trovato in libreria.`);
             const U_initial_flask_perc = maxFlaskUncertainties[initialFlask.volume];
             if (U_initial_flask_perc === undefined) throw new Error(`Criterio di incertezza massimo non trovato per matraccio con volume ${initialFlask.volume} mL.`);
             sum_u_rel_sq += Math.pow(U_initial_flask_perc / 200, 2);
@@ -5334,25 +5340,24 @@ function calculateGuaranteedPreparationUncertainty(treatmentSample, projectState
             let u_rel_sq_final_volume = 0;
 
             if (treatment.type === 'concentrazione' || (treatment.type === 'estrazione' && treatment.extractionMethod === 'matraccio')) {
-                if (!treatment.finalVolumeFlask) throw new Error(`Estrazione/Concentrazione: Manca il matraccio del volume finale.`);
+                if (!treatment.finalVolumeFlask) throw new Error(`${treatment.type.charAt(0).toUpperCase() + treatment.type.slice(1)} (Passaggio ${stepNum}): Manca il matraccio del volume finale.`);
                 const finalFlask = projectState.libraries.glassware[treatment.finalVolumeFlask];
+                if (!finalFlask) throw new Error(`${treatment.type.charAt(0).toUpperCase() + treatment.type.slice(1)} (Passaggio ${stepNum}): Matraccio finale '${treatment.finalVolumeFlask}' non trovato in libreria.`);
                 const U_final_flask_perc = maxFlaskUncertainties[finalFlask.volume];
                 if (U_final_flask_perc === undefined) throw new Error(`Criterio di incertezza massimo non trovato per matraccio con volume ${finalFlask.volume} mL.`);
                 u_rel_sq_final_volume = Math.pow(U_final_flask_perc / 200, 2);
             } else if (treatment.type === 'estrazione' && treatment.extractionMethod === 'pipetta') {
                 if (!treatment.finalVolumeAliquots || treatment.finalVolumeAliquots.length === 0) {
-                    throw new Error("Estrazione (Pipetta): Aggiungere almeno un'aliquota.");
+                    throw new Error(`Estrazione (Pipetta, Passaggio ${stepNum}): Aggiungere almeno un'aliquota.`);
                 }
                 let sum_u_abs_sq_aliquots = 0;
                 let totalAliquotVolume = 0;
                 treatment.finalVolumeAliquots.forEach(aliquot => {
                     const aliquotVolume = parseFloat(String(aliquot.volume).replace(',', '.'));
-                    if (isNaN(aliquotVolume) || aliquotVolume <= 0) throw new Error("Estrazione (Pipetta): Volume aliquota non valido.");
+                    if (isNaN(aliquotVolume) || aliquotVolume <= 0) throw new Error(`Estrazione (Pipetta, Passaggio ${stepNum}): Volume aliquota non valido.`);
+                    if (!aliquot.pipette) throw new Error(`Estrazione (Pipetta, Passaggio ${stepNum}): Pipetta non selezionata per aliquota.`);
 
-                    // *** INIZIO MODIFICA: Utilizzo della nuova funzione di ricerca ***
                     const U_pipette_perc = findGuaranteedPipetteUncertainty(aliquot.pipette, aliquotVolume, projectState);
-                     // *** FINE MODIFICA ***
-
                     const u_abs_pipette = (U_pipette_perc / 200) * aliquotVolume;
                     sum_u_abs_sq_aliquots += Math.pow(u_abs_pipette, 2);
                     totalAliquotVolume += aliquotVolume;
