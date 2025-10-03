@@ -1,0 +1,18 @@
+{
+  "version": "3.1.0",
+  "project": {
+    "projectName": "Dummy Project From File",
+    "objective": "This is a test project.",
+    "method": null,
+    "component": "Testium"
+  },
+  "samples": [],
+  "results": {},
+  "libraries": {
+    "glassware": {
+      "Matraccio Standard 100mL": { "volume": 100, "uncertainty": 0.1 }
+    },
+    "pipettes": {},
+    "methods": {}
+  }
+}
