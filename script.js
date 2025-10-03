@@ -5155,6 +5155,114 @@ function calcola_criteri_pipette_max(pipettesLibrary) {
     return maxUncertainties;
 }
 
+
+/**
+ * Raggruppa le pipette della libreria in base ai loro punti di taratura.
+ * Due pipette sono considerate "equivalenti" se hanno esattamente gli stessi volumi di taratura.
+ * @param {object} pipettesLibrary - La libreria delle pipette dallo stato dell'app.
+ * @returns {Map<string, string[]>} Una mappa dove la chiave è una stringa che rappresenta
+ *   il profilo di taratura (es. "0.5;2.5;5") e il valore è un array di ID di pipette
+ *   che condividono quel profilo.
+ */
+function groupEquivalentPipettes(pipettesLibrary) {
+    const groups = new Map();
+    for (const pipetteId in pipettesLibrary) {
+        const pipette = pipettesLibrary[pipetteId];
+        // Estrai i volumi, ordinali numericamente e crea una chiave univoca.
+        const profileKey = pipette.calibrationPoints
+            .map(p => p.volume)
+            .sort((a, b) => a - b)
+            .join(';');
+
+        if (!groups.has(profileKey)) {
+            groups.set(profileKey, []);
+        }
+        groups.get(profileKey).push(pipetteId);
+    }
+    return groups;
+}
+
+/**
+ * Calcola le incertezze massime per ogni punto di taratura all'interno di un gruppo di pipette equivalenti.
+ * @param {string[]} groupPipetteIds - Un array di ID di pipette che appartengono allo stesso gruppo di equivalenza.
+ * @param {object} pipettesLibrary - La libreria completa delle pipette.
+ * @returns {Map<number, number>} Una mappa dove la chiave è il volume di taratura e il valore è la
+ *   massima U_rel_percent trovata per quel volume tra tutte le pipette nel gruppo.
+ */
+function getGroupMaxUncertainties(groupPipetteIds, pipettesLibrary) {
+    const maxUncertainties = new Map();
+    groupPipetteIds.forEach(pipetteId => {
+        const pipette = pipettesLibrary[pipetteId];
+        if (pipette) {
+            pipette.calibrationPoints.forEach(point => {
+                const { volume, U_rel_percent } = point;
+                if (!maxUncertainties.has(volume) || U_rel_percent > maxUncertainties.get(volume)) {
+                    maxUncertainties.set(volume, U_rel_percent);
+                }
+            });
+        }
+    });
+    return maxUncertainties;
+}
+
+/**
+ * Trova l'incertezza garantita per un dato volume prelevato con una specifica pipetta.
+ * La logica identifica il gruppo di pipette equivalenti, calcola le incertezze massime per
+ * quel gruppo, e seleziona il valore più conservativo basato sui punti di taratura che
+ * racchiudono il volume di interesse.
+ * @param {string} pipetteId - L'ID della pipetta utilizzata per il prelievo.
+ * @param {number} withdrawalVolume - Il volume effettivo prelevato.
+ * @param {object} projectState - L'intero stato dell'applicazione.
+ * @returns {number} L'incertezza massima garantita (U_rel_percent) da utilizzare.
+ */
+function findGuaranteedPipetteUncertainty(pipetteId, withdrawalVolume, projectState) {
+    const { pipettes: pipettesLibrary } = projectState.libraries;
+    const pipetteInUse = pipettesLibrary[pipetteId];
+    if (!pipetteInUse) {
+        throw new Error(`Pipetta ${pipetteId} non trovata nella libreria.`);
+    }
+
+    // 1. Raggruppa tutte le pipette per profilo di taratura
+    const equivalentPipetteGroups = groupEquivalentPipettes(pipettesLibrary);
+
+    // 2. Trova il gruppo a cui appartiene la pipetta in uso
+    const profileKey = pipetteInUse.calibrationPoints
+        .map(p => p.volume)
+        .sort((a, b) => a - b)
+        .join(';');
+    const targetGroup = equivalentPipetteGroups.get(profileKey);
+
+    if (!targetGroup) {
+        // Questo caso non dovrebbe mai accadere se la pipetta è nella libreria
+        throw new Error(`Impossibile trovare un gruppo di equivalenza per la pipetta ${pipetteId}.`);
+    }
+
+    // 3. Calcola le incertezze massime per quel gruppo
+    const groupMaxUncertainties = getGroupMaxUncertainties(targetGroup, pipettesLibrary);
+
+    // 4. Trova l'incertezza corretta per il volume di prelievo
+    const sortedVols = [...groupMaxUncertainties.keys()].sort((a, b) => a - b);
+
+    // Caso A: Corrispondenza esatta
+    if (groupMaxUncertainties.has(withdrawalVolume)) {
+        return groupMaxUncertainties.get(withdrawalVolume);
+    }
+
+    // Caso B: Volume compreso in un intervallo
+    for (let i = 0; i < sortedVols.length - 1; i++) {
+        if (withdrawalVolume > sortedVols[i] && withdrawalVolume < sortedVols[i+1]) {
+            const lowerUncertainty = groupMaxUncertainties.get(sortedVols[i]);
+            const upperUncertainty = groupMaxUncertainties.get(sortedVols[i+1]);
+            return Math.max(lowerUncertainty, upperUncertainty);
+        }
+    }
+
+    // Caso C: Il volume è fuori dall'intervallo di taratura (non dovrebbe accadere per la validazione dell'input)
+    // Come fallback, si potrebbe lanciare un errore più specifico o usare il valore più vicino,
+    // ma dato che il flusso di lavoro prevede la validazione del volume, questo errore indica un problema logico.
+    throw new Error(`Nessun criterio di incertezza applicabile trovato per il volume ${withdrawalVolume} mL con la pipetta ${pipetteId}.`);
+}
+
 /**
  * Calcola l'incertezza relativa estesa massima (U%) per ogni volume di matraccio dalla libreria.
  * L'incertezza viene calcolata dalla tolleranza, assumendo una distribuzione rettangolare (u = tol / sqrt(3))
@@ -5184,7 +5292,8 @@ function calculateGuaranteedPreparationUncertainty(treatmentSample, projectState
     const method = projectState.libraries.methods[methodId];
     if (!method) throw new Error(`Dati per il metodo ${methodId} non trovati.`);
 
-    const maxPipetteUncertainties = calcola_criteri_pipette_max(projectState.libraries.pipettes);
+    // NOTA: La funzione `calcola_criteri_pipette_max` non è più necessaria qui,
+    // poiché la nuova logica è incapsulata in `findGuaranteedPipetteUncertainty`.
     const maxFlaskUncertainties = calcola_criteri_matracci_max(projectState.libraries.glassware);
 
     let sum_u_rel_sq = 0;
@@ -5200,8 +5309,9 @@ function calculateGuaranteedPreparationUncertainty(treatmentSample, projectState
             let sum_u_abs_sq_withdrawals = 0;
             let totalWithdrawalVolume = 0;
             treatment.withdrawals.forEach(w => {
-                const U_pipette_perc = maxPipetteUncertainties[w.volume];
-                if (U_pipette_perc === undefined) throw new Error(`Criterio di incertezza massimo non trovato per pipetta con volume ${w.volume} mL.`);
+                // *** INIZIO MODIFICA: Utilizzo della nuova funzione di ricerca ***
+                const U_pipette_perc = findGuaranteedPipetteUncertainty(w.pipette, w.volume, projectState);
+                // *** FINE MODIFICA ***
                 const u_abs_pipette = (U_pipette_perc / 200) * w.volume;
                 sum_u_abs_sq_withdrawals += Math.pow(u_abs_pipette, 2);
                 totalWithdrawalVolume += w.volume;
@@ -5215,14 +5325,12 @@ function calculateGuaranteedPreparationUncertainty(treatmentSample, projectState
             sum_u_rel_sq += Math.pow(U_flask_perc / 200, 2);
 
         } else if (treatment.type === 'estrazione' || treatment.type === 'concentrazione') {
-            // --- GESTIONE VOLUME INIZIALE (COMUNE) ---
             if (!treatment.initialVolumeFlask) throw new Error(`Estrazione/Concentrazione: Manca il matraccio del volume iniziale.`);
             const initialFlask = projectState.libraries.glassware[treatment.initialVolumeFlask];
             const U_initial_flask_perc = maxFlaskUncertainties[initialFlask.volume];
             if (U_initial_flask_perc === undefined) throw new Error(`Criterio di incertezza massimo non trovato per matraccio con volume ${initialFlask.volume} mL.`);
             sum_u_rel_sq += Math.pow(U_initial_flask_perc / 200, 2);
 
-            // --- GESTIONE VOLUME FINALE (DIPENDE DAL METODO) ---
             let u_rel_sq_final_volume = 0;
 
             if (treatment.type === 'concentrazione' || (treatment.type === 'estrazione' && treatment.extractionMethod === 'matraccio')) {
@@ -5241,8 +5349,9 @@ function calculateGuaranteedPreparationUncertainty(treatmentSample, projectState
                     const aliquotVolume = parseFloat(String(aliquot.volume).replace(',', '.'));
                     if (isNaN(aliquotVolume) || aliquotVolume <= 0) throw new Error("Estrazione (Pipetta): Volume aliquota non valido.");
 
-                    const U_pipette_perc = maxPipetteUncertainties[aliquotVolume];
-                    if (U_pipette_perc === undefined) throw new Error(`Criterio di incertezza massimo non trovato per pipetta con volume ${aliquotVolume} mL.`);
+                    // *** INIZIO MODIFICA: Utilizzo della nuova funzione di ricerca ***
+                    const U_pipette_perc = findGuaranteedPipetteUncertainty(aliquot.pipette, aliquotVolume, projectState);
+                     // *** FINE MODIFICA ***
 
                     const u_abs_pipette = (U_pipette_perc / 200) * aliquotVolume;
                     sum_u_abs_sq_aliquots += Math.pow(u_abs_pipette, 2);
