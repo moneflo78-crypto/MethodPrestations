@@ -5334,12 +5334,16 @@ function calculateGuaranteedPreparationUncertainty(treatmentSample, projectState
             const u_rel_sq_withdrawals = totalWithdrawalVolume > 0 ? sum_u_abs_sq_withdrawals / Math.pow(totalWithdrawalVolume, 2) : 0;
             sum_u_rel_sq += u_rel_sq_withdrawals;
 
-            if (!treatment.dilutionFlask) throw new Error(`Diluizione (Passaggio ${stepNum}): Matraccio di diluizione non selezionato.`);
-            const flask = projectState.libraries.glassware[treatment.dilutionFlask];
-            if (!flask) throw new Error(`Diluizione (Passaggio ${stepNum}): Matraccio '${treatment.dilutionFlask}' non trovato in libreria.`);
-            const U_flask_perc = maxFlaskUncertainties[flask.volume];
-            if (U_flask_perc === undefined) throw new Error(`Criterio di incertezza massimo non trovato per matraccio con volume ${flask.volume} mL.`);
-            sum_u_rel_sq += Math.pow(U_flask_perc / 200, 2);
+            // --- INIZIO FIX: Controlla il contributo del matraccio solo se il tipo di diluizione lo richiede ---
+            if (treatment.dilutionType === 'bringToVolume') {
+                if (!treatment.dilutionFlask) throw new Error(`Diluizione (Passaggio ${stepNum}): Matraccio di diluizione non selezionato.`);
+                const flask = projectState.libraries.glassware[treatment.dilutionFlask];
+                if (!flask) throw new Error(`Diluizione (Passaggio ${stepNum}): Matraccio '${treatment.dilutionFlask}' non trovato in libreria.`);
+                const U_flask_perc = maxFlaskUncertainties[flask.volume];
+                if (U_flask_perc === undefined) throw new Error(`Criterio di incertezza massimo non trovato per matraccio con volume ${flask.volume} mL.`);
+                sum_u_rel_sq += Math.pow(U_flask_perc / 200, 2);
+            }
+            // --- FINE FIX ---
 
         } else if (treatment.type === 'estrazione' || treatment.type === 'concentrazione') {
             if (!treatment.initialVolumeFlask) throw new Error(`${treatment.type.charAt(0).toUpperCase() + treatment.type.slice(1)} (Passaggio ${stepNum}): Manca il matraccio del volume iniziale.`);
