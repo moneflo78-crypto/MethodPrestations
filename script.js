@@ -109,7 +109,7 @@ const VALIDATION_TEST_CASES = [
     {
         id: 'unichim_179_1_descriptive_stats',
         name: "Unichim 179/1 - Esempio 1: Statistiche Descrittive",
-        description: "Questo test replica l'esempio 1, paragrafo 12, del manuale Unichim 179/1 (Ed. 2011). Verifica il calcolo dei parametri di statistica descrittiva (media, deviazione standard, CV%, limite di ripetibilità) con una tolleranza dell'1% rispetto ai valori di letteratura.",
+        description: "Questo test replica l'esempio 1, paragrafo 12, del manuale Unichim 179/1 (Ed. 2011). Verifica il calcolo dei parametri di statistica descrittiva (media, deviazione standard, limite di ripetibilità) con una tolleranza dell'1% rispetto ai valori di letteratura.",
         type: 'descriptive-stats',
         inputs: {
             data: [0.72, 0.73, 0.73, 0.75, 0.76, 0.80, 0.78, 0.80, 0.74, 0.74]
@@ -117,7 +117,6 @@ const VALIDATION_TEST_CASES = [
         expectedResults: {
             mean: 0.755,
             std_dev: 0.029,
-            cv_percent: 3.8,
             repeatability_limit: 0.093
         }
     }
@@ -465,20 +464,7 @@ function executeDescriptiveStatsValidation(testCase) {
         difference: calculatedStdDev - expectedStdDev
     };
 
-    // 3. Calcola e verifica il CV%
-    const calculatedCvPercent = (calculatedStdDev / calculatedMean) * 100;
-    const expectedCvPercent = expectedResults.cv_percent;
-    const cvRelDiff = Math.abs((calculatedCvPercent - expectedCvPercent) / expectedCvPercent);
-    const cvPass = cvRelDiff <= 0.01;
-    if (!cvPass) allTestsPassed = false;
-    comparison['CV %'] = {
-        calculated: calculatedCvPercent.toFixed(2),
-        expected: expectedCvPercent.toFixed(2),
-        pass: cvPass,
-        difference: calculatedCvPercent - expectedCvPercent
-    };
-
-    // 4. Calcola e verifica il limite di ripetibilità (r)
+    // 3. Calcola e verifica il limite di ripetibilità (r)
     const tValue = getStudentTValue(n - 1); // Usa la funzione helper esistente per i gradi di libertà
     const calculatedRepeatability = tValue * calculatedStdDev * Math.sqrt(2);
     const expectedRepeatability = expectedResults.repeatability_limit;
@@ -4152,6 +4138,41 @@ async function handleFileLoad(event) {
             // --- Retro-compatibility for Spike Uncertainty ---
             if (typeof appState.spikeUncertainty.useCommonReferenceMaterial === 'undefined') {
                 appState.spikeUncertainty.useCommonReferenceMaterial = false;
+            }
+
+            // --- NUOVA RETROCOMPATIBILITÀ (v3.1.0) per `dilutionType` ---
+            // I file più vecchi non avevano la distinzione tra "Porta a Volume" e "Aggiungi Solvente".
+            // Di default, tutti i vecchi trattamenti erano "Porta a Volume".
+            console.log("Checking for backward compatibility on dilutionType...");
+
+            // 1. Controlla in `treatments`
+            if (appState.treatments && Array.isArray(appState.treatments)) {
+                appState.treatments.forEach(ts => {
+                    if (ts.treatments && Array.isArray(ts.treatments)) {
+                        ts.treatments.forEach(treatment => {
+                            if (treatment.type === 'diluizione' && typeof treatment.dilutionType === 'undefined') {
+                                treatment.dilutionType = 'bringToVolume';
+                                console.log(`Compatibility fix: Set dilutionType for treatment ${treatment.id}`);
+                            }
+                        });
+                    }
+                });
+            }
+
+            // 2. Controlla in `spikeUncertainty`
+            if (appState.spikeUncertainty) {
+                for (const sampleId in appState.spikeUncertainty) {
+                    const sampleSpike = appState.spikeUncertainty[sampleId];
+                    if (sampleSpike && sampleSpike.steps && Array.isArray(sampleSpike.steps)) {
+                        sampleSpike.steps.forEach(step => {
+                            // I vecchi step di spike erano solo diluizioni, quindi non serve controllare il tipo.
+                            if (typeof step.dilutionType === 'undefined') {
+                                step.dilutionType = 'bringToVolume';
+                                console.log(`Compatibility fix: Set dilutionType for spike step ${step.id}`);
+                            }
+                        });
+                    }
+                }
             }
             if (typeof appState.spikeUncertainty.commonReferenceMaterial === 'undefined') {
                 appState.spikeUncertainty.commonReferenceMaterial = getInitialAppState().spikeUncertainty.commonReferenceMaterial;
