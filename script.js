@@ -5321,45 +5321,70 @@ function calculateGuaranteedPreparationUncertainty(treatmentSample, projectState
     const method = projectState.libraries.methods[methodId];
     if (!method) throw new Error(`Dati per il metodo ${methodId} non trovati.`);
 
-    const maxFlaskUncertainties = calcola_criteri_matracci_max(projectState.libraries.glassware);
-
     let sum_u_rel_sq = 0;
 
     // 1. Contributo del materiale di riferimento
     const U_ref_mat_perc = method.u_rif_perc;
-    if (U_ref_mat_perc === undefined) throw new Error(`Criterio 'u_rif_perc' non definito per il metodo ${methodId}.`);
-    sum_u_rel_sq += Math.pow(U_ref_mat_perc / 200, 2); // U% -> u_rel (k=2)
+    if (U_ref_mat_perc === undefined || U_ref_mat_perc === null) throw new Error(`Criterio 'u_rif_perc' non definito per il metodo ${methodId}.`);
+    const u_rel_ref_mat = (U_ref_mat_perc / 100) / 2 / Math.sqrt(3);
+    sum_u_rel_sq += Math.pow(u_rel_ref_mat, 2);
 
     // 2. Contributi dalla catena di trattamento
     treatmentSample.treatments.forEach((treatment, index) => {
         const stepNum = index + 1;
+
         if (treatment.type === 'diluizione') {
             let sum_u_abs_sq_withdrawals = 0;
             let totalWithdrawalVolume = 0;
             treatment.withdrawals.forEach(w => {
-                if (!w.pipette) throw new Error(`Diluizione (Passaggio ${stepNum}): Pipetta non selezionata.`);
-                const U_pipette_perc = findGuaranteedPipetteUncertainty(w.pipette, w.volume, projectState);
-                const u_abs_pipette = (U_pipette_perc / (200 * Math.sqrt(3))) * w.volume;
-                sum_u_abs_sq_withdrawals += Math.pow(u_abs_pipette, 2);
-                totalWithdrawalVolume += w.volume;
-            });
-            const u_rel_sq_withdrawals = totalWithdrawalVolume > 0 ? sum_u_abs_sq_withdrawals / Math.pow(totalWithdrawalVolume, 2) : 0;
-            sum_u_rel_sq += u_rel_sq_withdrawals;
+                const withdrawalVolume = parseFloat(String(w.volume).replace(',', '.'));
+                if (!w.pipette || isNaN(withdrawalVolume) || withdrawalVolume <= 0) throw new Error(`Diluizione (Passaggio ${stepNum}): Dati di prelievo incompleti o non validi.`);
 
-            if (!treatment.dilutionFlask) throw new Error(`Diluizione (Passaggio ${stepNum}): Matraccio di diluizione non selezionato.`);
-            const flask = projectState.libraries.glassware[treatment.dilutionFlask];
-            if (!flask) throw new Error(`Diluizione (Passaggio ${stepNum}): Matraccio '${treatment.dilutionFlask}' non trovato in libreria.`);
-            const U_flask_perc = maxFlaskUncertainties[flask.volume];
-            if (U_flask_perc === undefined) throw new Error(`Criterio di incertezza massimo non trovato per matraccio con volume ${flask.volume} mL.`);
-            sum_u_rel_sq += Math.pow(U_flask_perc / 200, 2);
+                const U_pipette_garantita_perc = findGuaranteedPipetteUncertainty(w.pipette, withdrawalVolume, projectState);
+                const u_rel_pipette = (U_pipette_garantita_perc / 100) / 2 / Math.sqrt(3);
+                const u_abs_pipette = u_rel_pipette * withdrawalVolume;
+                sum_u_abs_sq_withdrawals += Math.pow(u_abs_pipette, 2);
+                totalWithdrawalVolume += withdrawalVolume;
+            });
+
+            if (treatment.dilutionType === 'addSolvent') {
+                const addedSolventVolume = parseFloat(String(treatment.addedSolventVolume).replace(',', '.'));
+                if (!treatment.addedSolventPipette || isNaN(addedSolventVolume) || addedSolventVolume <= 0) {
+                    throw new Error(`Diluizione (Passaggio ${stepNum}): Dati per l'aggiunta di solvente incompleti o non validi.`);
+                }
+                const u_abs_total_withdrawal = Math.sqrt(sum_u_abs_sq_withdrawals);
+
+                const U_solvent_pipette_perc = findGuaranteedPipetteUncertainty(treatment.addedSolventPipette, addedSolventVolume, projectState);
+                const u_rel_solvent_pipette = (U_solvent_pipette_perc / 100) / 2 / Math.sqrt(3);
+                const u_abs_solvent = u_rel_solvent_pipette * addedSolventVolume;
+
+                const Vi = totalWithdrawalVolume;
+                const Va = addedSolventVolume;
+                const Vf = Vi + Va;
+
+                const u_abs_Vf = Math.sqrt(Math.pow(u_abs_total_withdrawal, 2) + Math.pow(u_abs_solvent, 2));
+
+                const u_rel_sq_Vi = Vi > 0 ? Math.pow(u_abs_total_withdrawal / Vi, 2) : 0;
+                const u_rel_sq_Vf = Vf > 0 ? Math.pow(u_abs_Vf / Vf, 2) : 0;
+                sum_u_rel_sq += u_rel_sq_Vi + u_rel_sq_Vf;
+
+            } else { // 'bringToVolume'
+                const u_rel_sq_withdrawals = totalWithdrawalVolume > 0 ? sum_u_abs_sq_withdrawals / Math.pow(totalWithdrawalVolume, 2) : 0;
+                sum_u_rel_sq += u_rel_sq_withdrawals;
+
+                if (!treatment.dilutionFlask) throw new Error(`Diluizione (Passaggio ${stepNum}): Matraccio di diluizione non selezionato.`);
+                const flask = projectState.libraries.glassware[treatment.dilutionFlask];
+                if (!flask) throw new Error(`Diluizione (Passaggio ${stepNum}): Matraccio '${treatment.dilutionFlask}' non trovato in libreria.`);
+                const u_rel_flask = (flask.uncertainty / flask.volume) / Math.sqrt(3);
+                sum_u_rel_sq += Math.pow(u_rel_flask, 2);
+            }
 
         } else if (treatment.type === 'estrazione' || treatment.type === 'concentrazione') {
             if (!treatment.initialVolumeFlask) throw new Error(`${treatment.type.charAt(0).toUpperCase() + treatment.type.slice(1)} (Passaggio ${stepNum}): Manca il matraccio del volume iniziale.`);
             const initialFlask = projectState.libraries.glassware[treatment.initialVolumeFlask];
             if (!initialFlask) throw new Error(`${treatment.type.charAt(0).toUpperCase() + treatment.type.slice(1)} (Passaggio ${stepNum}): Matraccio iniziale '${treatment.initialVolumeFlask}' non trovato in libreria.`);
-            const U_initial_flask_perc = maxFlaskUncertainties[initialFlask.volume];
-            if (U_initial_flask_perc === undefined) throw new Error(`Criterio di incertezza massimo non trovato per matraccio con volume ${initialFlask.volume} mL.`);
-            sum_u_rel_sq += Math.pow(U_initial_flask_perc / 200, 2);
+            const u_rel_initial_flask = (initialFlask.uncertainty / initialFlask.volume) / Math.sqrt(3);
+            sum_u_rel_sq += Math.pow(u_rel_initial_flask, 2);
 
             let u_rel_sq_final_volume = 0;
 
@@ -5367,9 +5392,8 @@ function calculateGuaranteedPreparationUncertainty(treatmentSample, projectState
                 if (!treatment.finalVolumeFlask) throw new Error(`${treatment.type.charAt(0).toUpperCase() + treatment.type.slice(1)} (Passaggio ${stepNum}): Manca il matraccio del volume finale.`);
                 const finalFlask = projectState.libraries.glassware[treatment.finalVolumeFlask];
                 if (!finalFlask) throw new Error(`${treatment.type.charAt(0).toUpperCase() + treatment.type.slice(1)} (Passaggio ${stepNum}): Matraccio finale '${treatment.finalVolumeFlask}' non trovato in libreria.`);
-                const U_final_flask_perc = maxFlaskUncertainties[finalFlask.volume];
-                if (U_final_flask_perc === undefined) throw new Error(`Criterio di incertezza massimo non trovato per matraccio con volume ${finalFlask.volume} mL.`);
-                u_rel_sq_final_volume = Math.pow(U_final_flask_perc / 200, 2);
+                const u_rel_final_flask = (finalFlask.uncertainty / finalFlask.volume) / Math.sqrt(3);
+                u_rel_sq_final_volume = Math.pow(u_rel_final_flask, 2);
             } else if (treatment.type === 'estrazione' && treatment.extractionMethod === 'pipetta') {
                 if (!treatment.finalVolumeAliquots || treatment.finalVolumeAliquots.length === 0) {
                     throw new Error(`Estrazione (Pipetta, Passaggio ${stepNum}): Aggiungere almeno un'aliquota.`);
@@ -5381,8 +5405,9 @@ function calculateGuaranteedPreparationUncertainty(treatmentSample, projectState
                     if (isNaN(aliquotVolume) || aliquotVolume <= 0) throw new Error(`Estrazione (Pipetta, Passaggio ${stepNum}): Volume aliquota non valido.`);
                     if (!aliquot.pipette) throw new Error(`Estrazione (Pipetta, Passaggio ${stepNum}): Pipetta non selezionata per aliquota.`);
 
-                    const U_pipette_perc = findGuaranteedPipetteUncertainty(aliquot.pipette, aliquotVolume, projectState);
-                    const u_abs_pipette = (U_pipette_perc / (200 * Math.sqrt(3))) * aliquotVolume;
+                    const U_pipette_garantita_perc = findGuaranteedPipetteUncertainty(aliquot.pipette, aliquotVolume, projectState);
+                    const u_rel_pipette = (U_pipette_garantita_perc / 100) / 2 / Math.sqrt(3);
+                    const u_abs_pipette = u_rel_pipette * aliquotVolume;
                     sum_u_abs_sq_aliquots += Math.pow(u_abs_pipette, 2);
                     totalAliquotVolume += aliquotVolume;
                 });
