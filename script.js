@@ -4443,7 +4443,7 @@ function actionCalculateTreatmentChain(treatmentSampleId) {
                     currentConcentration = sourceConc;
                     initialConcentrationForSummary = sourceConc;
                     // U% (k=2) -> u_rel
-                    const u_rel_initial = (sourceUnc / 100) / 2 / Math.sqrt(2);
+                    const u_rel_initial = (sourceUnc / 100) / 2 / Math.sqrt(3);
                     sum_u_rel_sq = Math.pow(u_rel_initial, 2);
                 } else if (treatment.source.type === 'spike') {
                     if (treatment.source.spikeSampleId === null) throw new Error("Matrix spike non selezionato.");
@@ -4709,7 +4709,7 @@ function actionCalculateSpikeUncertainty(sampleId) {
 
         let sum_u_rel_sq;
         if (refMaterialData.initialUncertainty !== null && refMaterialData.initialUncertainty > 0) {
-            const u_rel_initial = refMaterialData.initialUncertainty / (200 * Math.sqrt(2));
+            const u_rel_initial = refMaterialData.initialUncertainty / (200 * Math.sqrt(3));
             sum_u_rel_sq = Math.pow(u_rel_initial, 2);
             // Salva l'incertezza relativa calcolata nel posto giusto per il rendering
             const uncertaintyRelPerc = u_rel_initial * 100;
@@ -4905,7 +4905,7 @@ function actionCalculateCalibrationSolutionUncertainty(pointId) {
         let sum_u_rel_sq = 0;
 
         if (pointState.initialUncertainty !== null && pointState.initialUncertainty > 0) {
-            const u_rel_initial = pointState.initialUncertainty / (200 * Math.sqrt(2));
+            const u_rel_initial = pointState.initialUncertainty / (200 * Math.sqrt(3));
             sum_u_rel_sq += Math.pow(u_rel_initial, 2);
             pointState.initialUncertaintyRelPerc = u_rel_initial * 100;
         }
@@ -5318,7 +5318,7 @@ function calculateGuaranteedPreparationUncertainty(treatmentSample, projectState
             treatment.withdrawals.forEach(w => {
                 if (!w.pipette) throw new Error(`Diluizione (Passaggio ${stepNum}): Pipetta non selezionata.`);
                 const U_pipette_perc = findGuaranteedPipetteUncertainty(w.pipette, w.volume, projectState);
-                const u_abs_pipette = (U_pipette_perc / 200) * w.volume;
+                const u_abs_pipette = (U_pipette_perc / (200 * Math.sqrt(3))) * w.volume;
                 sum_u_abs_sq_withdrawals += Math.pow(u_abs_pipette, 2);
                 totalWithdrawalVolume += w.volume;
             });
@@ -5361,7 +5361,7 @@ function calculateGuaranteedPreparationUncertainty(treatmentSample, projectState
                     if (!aliquot.pipette) throw new Error(`Estrazione (Pipetta, Passaggio ${stepNum}): Pipetta non selezionata per aliquota.`);
 
                     const U_pipette_perc = findGuaranteedPipetteUncertainty(aliquot.pipette, aliquotVolume, projectState);
-                    const u_abs_pipette = (U_pipette_perc / 200) * aliquotVolume;
+                    const u_abs_pipette = (U_pipette_perc / (200 * Math.sqrt(3))) * aliquotVolume;
                     sum_u_abs_sq_aliquots += Math.pow(u_abs_pipette, 2);
                     totalAliquotVolume += aliquotVolume;
                 });
@@ -5398,7 +5398,7 @@ function calculateGuaranteedExpandedUncertainty(sampleId, projectState) {
         // 2. Contributo Taratura (da controllo di taratura massimo)
         const U_cal_perc = method.u_icv_perc;
         if (U_cal_perc === undefined) return { error: `Criterio 'u_icv_perc' non definito per il metodo ${methodId}.` };
-        contributions.push({ name: 'Taratura (Criterio ICV max)', value: U_cal_perc / 200 }); // U% (k=2) -> u_rel
+        contributions.push({ name: 'Taratura (Criterio ICV max)', value: (U_cal_perc / 100) / Math.sqrt(3) }); // Rettangolare: u_rel = (U% / 100) / sqrt(3)
 
         // 3. Contributo Preparazione (ricalcolato con criteri massimi)
         const treatmentSample = projectState.treatments.find(ts => ts.sampleId === sampleId);

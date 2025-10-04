@@ -12,7 +12,7 @@ L'applicazione è strutturata in schede (tab) che seguono un flusso logico di la
 4.  **Incertezza di Taratura:** Calcola l'incertezza derivante dal tuo modello di calibrazione (retta o fattore di risposta).
 5.  **Incertezza Estesa:** Combina tutti i contributi per ottenere l'incertezza estesa finale per ogni campione.
 6.  **Report:** Genera report dettagliati in formato PDF, Excel o Word.
-7.  **Gestione Librerie:** Personalizza le librerie di vetreria e pipette.
+7.  **Gestione Librerie:** Personalizza le librerie di vetreria, pipette e metodi analitici.
 
 ---
 
@@ -37,7 +37,7 @@ Nell'angolo in alto a destra, trovi il menu **File**, che è il centro di contro
 In questa prima scheda, inserisci le informazioni che identificano la tua analisi:
 - **Nome Progetto:** Un nome descrittivo. Verrà usato anche come nome di default per il file di salvataggio.
 - **Obiettivo:** Lo scopo dell'analisi.
-- **Metodo:** Il metodo analitico utilizzato (es. "EPA 8270D", "Metodo Interno LI-01").
+- **Metodo:** Seleziona il metodo analitico dal menu a tendina. Questa lista è popolata dalla **Libreria Metodi** (vedi sezione "Gestione Librerie"), che ti permette di pre-configurare i criteri di incertezza massima per ogni metodo.
 - **Componente di Interesse:** L'analita che stai misurando (es. "Benzene", "Glifosato").
 
 #### 2. Analisi Statistica
@@ -61,6 +61,9 @@ In questa scheda puoi calcolare l'incertezza derivante dalla preparazione di sta
     1. Clicca su **"+ Aggiungi Campione da Trattare"**.
     2. Seleziona il campione di partenza (che può essere un campione base o il risultato di uno spike).
     3. Aggiungi i passaggi di trattamento cliccando sui pulsanti **"Diluizione"**, **"Estrazione"** o **"Concentrazione"**. Per ogni passaggio, inserisci i dati richiesti (volumi, pipette, matracci) usando le librerie personalizzabili. L'applicazione calcolerà l'incertezza propagata passo dopo passo.
+    - **Novità nel trattamento di Estrazione:** Quando aggiungi un passaggio di estrazione, ora puoi specificare come viene determinato il volume finale. Puoi scegliere tra:
+        - **Matraccio:** Il metodo classico, in cui l'estratto viene portato a un volume definito da un matraccio.
+        - **Pipetta:** Un nuovo metodo in cui il volume finale è la somma di una o più aliquote prelevate con pipette. Questo è utile per tecniche come la microestrazione.
 
 #### 4. Incertezza di Taratura
 Qui calcoli il contributo di incertezza del modello di calibrazione.
@@ -75,6 +78,7 @@ Qui calcoli il contributo di incertezza del modello di calibrazione.
 Questa scheda è di sola lettura e rappresenta il punto finale dell'analisi.
 - **Riepilogo:** Mostra una tabella che riassume tutti i contributi di incertezza calcolati nelle sezioni precedenti (ripetibilità, preparazione, taratura, eventuale bias).
 - **Risultati Finali:** Calcola l'incertezza estesa finale (U e U%) combinando tutti i contributi e applicando il fattore di copertura corretto (k), calcolato tramite i gradi di libertà effettivi (formula di Welch-Satterthwaite).
+- **Novità - Calcolo dell'Incertezza Massima Garantita:** In cima alla scheda, è ora presente una casella di controllo **"Mostra Incertezza Massima Garantita"**. Selezionandola, l'applicazione eseguirà un secondo calcolo di incertezza, parallelo a quello sperimentale. Questo calcolo non si basa sui dati misurati (come il CV%), ma utilizza i **criteri massimi di accettabilità** definiti nella libreria dei metodi (U rif.%, U ICV%, CV max%). Il risultato è un'incertezza "garantita" che rappresenta la prestazione massima (cioè, nel caso peggiore) che il metodo può avere rispettando i suoi stessi criteri. È uno strumento potente per la validazione del metodo e per la verifica della conformità.
 
 ---
 
@@ -110,6 +114,7 @@ Questa funzionalità unica ti permette di confrontare i risultati di più analis
 In questa scheda puoi personalizzare gli strumenti volumetrici per farli corrispondere a quelli del tuo laboratorio.
 - **Vetreria:** Aggiungi, modifica o rimuovi matracci, specificando volume e tolleranza.
 - **Pipette:** Aggiungi, modifica o rimuovi pipette, specificando per ognuna i punti di calibrazione (volume e incertezza relativa %).
-- **Importa/Esporta:** Puoi salvare le tue librerie personalizzate in un file `.json` per condividerle o per tenerne un backup.
+- **Metodi:** Aggiungi o modifica i metodi analitici. Per ogni metodo, puoi definire i criteri di incertezza massima garantita (U rif.%, U ICV%, CV max%) che verranno utilizzati nel calcolo dell'incertezza garantita.
+- **Importa/Esporta:** Puoi salvare le tue librerie personalizzate (vetreria, pipette e metodi) in un unico file `.json` per condividerle o per tenerne un backup.
 
 Le modifiche alle librerie vengono salvate automaticamente nel browser.
