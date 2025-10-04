@@ -282,11 +282,11 @@ L'applicazione supporta diversi tipi di trattamenti, incluse due modalità di di
 
 1.  **Materiale di Riferimento Certificato:**
     - L'incertezza estesa (`U%`) fornita dal certificato viene convertita in incertezza tipo relativa.
-    - **Formula:** `u_rel = (U% / 100) / k / sqrt(2)`
+    - **Formula:** `u_rel = (U% / 100) / k / sqrt(3)`
     - **Termini:**
       - `U%`: incertezza percentuale riportata sul certificato.
       - `k`: fattore di copertura (tipicamente `k=2` per un livello di confidenza del 95%). Il codice utilizza `k=2`.
-      - `sqrt(2)`: fattore di divisione aggiuntivo per tenere conto di una distribuzione rettangolare dell'incertezza.
+      - `sqrt(3)`: fattore di divisione per una distribuzione rettangolare. L'uso combinato di `k` e `sqrt(3)` rappresenta un approccio conservativo.
 
 2.  **Vetreria Volumetrica (Matracci):**
     - L'incertezza è basata sulla tolleranza del costruttore, assumendo una distribuzione di probabilità rettangolare.
@@ -297,9 +297,9 @@ L'applicazione supporta diversi tipi di trattamenti, incluse due modalità di di
       - `sqrt(3)`: fattore di divisione per una distribuzione rettangolare.
 
 3.  **Pipette:**
-    - L'incertezza di una pipetta per un dato volume viene determinata dalla sua libreria di calibrazione. Il valore di `U_rel_percent` viene preso come il massimo tra i due punti di calibrazione che racchiudono il volume di prelievo.
+    - L'incertezza di una pipetta per un dato volume viene determinata dalla sua libreria di calibrazione. Se il volume di prelievo non corrisponde esattamente a un punto di calibrazione, il valore di `U_rel_percent` utilizzato è il **massimo** tra i valori di incertezza dei due punti di calibrazione che racchiudono il volume di interesse. Questo garantisce un approccio conservativo.
     - Questo valore viene poi convertito in incertezza tipo relativa (`u_rel`) con una formula specifica che tiene conto sia del fattore di copertura `k=2` che di una distribuzione rettangolare.
-    - **Formula:** `u_rel = (U_pipetta% / 100) / (2 * sqrt(3))`
+    - **Formula:** `u_rel = (U_pipetta% / 100) / (2 * Math.sqrt(3))`
     - **Nota:** Questa formula è una combinazione conservativa. Se più prelievi vengono effettuati per una singola diluizione, le loro incertezze assolute vengono combinate in quadratura, e il risultato viene poi convertito in un'unica incertezza relativa per il volume totale prelevato.
 - **Visualizzazione nell'App:** Per garantire la massima trasparenza, l'applicazione mostra l'incertezza tipo relativa calcolata per ogni singolo strumento (pipetta o matraccio) direttamente nell'interfaccia utente, accanto al campo di selezione corrispondente.
 
@@ -433,7 +433,39 @@ Queste librerie sono utilizzate per recuperare i valori di incertezza per i calc
 
 ---------------------------------------------------
 
-### SEZIONE 7: REGOLE DI ARROTONDAMENTO E PRESENTAZIONE DEI RISULTATI
+### SEZIONE 7: CALCOLO DELL'INCERTEZZA MASSIMA GARANTITA
+
+L'applicazione offre un calcolo parallelo dell'incertezza, definito "massima garantita". Questo approccio non utilizza i dati sperimentali (come la deviazione standard delle misure), ma si basa sui criteri di accettabilità massimi definiti nella libreria dei metodi e sulle tolleranze massime degli strumenti. Il risultato rappresenta l'incertezza massima che il metodo può avere pur rimanendo conforme ai suoi stessi criteri. Tutti i contributi sono combinati in quadratura e i gradi di libertà effettivi sono considerati infiniti (k=2).
+
+#### 7.1 Contributo del Materiale di Riferimento
+- **Formula:** `u_rel = (U_rif% / 100) / 2`
+- **Termini:**
+  - `U_rif%`: Criterio di incertezza massima per il materiale di riferimento, definito nella libreria del metodo. Si assume una distribuzione normale (k=2).
+
+#### 7.2 Contributo della Ripetibilità
+- **Formula:** `u_rel = CV_max% / 100`
+- **Termini:**
+  - `CV_max%`: Criterio del coefficiente di variazione massimo, definito nella libreria del metodo. Il CV% è già un'incertezza tipo relativa.
+
+#### 7.3 Contributo della Taratura
+- **Formula:** `u_rel = (U_ICV% / 100) / sqrt(3)`
+- **Termini:**
+  - `U_ICV%`: Criterio di incertezza massima per il controllo di taratura (ICV), definito nella libreria del metodo. Si assume una distribuzione rettangolare.
+
+#### 7.4 Contributo della Preparazione
+L'incertezza di preparazione garantita viene calcolata propagando le incertezze massime di ogni componente.
+
+1.  **Contributo Vetreria Volumetrica (Matracci):**
+    - L'incertezza si basa sulla tolleranza massima trovata nella libreria per un dato volume nominale.
+    - **Formula:** `u_rel = (Tolleranza_max / Volume_nominale) / sqrt(3)`
+
+2.  **Contributo Pipette:**
+    - L'incertezza si basa sull'incertezza massima garantita per un dato volume di prelievo. Questa viene determinata trovando il gruppo di pipette "equivalenti" (con gli stessi punti di calibrazione) e prendendo l'incertezza massima per l'intervallo di volume di interesse all'interno di quel gruppo.
+    - **Formula:** `u_rel = (U_pipetta_garantita% / 100) / 2 / sqrt(3)`
+
+---------------------------------------------------
+
+### SEZIONE 8: REGOLE DI ARROTONDAMENTO E PRESENTAZIONE DEI RISULTATI
 
 L'applicazione utilizza un approccio standardizzato per la formattazione di tutti i risultati numerici, sia nell'interfaccia utente che nei report finali. La logica è implementata nella funzione `formatNumberWithRules` e segue queste regole per garantire coerenza e leggibilità.
 
