@@ -248,13 +248,24 @@ L'incertezza composita viene calcolata combinando le singole incertezze tipo rel
   - `u_c_rel`: incertezza tipo composita relativa.
   - `u_rel_i`: incertezza tipo relativa del componente i-esimo (es. materiale di riferimento, matraccio, pipetta).
 
-**Nota per il calcolo dei Matrix Spike:** Nel caso specifico del calcolo dell'incertezza per la preparazione di un *matrix spike*, la formula `u_c_rel` viene estesa per includere il contributo della ripetibilità della misura. Questo contributo (`u_rel_ripetibilità`) è rappresentato dal Coefficiente di Variazione (CV), che viene calcolato a partire dal valore `CV%` ottenuto dall'analisi statistica del campione.
-- **Calcolo del contributo:** Il `CV%` viene prima convertito in un valore adimensionale (CV): `CV = CV% / 100`. Questo valore di CV rappresenta direttamente l'incertezza tipo relativa dovuta alla ripetibilità.
-  - `u_rel_ripetibilità = CV = CV% / 100`
-- **Inclusione nella formula:** Il quadrato di questo valore, `CV²` (ovvero `(CV% / 100)²`), viene quindi aggiunto alla somma dei quadrati delle altre incertezze tipo relative.
-  - `u_c_rel = sqrt( u_rel_preparazione² + u_rel_certificato² + ... + (CV% / 100)² )`
-
 L'incertezza tipo assoluta finale (`u_c`) si ottiene moltiplicando la relativa per la concentrazione finale: `u_c = u_c_rel * C_finale`.
+
+#### 4.1.1 Caso Specifico: Preparazione del Matrix Spike
+Il calcolo dell'incertezza per la preparazione di un **matrix spike** segue il principio generale, ma include esplicitamente un contributo fondamentale: la **ripetibilità della misura**.
+
+La formula per l'incertezza tipo composita relativa (`u_c_rel`) in questo caso è:
+
+- **Formula Estesa:** `u_c_rel = sqrt( u_rel_rif² + u_rel_prel_1² + ... + u_rel_matr_1² + ... + u_rel_ripetibilità² )`
+
+I contributi (`u_rel_i`) sono:
+1.  **`u_rel_rif` (Materiale di Riferimento):** L'incertezza del materiale di riferimento certificato con cui è stato preparato lo spike.
+2.  **`u_rel_prel` (Prelievo):** L'incertezza di ogni pipetta utilizzata per i prelievi.
+3.  **`u_rel_matr` (Matraccio):** L'incertezza di ogni matraccio volumetrico utilizzato per le diluizioni.
+4.  **`u_rel_ripetibilità` (Ripetibilità):** Questo termine rappresenta la variabilità intrinseca della misura analitica. Viene stimato utilizzando il **Coefficiente di Variazione (CV)**, calcolato dall'analisi statistica del campione di matrix spike.
+    - **Calcolo:** Il `CV%` ottenuto dalla statistica descrittiva viene convertito in un valore adimensionale. Questo valore rappresenta direttamente l'incertezza tipo relativa dovuta alla ripetibilità.
+      - `u_rel_ripetibilità = CV = CV% / 100`
+
+L'applicazione calcola e memorizza ognuno di questi contributi individualmente, permettendo una tracciabilità completa. La somma in quadratura di tutti questi termini fornisce l'incertezza composita finale.
 
 #### 4.2 Calcolo della Concentrazione nei Passaggi
 

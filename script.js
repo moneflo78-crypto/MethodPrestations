@@ -2419,6 +2419,37 @@ function renderSpikeUncertainty() {
         const results = sampleSpikeState.results;
         if (results) {
             const sampleUnit = sample.unit || 'µg/L';
+
+            let contributionsHTML = '';
+            if (results.contributions && results.contributions.length > 0) {
+                const contributionsRows = results.contributions
+                    .map(c => `
+                        <tr class="border-b">
+                            <td class="p-2 text-sm text-gray-700">${c.name}</td>
+                            <td class="p-2 text-sm font-mono text-right">${(c.u_rel * 100).toFixed(4)} %</td>
+                        </tr>
+                    `).join('');
+
+                contributionsHTML = `
+                    <div class="mt-4">
+                        <h5 class="text-md font-semibold text-gray-700 mb-2 text-left">Dettaglio Contributi Incertezza</h5>
+                        <div class="overflow-x-auto border rounded-lg">
+                            <table class="w-full text-sm">
+                                <thead class="bg-gray-100">
+                                    <tr>
+                                        <th class="p-2 text-left font-medium text-gray-600">Fonte</th>
+                                        <th class="p-2 text-right font-medium text-gray-600">u_rel (%)</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white">
+                                    ${contributionsRows}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            }
+
             resultsHTML = `
                 <div class="mt-4 pt-4 border-t">
                     <h4 class="text-md font-semibold text-gray-700 mb-2">Riepilogo Finale</h4>
@@ -2427,10 +2458,10 @@ function renderSpikeUncertainty() {
                         <p class="text-sm text-gray-600">Concentrazione Finale Calcolata: <span class="font-bold text-lg text-black">${results.finalConcentration.toPrecision(4)} ${sampleUnit}</span></p>
                         <p class="text-sm text-gray-600">Valore Nominale Campione Preparato: <span class="font-bold text-lg text-black">${parseFloat(sample.expectedValue).toPrecision(4)} ${sampleUnit}</span></p>
                         <p class="text-sm text-gray-600">Valore Medio Campione (da Statistica): <span class="font-bold text-lg text-black">${appState.results[sample.id].statistics.mean.toPrecision(4)} ${sampleUnit}</span></p>
-                        <p class="text-sm text-gray-600">Coefficiente di Variazione, CV (da statistica): <span class="font-bold text-lg text-black">${formatNumberWithRules(appState.results[sample.id].statistics.cv_percent / 100)}</span></p>
                         <p class="text-sm text-gray-600">Incertezza tipo composta (u_c): <span class="font-bold text-black">${results.u_comp.toPrecision(3)}</span></p>
                         <p class="text-sm text-gray-600">Incertezza tipo composta relativa (u_c %): <span class="font-bold text-black">${results.u_comp_rel_perc.toFixed(2)} %</span></p>
                     </div>
+                    ${contributionsHTML}
                     <div class="mt-4 pt-4 border-t border-gray-300">
                         <h5 class="text-md font-semibold text-gray-700 mb-2 text-right">Verifiche Aggiuntive</h5>
                         ${results.preparationCheck ? `
@@ -4729,22 +4760,20 @@ function actionCalculateSpikeUncertainty(sampleId) {
         const convertedInitialConcentration = convertConcentration(refMaterialData.initialConcentration, sourceUnit, targetUnit);
         let currentConcentration = convertedInitialConcentration;
 
-        let sum_u_rel_sq;
+        const contributions = []; // Array per memorizzare i contributi di incertezza
+
         if (refMaterialData.initialUncertainty !== null && refMaterialData.initialUncertainty > 0) {
             const u_rel_initial = refMaterialData.initialUncertainty / (200 * Math.sqrt(3));
-            sum_u_rel_sq = Math.pow(u_rel_initial, 2);
-            // Salva l'incertezza relativa calcolata nel posto giusto per il rendering
+            contributions.push({ name: 'Materiale di Riferimento', u_rel: u_rel_initial });
             const uncertaintyRelPerc = u_rel_initial * 100;
             if (useCommon) {
                 appState.spikeUncertainty.commonReferenceMaterial.initialUncertaintyRelPerc = uncertaintyRelPerc;
             } else if (sampleState) {
                 sampleState.initialUncertaintyRelPerc = uncertaintyRelPerc;
             }
-        } else {
-            sum_u_rel_sq = 0;
         }
 
-        for (const step of sampleState.steps) {
+        sampleState.steps.forEach((step, index) => {
             if (step.withdrawals.length === 0) throw new IncompleteDataError('Aggiungere almeno un prelievo.');
             if (step.withdrawals.some(w => !w.pipette || w.volume === null || w.volume <= 0)) {
                  throw new IncompleteDataError('Compilare tutti i campi del prelievo (pipetta e volume).');
@@ -4776,32 +4805,39 @@ function actionCalculateSpikeUncertainty(sampleId) {
                 step.addedSolventPipette_U_perc = solvent_contrib.U_perc;
                 const Vf = Vi + Va;
                 const u_abs_Vf = Math.sqrt(Math.pow(u_abs_Vi, 2) + Math.pow(u_abs_Va, 2));
-                const u_rel_sq_Vi = Vi > 0 ? Math.pow(u_abs_Vi / Vi, 2) : 0;
-                const u_rel_sq_Vf = Vf > 0 ? Math.pow(u_abs_Vf / Vf, 2) : 0;
-                sum_u_rel_sq += u_rel_sq_Vi + u_rel_sq_Vf;
+
+                const u_rel_Vi = Vi > 0 ? u_abs_Vi / Vi : 0;
+                const u_rel_Vf = Vf > 0 ? u_abs_Vf / Vf : 0;
+                contributions.push({ name: `Volume Prelievo (Pass. ${index + 1})`, u_rel: u_rel_Vi });
+                contributions.push({ name: `Volume Finale (Pass. ${index + 1})`, u_rel: u_rel_Vf });
+
                 currentConcentration = currentConcentration * (Vi / Vf);
-            } else {
+            } else { // bringToVolume
                 if (!step.dilutionFlask) throw new IncompleteDataError('Selezionare un matraccio di diluizione.');
-                const u_rel_sq_total_withdrawal = totalWithdrawalVolume > 0 ? Math.pow(u_abs_total_withdrawal / totalWithdrawalVolume, 2) : 0;
+                const u_rel_total_withdrawal = totalWithdrawalVolume > 0 ? u_abs_total_withdrawal / totalWithdrawalVolume : 0;
+                contributions.push({ name: `Prelievo (Pass. ${index + 1})`, u_rel: u_rel_total_withdrawal });
+
                 const flask = appState.libraries.glassware[step.dilutionFlask];
                 const u_rel_flask = (flask.uncertainty / flask.volume / Math.sqrt(3));
                 step.flaskUncertaintyRelPerc = u_rel_flask * 100;
-                const u_rel_sq_flask = Math.pow(u_rel_flask, 2);
-                sum_u_rel_sq += u_rel_sq_total_withdrawal + u_rel_sq_flask;
+                contributions.push({ name: `Matraccio (Pass. ${index + 1})`, u_rel: u_rel_flask });
+
                 currentConcentration = currentConcentration * (totalWithdrawalVolume / flask.volume);
             }
 
+            const current_total_u_rel_sq = contributions.reduce((sum, c) => sum + Math.pow(c.u_rel, 2), 0);
             step.intermediateConcentration = currentConcentration;
-            step.intermediateUncertaintyRelPerc = Math.sqrt(sum_u_rel_sq) * 100;
-        }
+            step.intermediateUncertaintyRelPerc = Math.sqrt(current_total_u_rel_sq) * 100;
+        });
 
         // Aggiungi il contributo della ripetibilità (CV%) DOPO i passaggi di preparazione
         const stats = appState.results[sampleId]?.statistics;
         if (stats && stats.cv_percent > 0) {
             const u_rel_cv = stats.cv_percent / 100;
-            sum_u_rel_sq += Math.pow(u_rel_cv, 2);
+            contributions.push({ name: 'Ripetibilità (CV%)', u_rel: u_rel_cv });
         }
 
+        const sum_u_rel_sq = contributions.reduce((sum, c) => sum + Math.pow(c.u_rel, 2), 0);
         const final_u_rel = Math.sqrt(sum_u_rel_sq);
         const final_u_abs = final_u_rel * currentConcentration;
         const final_u_rel_perc = final_u_rel * 100;
@@ -4856,7 +4892,8 @@ function actionCalculateSpikeUncertainty(sampleId) {
             u_comp_rel_perc: final_u_rel_perc,
             summary: summary,
             preparationCheck: preparationCheck,
-            accuracyCheck: accuracyCheck
+            accuracyCheck: accuracyCheck,
+            contributions: contributions // Aggiungo l'array dei contributi
         };
 
     } catch (e) {
