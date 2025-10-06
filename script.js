@@ -4228,9 +4228,11 @@ async function handleFileLoad(event) {
             setDirty(true); // A newly loaded project is considered a modification.
             addProjectToRecents(appState);
             render(); // Render everything with the new state
-            // L'alert bloccava l'esecuzione e creava problemi con i test automatici.
-            // La modifica dello stato visivo è un feedback sufficiente.
-            console.log("Dati caricati con successo!");
+
+            // Force a full recalculation to ensure consistency and backward compatibility
+            console.log("Dati caricati con successo! Avvio del ricalcolo automatico...");
+            actionCalculateAll();
+
         } catch (error) {
             console.error(`Errore nel caricamento: ${error.message}`);
             alert(`Errore nel caricamento: ${error.message}`);
