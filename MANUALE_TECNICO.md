@@ -248,9 +248,11 @@ L'incertezza composita viene calcolata combinando le singole incertezze tipo rel
   - `u_c_rel`: incertezza tipo composita relativa.
   - `u_rel_i`: incertezza tipo relativa del componente i-esimo (es. materiale di riferimento, matraccio, pipetta).
 
-**Nota per il calcolo dei Matrix Spike:** Nel caso specifico del calcolo dell'incertezza per la preparazione di un *matrix spike*, la formula sopra include un contributo aggiuntivo derivante dalla ripetibilità della misura. Questo contributo è il Coefficiente di Variazione (CV%) ottenuto dall'analisi statistica del campione specifico.
-- **Contributo della Ripetibilità:** `u_rel_ripetibilità = CV% / 100`
-- Il termine `(CV% / 100)²` viene quindi aggiunto alla somma dei quadrati all'interno della radice quadrata.
+**Nota per il calcolo dei Matrix Spike:** Nel caso specifico del calcolo dell'incertezza per la preparazione di un *matrix spike*, la formula `u_c_rel` viene estesa per includere il contributo della ripetibilità della misura. Questo contributo (`u_rel_ripetibilità`) è rappresentato dal Coefficiente di Variazione (CV), che viene calcolato a partire dal valore `CV%` ottenuto dall'analisi statistica del campione.
+- **Calcolo del contributo:** Il `CV%` viene prima convertito in un valore adimensionale (CV): `CV = CV% / 100`. Questo valore di CV rappresenta direttamente l'incertezza tipo relativa dovuta alla ripetibilità.
+  - `u_rel_ripetibilità = CV = CV% / 100`
+- **Inclusione nella formula:** Il quadrato di questo valore, `CV²` (ovvero `(CV% / 100)²`), viene quindi aggiunto alla somma dei quadrati delle altre incertezze tipo relative.
+  - `u_c_rel = sqrt( u_rel_preparazione² + u_rel_certificato² + ... + (CV% / 100)² )`
 
 L'incertezza tipo assoluta finale (`u_c`) si ottiene moltiplicando la relativa per la concentrazione finale: `u_c = u_c_rel * C_finale`.
 

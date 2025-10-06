@@ -2427,7 +2427,7 @@ function renderSpikeUncertainty() {
                         <p class="text-sm text-gray-600">Concentrazione Finale Calcolata: <span class="font-bold text-lg text-black">${results.finalConcentration.toPrecision(4)} ${sampleUnit}</span></p>
                         <p class="text-sm text-gray-600">Valore Nominale Campione Preparato: <span class="font-bold text-lg text-black">${parseFloat(sample.expectedValue).toPrecision(4)} ${sampleUnit}</span></p>
                         <p class="text-sm text-gray-600">Valore Medio Campione (da Statistica): <span class="font-bold text-lg text-black">${appState.results[sample.id].statistics.mean.toPrecision(4)} ${sampleUnit}</span></p>
-                        <p class="text-sm text-gray-600">Coefficiente di Variazione, CV (da statistica): <span class="font-bold text-lg text-black">${appState.results[sample.id].statistics.cv_percent.toFixed(2)} %</span></p>
+                        <p class="text-sm text-gray-600">Coefficiente di Variazione, CV (da statistica): <span class="font-bold text-lg text-black">${formatNumberWithRules(appState.results[sample.id].statistics.cv_percent / 100)}</span></p>
                         <p class="text-sm text-gray-600">Incertezza tipo composta (u_c): <span class="font-bold text-black">${results.u_comp.toPrecision(3)}</span></p>
                         <p class="text-sm text-gray-600">Incertezza tipo composta relativa (u_c %): <span class="font-bold text-black">${results.u_comp_rel_perc.toFixed(2)} %</span></p>
                     </div>
@@ -4744,13 +4744,6 @@ function actionCalculateSpikeUncertainty(sampleId) {
             sum_u_rel_sq = 0;
         }
 
-        // Aggiungi il contributo della ripetibilità (CV%)
-        const stats = appState.results[sampleId]?.statistics;
-        if (stats && stats.cv_percent > 0) {
-            const u_rel_cv = stats.cv_percent / 100;
-            sum_u_rel_sq += Math.pow(u_rel_cv, 2);
-        }
-
         for (const step of sampleState.steps) {
             if (step.withdrawals.length === 0) throw new IncompleteDataError('Aggiungere almeno un prelievo.');
             if (step.withdrawals.some(w => !w.pipette || w.volume === null || w.volume <= 0)) {
@@ -4800,6 +4793,13 @@ function actionCalculateSpikeUncertainty(sampleId) {
 
             step.intermediateConcentration = currentConcentration;
             step.intermediateUncertaintyRelPerc = Math.sqrt(sum_u_rel_sq) * 100;
+        }
+
+        // Aggiungi il contributo della ripetibilità (CV%) DOPO i passaggi di preparazione
+        const stats = appState.results[sampleId]?.statistics;
+        if (stats && stats.cv_percent > 0) {
+            const u_rel_cv = stats.cv_percent / 100;
+            sum_u_rel_sq += Math.pow(u_rel_cv, 2);
         }
 
         const final_u_rel = Math.sqrt(sum_u_rel_sq);
