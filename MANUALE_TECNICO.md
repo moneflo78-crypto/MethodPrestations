@@ -248,6 +248,10 @@ L'incertezza composita viene calcolata combinando le singole incertezze tipo rel
   - `u_c_rel`: incertezza tipo composita relativa.
   - `u_rel_i`: incertezza tipo relativa del componente i-esimo (es. materiale di riferimento, matraccio, pipetta).
 
+**Nota per il calcolo dei Matrix Spike:** Nel caso specifico del calcolo dell'incertezza per la preparazione di un *matrix spike*, la formula sopra include un contributo aggiuntivo derivante dalla ripetibilità della misura. Questo contributo è il Coefficiente di Variazione (CV%) ottenuto dall'analisi statistica del campione specifico.
+- **Contributo della Ripetibilità:** `u_rel_ripetibilità = CV% / 100`
+- Il termine `(CV% / 100)²` viene quindi aggiunto alla somma dei quadrati all'interno della radice quadrata.
+
 L'incertezza tipo assoluta finale (`u_c`) si ottiene moltiplicando la relativa per la concentrazione finale: `u_c = u_c_rel * C_finale`.
 
 #### 4.2 Calcolo della Concentrazione nei Passaggi
