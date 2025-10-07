@@ -889,18 +889,18 @@ const multiChoiceModal = {
 // --- INITIAL STATE ---
 function getInitialAppState() {
     return {
-        version: '3.1.0', // VERSIONE INCREMENTATA
+        version: '3.2.0',
         ui: {
             activeTab: 'frontespizio',
             activeLibrarySubTab: 'vetreria', // 'vetreria', 'pipette', 'metodi', 'criteri'
             activeReportSubTab: 'report-progetto',
             currentFileName: null,
-            showGuaranteedUncertainty: false // NUOVO STATO UI
+            showGuaranteedUncertainty: false
         },
         project: {
             projectName: 'Nuovo Progetto',
             objective: '',
-            method: null, // ORA CONTERRÀ L'ID DEL METODO
+            method: null,
             component: ''
         },
         samples: [],
@@ -919,9 +919,10 @@ function getInitialAppState() {
             // Data for calibration solution uncertainty calculations, keyed by a unique ID for each calibration point.
         },
         libraries: {
+            revision: null, // NUOVO: Timestamp dell'ultima modifica
             glassware: deepCopy(DEFAULT_GLASSWARE_LIBRARY),
             pipettes: deepCopy(DEFAULT_PIPETTE_LIBRARY),
-            methods: deepCopy(DEFAULT_METHODS_LIBRARY) // NUOVA LIBRERIA
+            methods: deepCopy(DEFAULT_METHODS_LIBRARY)
         },
         calibration: {
             max_rsd_icv: null, // NUOVO CAMPO OPZIONALE
@@ -1028,6 +1029,32 @@ function renderFileStatus() {
     statusTextEl.classList.add(bgColor, textColor);
 }
 
+function renderVersionInfo() {
+    const appVersionEl = document.getElementById('app-version');
+    if (appVersionEl) {
+        appVersionEl.textContent = `v${appState.version}`;
+    }
+
+    const libraryRevisionContainer = document.getElementById('library-revision-container');
+    if (libraryRevisionContainer) {
+        if (appState.libraries.revision) {
+            const revisionDate = new Date(appState.libraries.revision);
+            const formattedDate = revisionDate.toLocaleString('it-IT', {
+                dateStyle: 'medium',
+                timeStyle: 'short'
+            });
+            libraryRevisionContainer.innerHTML = `
+                <span class="text-xs text-gray-500">Ultima Modifica Librerie:</span>
+                <span class="block text-sm font-semibold text-gray-700">${formattedDate}</span>
+            `;
+        } else {
+            libraryRevisionContainer.innerHTML = `
+                 <span class="text-xs text-gray-500">Nessuna revisione registrata.</span>
+            `;
+        }
+    }
+}
+
 function render() {
     renderFileStatus();
     renderTabs();
@@ -1044,6 +1071,7 @@ function render() {
     renderLibraries();
     renderMethods();
     renderValidationUI();
+    renderVersionInfo();
 }
 
 function renderMethods() {
@@ -2755,8 +2783,8 @@ async function actionAddGlassware() {
 
         appState.libraries.glassware[name] = { volume, uncertainty };
         setDirty();
+        updateLibraryRevision();
         render();
-        actionSaveLibraries();
     }
 }
 
@@ -2793,7 +2821,7 @@ function actionImportLibraries(event) {
             if (loadedLibraries && loadedLibraries.glassware && loadedLibraries.pipettes) {
                 appState.libraries = loadedLibraries;
                 setDirty();
-                actionSaveLibraries(); // Persist the new libraries
+                updateLibraryRevision(); // Persist the new libraries and update revision
                 render();
                 alert('Librerie importate con successo!');
             } else {
@@ -2817,6 +2845,16 @@ function actionSaveLibraries() {
     } catch (e) {
         console.error('Failed to save libraries to localStorage:', e);
     }
+}
+
+/**
+ * Aggiorna il timestamp di revisione delle librerie e le salva.
+ * Va chiamato dopo ogni modifica a una qualsiasi libreria.
+ */
+function updateLibraryRevision() {
+    appState.libraries.revision = new Date().toISOString();
+    actionSaveLibraries();
+    // Non è necessario chiamare render() qui perché le funzioni chiamanti lo fanno già.
 }
 
 function actionLoadLibraries() {
@@ -2933,8 +2971,8 @@ async function actionEditPipette(id) {
         }
         appState.libraries.pipettes[newId] = { calibrationPoints };
         setDirty();
+        updateLibraryRevision();
         render();
-        actionSaveLibraries();
     }
 }
 
@@ -2970,8 +3008,8 @@ async function actionDuplicatePipette(id) {
         }
         appState.libraries.pipettes[newId] = deepCopy(itemToCopy);
         setDirty();
+        updateLibraryRevision();
         render();
-        actionSaveLibraries();
     }
 }
 
@@ -2988,8 +3026,8 @@ async function actionRemovePipette(id) {
     if (confirm) {
         delete appState.libraries.pipettes[id];
         setDirty();
+        updateLibraryRevision();
         render();
-        actionSaveLibraries();
     }
 }
 
@@ -3045,8 +3083,8 @@ async function actionEditGlassware(name) {
         }
         appState.libraries.glassware[newName] = { volume, uncertainty };
         setDirty();
+        updateLibraryRevision();
         render();
-        actionSaveLibraries();
     }
 }
 
@@ -3063,8 +3101,8 @@ async function actionRemoveGlassware(name) {
     if (confirm) {
         delete appState.libraries.glassware[name];
         setDirty();
+        updateLibraryRevision();
         render();
-        actionSaveLibraries();
     }
 }
 
@@ -3100,8 +3138,8 @@ async function actionDuplicateGlassware(name) {
         }
         appState.libraries.glassware[newName] = deepCopy(itemToCopy);
         setDirty();
+        updateLibraryRevision();
         render();
-        actionSaveLibraries();
     }
 }
 
@@ -3198,8 +3236,8 @@ async function actionAddPipette() {
 
         appState.libraries.pipettes[id] = { calibrationPoints };
         setDirty();
+        updateLibraryRevision();
         render();
-        actionSaveLibraries();
     }
 }
 
@@ -6965,8 +7003,8 @@ async function actionAddMethod() {
 
         appState.libraries.methods[id] = { name, u_rif_perc, u_icv_perc, cv_perc };
         setDirty();
+        updateLibraryRevision();
         render();
-        actionSaveLibraries();
     }
 }
 
@@ -7025,8 +7063,8 @@ async function actionEditMethod(id) {
         }
         appState.libraries.methods[id] = { name: newName, u_rif_perc, u_icv_perc, cv_perc };
         setDirty();
+        updateLibraryRevision();
         render();
-        actionSaveLibraries();
     }
 }
 
@@ -7047,8 +7085,8 @@ async function actionRemoveMethod(id) {
             appState.project.method = null;
         }
         setDirty();
+        updateLibraryRevision();
         render();
-        actionSaveLibraries();
     }
 }
 
