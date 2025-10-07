@@ -919,7 +919,8 @@ function getInitialAppState() {
             // Data for calibration solution uncertainty calculations, keyed by a unique ID for each calibration point.
         },
         libraries: {
-            revision: null, // NUOVO: Timestamp dell'ultima modifica
+            revision: null,
+            lastLoaded: null,
             glassware: deepCopy(DEFAULT_GLASSWARE_LIBRARY),
             pipettes: deepCopy(DEFAULT_PIPETTE_LIBRARY),
             methods: deepCopy(DEFAULT_METHODS_LIBRARY)
@@ -1035,22 +1036,23 @@ function renderVersionInfo() {
         appVersionEl.textContent = `v${appState.version}`;
     }
 
-    const libraryRevisionContainer = document.getElementById('library-revision-container');
-    if (libraryRevisionContainer) {
+    const revisionContainer = document.getElementById('library-revision-container');
+    if (revisionContainer) {
         if (appState.libraries.revision) {
             const revisionDate = new Date(appState.libraries.revision);
-            const formattedDate = revisionDate.toLocaleString('it-IT', {
-                dateStyle: 'medium',
-                timeStyle: 'short'
-            });
-            libraryRevisionContainer.innerHTML = `
-                <span class="text-xs text-gray-500">Ultima Modifica Librerie:</span>
-                <span class="block text-sm font-semibold text-gray-700">${formattedDate}</span>
-            `;
+            revisionContainer.innerHTML = `<span class="text-xs text-gray-500">Ultima Modifica:</span> <strong class="text-gray-800">${revisionDate.toLocaleString('it-IT')}</strong>`;
         } else {
-            libraryRevisionContainer.innerHTML = `
-                 <span class="text-xs text-gray-500">Nessuna revisione registrata.</span>
-            `;
+            revisionContainer.innerHTML = `<span class="text-xs text-gray-500">Nessuna modifica registrata</span>`;
+        }
+    }
+
+    const loadedContainer = document.getElementById('library-loaded-container');
+    if (loadedContainer) {
+        if (appState.libraries.lastLoaded) {
+            const loadedDate = new Date(appState.libraries.lastLoaded);
+            loadedContainer.innerHTML = `<span class="text-xs text-gray-500">Caricate il:</span> <strong class="text-gray-800">${loadedDate.toLocaleString('it-IT')}</strong>`;
+        } else {
+            loadedContainer.innerHTML = ``; // Hide if not loaded
         }
     }
 }
@@ -2820,8 +2822,10 @@ function actionImportLibraries(event) {
             // Basic validation
             if (loadedLibraries && loadedLibraries.glassware && loadedLibraries.pipettes) {
                 appState.libraries = loadedLibraries;
+                // Set the load timestamp, but preserve the modification revision from the file
+                appState.libraries.lastLoaded = new Date().toISOString();
                 setDirty();
-                updateLibraryRevision(); // Persist the new libraries and update revision
+                actionSaveLibraries(); // Persist the new libraries
                 render();
                 alert('Librerie importate con successo!');
             } else {
@@ -2839,7 +2843,11 @@ function actionImportLibraries(event) {
 
 function actionSaveLibraries() {
     try {
-        const librariesString = JSON.stringify(appState.libraries);
+        // Create a clean copy for persistence, excluding session-specific data
+        const librariesToSave = deepCopy(appState.libraries);
+        delete librariesToSave.lastLoaded;
+
+        const librariesString = JSON.stringify(librariesToSave);
         localStorage.setItem('unccalib_libraries', librariesString);
         console.log('Libraries saved to localStorage.');
     } catch (e) {
@@ -2875,6 +2883,8 @@ function actionLoadLibraries() {
     } catch (e) {
         console.error('Failed to load libraries from localStorage:', e);
     }
+    // Always set the loaded timestamp, whether from storage or using defaults.
+    appState.libraries.lastLoaded = new Date().toISOString();
 }
 
 async function actionEditPipette(id) {
@@ -3570,7 +3580,14 @@ function actionSaveProject() {
         actionSaveProjectAs();
         return;
     }
-    const stateString = JSON.stringify(appState, null, 2);
+
+    // Create a deep copy of the state to prepare for saving, excluding session-specific data
+    const stateToSave = deepCopy(appState);
+    if (stateToSave.libraries) {
+        delete stateToSave.libraries.lastLoaded;
+    }
+
+    const stateString = JSON.stringify(stateToSave, null, 2);
     const blob = new Blob([stateString], { type: 'application/json' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
