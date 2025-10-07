@@ -302,8 +302,15 @@
             <!-- NUOVA SCHEDA: Gestione Librerie -->
             <div id="content-librerie" class="hidden">
                 <div class="bg-white p-6 rounded-lg shadow-md border border-gray-200">
-                    <h2 class="text-2xl font-bold text-gray-700 mb-2">Gestione Librerie</h2>
-                    <p class="text-gray-600 mb-6">Gestisci, importa o esporta le librerie di Vetreria e Pipette. Le modifiche vengono salvate automaticamente.</p>
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <h2 class="text-2xl font-bold text-gray-700 mb-2">Gestione Librerie</h2>
+                            <p class="text-gray-600 mb-6">Gestisci, importa o esporta le librerie di Vetreria e Pipette. Le modifiche vengono salvate automaticamente.</p>
+                        </div>
+                        <div id="library-revision-container" class="text-right">
+                            <!-- Il contenuto verrà popolato da JS -->
+                        </div>
+                    </div>
 
                     <!-- Pulsanti Import/Export -->
                     <div class="flex items-center space-x-4 mb-6">
@@ -650,5 +657,9 @@
     </div>
 
     <script src="script.js?v=3.1.0"></script>
+
+    <footer class="text-center mt-12 text-sm text-gray-500">
+        <p>Applicazione per la valutazione delle prestazioni del metodo | <span id="app-version"></span></p>
+    </footer>
 </body>
 </html>
