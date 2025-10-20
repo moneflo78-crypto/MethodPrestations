@@ -235,6 +235,19 @@ L'applicazione permette di introdurre un contributo di incertezza aggiuntivo, ba
       - Altrimenti, viene mantenuta l'incertezza di taratura standard `ux`.
     - La scelta effettuata e il valore non utilizzato vengono riportati sia nelle tabelle a schermo sia nella reportistica estesa per garantire la massima tracciabilità.
 
+#### PARTE D: LOGICA DI SELEZIONE DEI CAMPIONI PER LA TARATURA
+
+Per calcolare l'incertezza di taratura, è necessario disporre di campioni a concentrazione nota che abbiano seguito un percorso analitico rappresentativo. L'applicazione implementa una logica specifica per garantire che vengano utilizzati i dati più pertinenti.
+
+1.  **Fonte Primaria - Campioni Trattati:** La fonte di dati preferenziale è rappresentata dai campioni che hanno subito una catena di trattamenti (diluizione, estrazione, ecc.) all'interno della scheda "Incertezza di Preparazione". L'output di queste catene (`C_finale` e `u_c`) fornisce i valori di `x_k` per il calcolo dell'incertezza di taratura.
+
+2.  **Fonte Secondaria (Fallback) - Matrix Spike non Trattati:** In scenari in cui il metodo analitico non prevede trattamenti (analisi del campione "tal quale"), non sarebbero disponibili campioni trattati. Per superare questa limitazione, l'applicazione adotta una logica di fallback:
+    - **Condizione:** Se non sono presenti campioni con una catena di trattamenti definita, l'applicazione ricerca i campioni per cui è stata calcolata la preparazione di **matrix spike**.
+    - **Selezione:** Vengono resi disponibili per il calcolo della taratura tutti i campioni di matrix spike che **non sono stati a loro volta utilizzati come input** per una catena di trattamento.
+    - **Logica Mista:** Se nel progetto coesistono sia campioni trattati sia campioni non trattati (per cui è stato preparato uno spike), l'applicazione propone un elenco combinato contenente **entrambe le tipologie**.
+
+Questa logica assicura che il calcolo dell'incertezza di taratura possa essere sempre eseguito, utilizzando i dati più appropriati disponibili nel contesto dell'analisi.
+
 ---------------------------------------------------
 
 ### SEZIONE 4: INCERTEZZA DI PREPARAZIONE (INCERTEZZA COMPOSITA)
