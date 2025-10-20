@@ -1942,7 +1942,7 @@ function renderAnalysisChecklists() {
     const rfChecklist = document.getElementById('rf-sample-checklist');
     if (!regressionChecklist || !rfChecklist) return;
 
-    // Preserve checked state using the treatment sample ID
+    // Preserve checked state
     const currentlyCheckedReg = new Set();
     regressionChecklist.querySelectorAll('input:checked').forEach(input => currentlyCheckedReg.add(input.value));
     const currentlyCheckedRf = new Set();
@@ -1951,11 +1951,44 @@ function renderAnalysisChecklists() {
     regressionChecklist.innerHTML = '';
     rfChecklist.innerHTML = '';
 
-    // NEW LOGIC: Use treatments as the source
-    const eligibleTreatedSamples = appState.treatments.filter(ts => ts.results && ts.sampleId !== null);
+    // Step 1: Get treated samples
+    const treatedSamples = appState.treatments
+        .filter(ts => ts.results && ts.sampleId !== null)
+        .map(ts => {
+            const originalSample = appState.samples.find(s => s.id === ts.sampleId);
+            return {
+                id: ts.id, // Use the treatment sample ID as the unique key
+                name: originalSample ? originalSample.name : `Campione trattato ${ts.id}`,
+                concentration: ts.results.finalConcentration,
+                source: 'Trattato',
+                originalSampleId: ts.sampleId
+            };
+        });
 
-    if (eligibleTreatedSamples.length === 0) {
-        const placeholder = `<p class="text-sm text-gray-500 italic px-2">Nessun campione trattato con risultati validi trovato. Per procedere, definire e calcolare un trattamento nella sezione 'Incertezza di Preparazione'.</p>`;
+    const treatedSampleIds = new Set(treatedSamples.map(ts => ts.originalSampleId));
+
+    // Step 2 & 3: Get UNTREATED matrix spike samples
+    const matrixSpikeSamples = appState.samples
+        .filter(s =>
+            appState.spikeUncertainty[s.id]?.results && // Must have spike results
+            !treatedSampleIds.has(s.id) // Must NOT be in the treated list
+        )
+        .map(s => {
+            const spikeResults = appState.spikeUncertainty[s.id].results;
+            return {
+                id: `spike-${s.id}`, // Create a unique ID for the spike source
+                name: s.name,
+                concentration: spikeResults.finalConcentration,
+                source: 'Matrix Spike',
+                originalSampleId: s.id
+            };
+        });
+
+    // Step 4: Combine the lists
+    const allEligibleSamples = [...treatedSamples, ...matrixSpikeSamples];
+
+    if (allEligibleSamples.length === 0) {
+        const placeholder = `<p class="text-sm text-gray-500 italic px-2">Nessun campione valido trovato. Per procedere, definire e calcolare un trattamento ('Incertezza di Preparazione') oppure una preparazione di matrix spike per un campione non trattato.</p>`;
         regressionChecklist.innerHTML = placeholder;
         rfChecklist.innerHTML = placeholder;
         return;
@@ -1964,27 +1997,23 @@ function renderAnalysisChecklists() {
     let regChecklistHTML = '';
     let rfChecklistHTML = '';
 
-    eligibleTreatedSamples.forEach(ts => {
-        const originalSample = appState.samples.find(s => s.id === ts.sampleId);
-        const sampleName = originalSample ? originalSample.name : `Campione trattato ${ts.id}`;
-        const concentration = ts.results.finalConcentration;
-
-        const regIsChecked = currentlyCheckedReg.has(ts.id);
+    allEligibleSamples.forEach(sample => {
+        const regIsChecked = currentlyCheckedReg.has(sample.id);
         regChecklistHTML += `
             <div class="flex items-center p-1 rounded-md hover:bg-gray-100">
-                <input id="cal-sample-reg-${ts.id}" name="calibration_sample_reg" type="checkbox" value="${ts.id}" ${regIsChecked ? 'checked' : ''} class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
-                <label for="cal-sample-reg-${ts.id}" class="ml-3 block text-sm font-medium text-gray-700 cursor-pointer">
-                    ${sampleName} <span class="text-xs text-gray-500 font-mono">(x=${concentration.toPrecision(4)})</span>
+                <input id="cal-sample-reg-${sample.id}" name="calibration_sample_reg" type="checkbox" value="${sample.id}" ${regIsChecked ? 'checked' : ''} class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                <label for="cal-sample-reg-${sample.id}" class="ml-3 block text-sm font-medium text-gray-700 cursor-pointer">
+                    ${sample.name} <span class="text-xs text-gray-500 font-mono">(x=${sample.concentration.toPrecision(4)})</span> <span class="text-xs font-semibold ${sample.source === 'Trattato' ? 'text-blue-600' : 'text-green-600'}">[${sample.source}]</span>
                 </label>
             </div>
         `;
 
-        const rfIsChecked = currentlyCheckedRf.has(ts.id);
+        const rfIsChecked = currentlyCheckedRf.has(sample.id);
         rfChecklistHTML += `
             <div class="flex items-center p-1 rounded-md hover:bg-gray-100">
-                <input id="cal-sample-rf-${ts.id}" name="calibration_sample_rf" type="checkbox" value="${ts.id}" ${rfIsChecked ? 'checked' : ''} class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
-                <label for="cal-sample-rf-${ts.id}" class="ml-3 block text-sm font-medium text-gray-700 cursor-pointer">
-                    ${sampleName} <span class="text-xs text-gray-500 font-mono">(x=${concentration.toPrecision(4)})</span>
+                <input id="cal-sample-rf-${sample.id}" name="calibration_sample_rf" type="checkbox" value="${sample.id}" ${rfIsChecked ? 'checked' : ''} class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                <label for="cal-sample-rf-${sample.id}" class="ml-3 block text-sm font-medium text-gray-700 cursor-pointer">
+                    ${sample.name} <span class="text-xs text-gray-500 font-mono">(x=${sample.concentration.toPrecision(4)})</span> <span class="text-xs font-semibold ${sample.source === 'Trattato' ? 'text-blue-600' : 'text-green-600'}">[${sample.source}]</span>
                 </label>
             </div>
         `;
@@ -3867,18 +3896,30 @@ function actionCalculateRegression() {
         const lineParams = calculateRegressionLine(cal_x, cal_y);
 
         const tasks = [];
-        const selectedTreatmentIds = Array.from(document.querySelectorAll('input[name="calibration_sample_reg"]:checked')).map(cb => cb.value);
+        const selectedSampleIds = Array.from(document.querySelectorAll('input[name="calibration_sample_reg"]:checked')).map(cb => cb.value);
 
-        selectedTreatmentIds.forEach(id => {
-            const treatmentSample = appState.treatments.find(ts => ts.id === id);
-            if (treatmentSample && treatmentSample.results) {
-                const originalSample = appState.samples.find(s => s.id === treatmentSample.sampleId);
-                const sampleName = originalSample ? originalSample.name : `Campione trattato ${id}`;
-                tasks.push({
-                    name: sampleName,
-                    xk: treatmentSample.results.finalConcentration,
-                    p: 1 // Each treated sample is a single data point
-                });
+        selectedSampleIds.forEach(id => {
+            if (id.startsWith('spike-')) {
+                const sampleId = parseInt(id.replace('spike-', ''), 10);
+                const sample = appState.samples.find(s => s.id === sampleId);
+                const spikeResults = appState.spikeUncertainty[sampleId]?.results;
+                if (sample && spikeResults) {
+                    tasks.push({
+                        name: sample.name,
+                        xk: spikeResults.finalConcentration,
+                        p: 1 // Each spike sample is a single data point for this purpose
+                    });
+                }
+            } else {
+                const treatmentSample = appState.treatments.find(ts => ts.id === id);
+                if (treatmentSample && treatmentSample.results) {
+                    const originalSample = appState.samples.find(s => s.id === treatmentSample.sampleId);
+                    tasks.push({
+                        name: originalSample ? originalSample.name : `Campione trattato ${id}`,
+                        xk: treatmentSample.results.finalConcentration,
+                        p: 1 // Each treated sample is a single data point
+                    });
+                }
             }
         });
 
@@ -3949,17 +3990,28 @@ function actionCalculateResponseFactor() {
         const utaratura_perc = criterion / Math.sqrt(3);
 
         const tasks = [];
-        const selectedTreatmentIds = Array.from(document.querySelectorAll('input[name="calibration_sample_rf"]:checked')).map(cb => cb.value);
+        const selectedSampleIds = Array.from(document.querySelectorAll('input[name="calibration_sample_rf"]:checked')).map(cb => cb.value);
 
-        selectedTreatmentIds.forEach(id => {
-            const treatmentSample = appState.treatments.find(ts => ts.id === id);
-            if (treatmentSample && treatmentSample.results) {
-                const originalSample = appState.samples.find(s => s.id === treatmentSample.sampleId);
-                const sampleName = originalSample ? originalSample.name : `Campione trattato ${id}`;
-                tasks.push({
-                    name: sampleName,
-                    xk: treatmentSample.results.finalConcentration
-                });
+        selectedSampleIds.forEach(id => {
+             if (id.startsWith('spike-')) {
+                const sampleId = parseInt(id.replace('spike-', ''), 10);
+                const sample = appState.samples.find(s => s.id === sampleId);
+                const spikeResults = appState.spikeUncertainty[sampleId]?.results;
+                if (sample && spikeResults) {
+                    tasks.push({
+                        name: sample.name,
+                        xk: spikeResults.finalConcentration
+                    });
+                }
+            } else {
+                const treatmentSample = appState.treatments.find(ts => ts.id === id);
+                if (treatmentSample && treatmentSample.results) {
+                    const originalSample = appState.samples.find(s => s.id === treatmentSample.sampleId);
+                    tasks.push({
+                        name: originalSample ? originalSample.name : `Campione trattato ${id}`,
+                        xk: treatmentSample.results.finalConcentration
+                    });
+                }
             }
         });
 

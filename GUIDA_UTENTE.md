@@ -72,6 +72,7 @@ Qui calcoli il contributo di incertezza del modello di calibrazione.
     - **Fattore di Risposta:** Se usi una calibrazione a singolo punto. Inserisci il criterio di accettabilità (es. RSD% massimo) per il fattore di risposta.
 2.  **Calcolo Opzionale da ICV:** Se vuoi considerare la variabilità dei controlli di taratura, inserisci il tuo criterio di accettabilità nel campo **MAX_RSD_ICV%**. L'applicazione userà il contributo peggiore (e quindi più conservativo) tra il modello e l'ICV.
 3.  **Seleziona i Campioni:** Scegli per quali campioni (trattati nella sezione precedente) vuoi calcolare l'incertezza di taratura, oppure inserisci una concentrazione manuale.
+    - **Nota per analisi "tal quale":** Se il tuo metodo non prevede trattamenti, la lista dei campioni selezionabili includerà automaticamente i campioni di preparazione dei **matrix spike** (solo quelli che non hanno subito ulteriori trattamenti). Questo garantisce che si possa sempre calcolare un'incertezza di taratura basata su dati pertinenti, anche in assenza di campioni trattati.
 4.  **Calcola:** Clicca su **"Calcola Incertezza di Taratura"** per visualizzare i risultati.
 
 #### 5. Incertezza Estesa
