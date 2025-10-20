@@ -5597,70 +5597,79 @@ function calculateExpandedUncertainty(sampleId, projectState) {
             });
         }
 
-        // Trova il 'treatmentSample' corrispondente, che è il link a tutte le altre preparazioni
-        const treatmentSample = projectState.treatments.find(ts => ts.sampleId === sampleId);
+        // --- CONTRIBUTI CHE SI APPLICANO A TUTTI I TIPI DI CAMPIONI ---
 
+        // 2. Contributo da Preparazione Spike (se applicabile e se il test di accuratezza fallisce)
+        const spikeData = projectState.spikeUncertainty[sampleId];
+        if (spikeData?.results?.accuracyCheck && spikeData.results.accuracyCheck.isAccurate === false) {
+            if (spikeData.results.u_comp_rel_perc > 0) {
+                contributions.push({
+                    name: 'Preparazione Spike (Bias)',
+                    value: spikeData.results.u_comp_rel_perc / 100,
+                    dof: Infinity // Tipo B
+                });
+            }
+        }
+        // Per i campioni "tal quale", l'incertezza di preparazione è quella dello spike.
+        else if (spikeData?.results && !projectState.treatments.find(ts => ts.sampleId === sampleId)) {
+             if (spikeData.results.u_comp_rel_perc > 0) {
+                contributions.push({
+                    name: 'Preparazione Spike',
+                    value: spikeData.results.u_comp_rel_perc / 100,
+                    dof: Infinity // Tipo B
+                });
+            }
+        }
+
+        // 3. Contributo da Taratura
+        let calibrationFound = false;
+        // Cerca prima nella retta di taratura
+        const regResults = projectState.calibration.results;
+        if (regResults?.samples) {
+            const regSampleResult = regResults.samples.find(s => s.sampleName === sample.name);
+            if (regSampleResult && regSampleResult.ux_rel_perc > 0) {
+                const contributionName = regSampleResult.source === 'Controllo Taratura'
+                    ? 'Controllo Taratura (Retta)'
+                    : 'Taratura (Retta)';
+
+                contributions.push({
+                    name: contributionName,
+                    value: regSampleResult.ux_rel_perc / 100,
+                    dof: regResults.line.n_cal - 2
+                });
+                calibrationFound = true;
+            }
+        }
+
+        // Se non trovato nella retta, cerca nel fattore di risposta
+        if (!calibrationFound) {
+            const rfResults = projectState.rfCalibration.results;
+            if (rfResults?.samples) {
+                const rfSampleResult = rfResults.samples.find(s => s.sampleName === sample.name);
+                if (rfSampleResult && rfSampleResult.ux_rel_perc > 0) {
+                    const contributionName = rfSampleResult.source === 'Controllo Taratura'
+                        ? 'Controllo Taratura (Fattore Risposta)'
+                        : 'Taratura (Fattore Risposta)';
+
+                    contributions.push({
+                        name: contributionName,
+                        value: rfSampleResult.ux_rel_perc / 100,
+                        dof: Infinity // Tipo B
+                    });
+                }
+            }
+        }
+
+        // --- CONTRIBUTI SOLO PER CAMPIONI TRATTATI ---
+        const treatmentSample = projectState.treatments.find(ts => ts.sampleId === sampleId);
         if (treatmentSample) {
-            // 2. Contributo da Trattamento Campione
+            // 4. Contributo da Trattamento Campione (diverso dalla prep. spike)
             if (treatmentSample.results?.u_comp_rel_perc > 0) {
                 contributions.push({
                     name: 'Trattamento Campione',
                     value: treatmentSample.results.u_comp_rel_perc / 100,
                     dof: Infinity // Tipo B
                 });
-            }
-
-            // 3. Contributo da Preparazione Spike (se il test di accuratezza fallisce)
-            const spikeData = projectState.spikeUncertainty[sampleId];
-            if (spikeData?.results?.accuracyCheck && spikeData.results.accuracyCheck.isAccurate === false) {
-                if (spikeData.results.u_comp_rel_perc > 0) {
-                    contributions.push({
-                        name: 'Preparazione Spike (Bias)',
-                        value: spikeData.results.u_comp_rel_perc / 100,
-                        dof: Infinity // Tipo B
-                    });
-                }
-            }
-
-            // 4. Contributo da Taratura
-            let calibrationFound = false;
-            // Cerca prima nella retta di taratura
-            const regResults = projectState.calibration.results;
-            if (regResults?.samples) {
-                const regSampleResult = regResults.samples.find(s => s.sampleName === sample.name);
-                if (regSampleResult && regSampleResult.ux_rel_perc > 0) {
-                    const contributionName = regSampleResult.source === 'Controllo Taratura'
-                        ? 'Controllo Taratura (Retta)'
-                        : 'Taratura (Retta)';
-
-                    contributions.push({
-                        name: contributionName,
-                        value: regSampleResult.ux_rel_perc / 100,
-                        dof: regResults.line.n_cal - 2
-                    });
-                    calibrationFound = true;
-                }
-            }
-
-            // Se non trovato nella retta, cerca nel fattore di risposta
-            if (!calibrationFound) {
-                const rfResults = projectState.rfCalibration.results;
-                if (rfResults?.samples) {
-                    const rfSampleResult = rfResults.samples.find(s => s.sampleName === sample.name);
-                    if (rfSampleResult && rfSampleResult.ux_rel_perc > 0) {
-                        // FIX: Utilizza l'incertezza finale del campione (che include il check con ICV)
-                        // invece del valore di taratura generico.
-                        const contributionName = rfSampleResult.source === 'Controllo Taratura'
-                            ? 'Controllo Taratura (Fattore Risposta)'
-                            : 'Taratura (Fattore Risposta)';
-
-                        contributions.push({
-                            name: contributionName,
-                            value: rfSampleResult.ux_rel_perc / 100, // CORRETTO
-                            dof: Infinity // Tipo B
-                        });
-                    }
-                }
             }
         }
 
