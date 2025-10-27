@@ -1,5 +1,6 @@
 ###################################################
 # MANUALE DELLE FORMULE STATISTICHE E DEI CALCOLI #
+# Versione: 1.0.0                                 #
 ###################################################
 
 ## INTRODUZIONE
