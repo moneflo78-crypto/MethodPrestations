@@ -889,7 +889,7 @@ const multiChoiceModal = {
 // --- INITIAL STATE ---
 function getInitialAppState() {
     return {
-        version: '3.2.0',
+        version: '1.0.0',
         ui: {
             activeTab: 'frontespizio',
             activeLibrarySubTab: 'vetreria', // 'vetreria', 'pipette', 'metodi', 'criteri'
@@ -8057,25 +8057,25 @@ function main() {
     const responseFactorCalculator = document.getElementById('responseFactor-calculator');
     const calibrationChoice = document.getElementById('calibration-choice');
 
-    if (btnSelectRegression) {
-        btnSelectRegression.addEventListener('click', async () => {
-            if (appState.rfCalibration.results) {
-                const confirmed = await choiceModal.show({
-                    title: 'Cambio Metodo di Taratura',
-                    bodyContent: 'Hai già dei dati calcolati con il metodo "Fattore di Risposta". Cambiando metodo, questi dati verranno resettati. Vuoi continuare?',
-                    buttons: [
-                        { text: 'Annulla', value: false, class: secondaryBtnClass },
-                        { text: 'Conferma e Resetta', value: true, class: primaryBtnClass.replace('bg-blue-600', 'bg-red-600').replace('hover:bg-blue-700', 'hover:bg-red-700') }
-                    ]
-                });
-                if (!confirmed) return;
-                actionResetRfData();
-            }
-            calibrationChoice.classList.add('hidden');
-            regressionCalculator.classList.remove('hidden');
-            responseFactorCalculator.classList.add('hidden');
-        });
-    }
+    // if (btnSelectRegression) {
+    //     btnSelectRegression.addEventListener('click', async () => {
+    //         if (appState.rfCalibration.results) {
+    //             const confirmed = await choiceModal.show({
+    //                 title: 'Cambio Metodo di Taratura',
+    //                 bodyContent: 'Hai già dei dati calcolati con il metodo "Fattore di Risposta". Cambiando metodo, questi dati verranno resettati. Vuoi continuare?',
+    //                 buttons: [
+    //                     { text: 'Annulla', value: false, class: secondaryBtnClass },
+    //                     { text: 'Conferma e Resetta', value: true, class: primaryBtnClass.replace('bg-blue-600', 'bg-red-600').replace('hover:bg-blue-700', 'hover:bg-red-700') }
+    //                 ]
+    //             });
+    //             if (!confirmed) return;
+    //             actionResetRfData();
+    //         }
+    //         calibrationChoice.classList.add('hidden');
+    //         regressionCalculator.classList.remove('hidden');
+    //         responseFactorCalculator.classList.add('hidden');
+    //     });
+    // }
 
     if(btnSelectResponseFactor) {
         btnSelectResponseFactor.addEventListener('click', async () => {

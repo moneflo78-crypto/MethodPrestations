@@ -1,5 +1,6 @@
 #############################################################
 # GUIDA PER L'UTILIZZATORE - Valutazione delle Prestazioni  #
+# Versione: 1.0.0                                           #
 #############################################################
 
 ## INTRODUZIONE
