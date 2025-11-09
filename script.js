@@ -4173,14 +4173,38 @@ async function handleFileLoad(event) {
     reader.onload = async (e) => { // La funzione ora è async
         try {
             const loadedState = JSON.parse(e.target.result);
-            if (!loadedState.version || !loadedState.project) throw new Error("File non valido o corrotto.");
+            if (!loadedState.project) throw new Error("File non valido o corrotto.");
 
-            // Conserva le librerie correnti dell'utente per evitare che vengano sovrascritte
+            // Conserva le librerie e la versione correnti dell'utente
             const currentUserLibraries = deepCopy(appState.libraries);
+            const currentVersion = appState.version;
 
             appState = loadedState;
             appState.libraries = currentUserLibraries; // Ripristina le librerie dell'utente
+            appState.version = currentVersion; // Ripristina la versione dell'applicazione
+
+            // Retrocompatibilità per progetti che non hanno lo stato UI
+            if (!appState.ui) {
+                appState.ui = getInitialAppState().ui;
+            }
             appState.ui.currentFileName = file.name;
+
+            // Retrocompatibilità per la struttura 'treatments' mancante
+            if (!appState.treatments) {
+                console.log("Vecchio formato di progetto rilevato. Creazione della struttura 'treatments' in corso...");
+                appState.treatments = [];
+                // Per ogni campione, crea una voce 'treatmentSample' vuota.
+                // Questo permette a `calculateExpandedUncertainty` di procedere
+                // e includere i contributi di spike e taratura.
+                appState.samples.forEach(sample => {
+                    appState.treatments.push({
+                        id: `ts-${Date.now()}-${sample.id}`,
+                        sampleId: sample.id,
+                        treatments: [],
+                        results: null
+                    });
+                });
+            }
 
             // Compatibility checks
             if (!appState.reportSettings) appState.reportSettings = getInitialAppState().reportSettings;
