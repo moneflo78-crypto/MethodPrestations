@@ -1,0 +1,138 @@
+
+{
+  "version": "1.0.0",
+  "ui": {
+    "activeTab": "estesa",
+    "activeLibrarySubTab": "vetreria",
+    "activeReportSubTab": "report-progetto",
+    "currentFileName": "test_project.json",
+    "showGuaranteedUncertainty": false
+  },
+  "project": {
+    "projectName": "Test Spike Senza Trattamento",
+    "objective": "Verify expanded uncertainty calculation for spike-only samples.",
+    "method": "metodo_metalli",
+    "component": "Test Component"
+  },
+  "samples": [
+    {
+      "id": 1,
+      "name": "Campione Spike TQ",
+      "rawData": "10.1, 10.2, 10.3, 10.4, 10.5",
+      "expectedValue": 10,
+      "unit": "µg/L"
+    }
+  ],
+  "results": {
+    "1": {
+      "log": [],
+      "originalData": [10.1, 10.2, 10.3, 10.4, 10.5],
+      "currentData": [10.1, 10.2, 10.3, 10.4, 10.5],
+      "statistics": {
+        "n": 5,
+        "mean": 10.3,
+        "max": 10.5,
+        "min": 10.1,
+        "stdDev": 0.15811388300841897,
+        "cv_percent": 1.535086242800184,
+        "t_value": 2.776,
+        "repeatability_limit_r": 0.6209,
+        "repeatability_limit_r_percent": 6.028,
+        "nominalValue": 10,
+        "recovery": 103
+      },
+      "error": null
+    }
+  },
+  "spikeUncertainty": {
+    "1": {
+      "initialConcentration": 1000,
+      "initialUncertainty": 0.5,
+      "unit": "mg/L",
+      "productCode": "",
+      "lot": "",
+      "steps": [
+        {
+          "id": "step-1663428980838",
+          "dilutionType": "bringToVolume",
+          "dilutionFlask": "Matraccio 100 mL",
+          "addedSolventPipette": null,
+          "addedSolventVolume": null,
+          "withdrawals": [
+            {
+              "id": "w-1663428980838",
+              "pipette": "043CHR",
+              "volume": 1
+            }
+          ]
+        }
+      ],
+      "results": {
+        "finalConcentration": 10,
+        "u_comp": 0.0305,
+        "u_comp_rel_perc": 0.305,
+        "summary": "...",
+        "preparationCheck": { "isCorrect": true },
+        "accuracyCheck": { "isAccurate": true },
+        "contributions": []
+      }
+    },
+    "useCommonReferenceMaterial": false,
+    "commonReferenceMaterial": {
+        "initialConcentration": null,
+        "initialUncertainty": null,
+        "unit": "µg/L",
+        "productCode": "",
+        "lot": ""
+    }
+  },
+  "calibrationSolutionUncertainty": {},
+  "libraries": {
+        "revision": null,
+        "glassware": {},
+        "pipettes": {},
+        "methods": {}
+  },
+  "calibration": {
+    "max_rsd_icv": 5,
+    "points": [],
+    "manualSample": { "xk": null, "p": 1 },
+    "results": {
+      "line": {
+        "a": 0.01,
+        "b": 1.5,
+        "s_yx": 0.1,
+        "r2": 0.999,
+        "n_cal": 6,
+        "y_medio_cal": 1.5,
+        "sum_sq_diff_x_cal": 10
+      },
+      "samples": [
+        {
+          "sampleName": "Campione Spike TQ",
+          "nominalConc": 10,
+          "ux": 0.2,
+          "ux_rel_perc": 2.0,
+          "source": "Taratura (Retta)",
+          "ux_calib_orig": 0.2,
+          "ux_icv": 0.288
+        }
+      ],
+      "error": null
+    }
+  },
+  "rfCalibration": {
+    "acceptabilityCriterion": null,
+    "manualSample": { "xk": null },
+    "results": null
+  },
+  "treatments": [],
+  "reportSettings": {
+        "grouping": "sample",
+        "representation": "extended",
+        "selections": {
+            "statistica": {}, "preparazione": {}, "taratura-retta": {}, "taratura-fr": {}, "estesa": {}
+        }
+  },
+  "validation": { "selectedTestId": null, "results": null }
+}
