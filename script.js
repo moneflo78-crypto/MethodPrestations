@@ -624,6 +624,11 @@ const DEFAULT_METHODS_LIBRARY = {
     "metodo_NO3": { "name": "Nitrati (Sonda Spettrofotometrica)", "u_rif_perc": 0.5, "u_icv_perc": 5.0, "cv_perc": 5.0 }
 };
 
+const DEFAULT_BALANCES_LIBRARY = {
+    "Bilancia_Analitica": { "minWeight": 0.01, "capacity": 220, "alpha": 0.000082, "beta": 4.3e-6 },
+    "Bilancia_Tecnica": { "minWeight": 0.5, "capacity": 2000, "alpha": 0.0082, "beta": 8.2e-6 }
+};
+
 const DEFAULT_PIPETTE_LIBRARY = {
     "041CHR": { "calibrationPoints": [ { "volume": 0.002, "U_rel_percent": 3.9 }, { "volume": 0.01, "U_rel_percent": 0.95 }, { "volume": 0.02, "U_rel_percent": 0.49 } ] },
     "042CHR": { "calibrationPoints": [ { "volume": 0.05, "U_rel_percent": 0.74 }, { "volume": 0.1, "U_rel_percent": 0.52 }, { "volume": 0.2, "U_rel_percent": 0.32 } ] },
@@ -889,10 +894,10 @@ const multiChoiceModal = {
 // --- INITIAL STATE ---
 function getInitialAppState() {
     return {
-        version: '1.0.1',
+        version: '1.1.0',
         ui: {
             activeTab: 'frontespizio',
-            activeLibrarySubTab: 'vetreria', // 'vetreria', 'pipette', 'metodi', 'criteri'
+            activeLibrarySubTab: 'vetreria', // 'vetreria', 'pipette', 'bilance', 'metodi', 'criteri'
             activeReportSubTab: 'report-progetto',
             currentFileName: null,
             showGuaranteedUncertainty: false
@@ -922,6 +927,7 @@ function getInitialAppState() {
             revision: null, // NUOVO: Timestamp dell'ultima modifica
             glassware: deepCopy(DEFAULT_GLASSWARE_LIBRARY),
             pipettes: deepCopy(DEFAULT_PIPETTE_LIBRARY),
+            balances: deepCopy(DEFAULT_BALANCES_LIBRARY),
             methods: deepCopy(DEFAULT_METHODS_LIBRARY)
         },
         calibration: {
@@ -1448,6 +1454,30 @@ function renderLibraries() {
         `;
         pipetteTableBody.appendChild(row);
     }
+
+    // Render Balances Table
+    const balancesTableBody = document.getElementById('balances-library-table');
+    if (balancesTableBody) {
+        balancesTableBody.innerHTML = ''; // Clear existing rows
+        for (const id in appState.libraries.balances) {
+            const item = appState.libraries.balances[id];
+            const row = document.createElement('tr');
+            row.className = 'border-b hover:bg-gray-50';
+            row.innerHTML = `
+                <td class="p-3 font-medium">${id}</td>
+                <td class="p-3 font-mono">${item.minWeight}</td>
+                <td class="p-3 font-mono">${item.capacity}</td>
+                <td class="p-3 font-mono">${item.alpha}</td>
+                <td class="p-3 font-mono">${item.beta.toExponential(2)}</td>
+                <td class="p-3 space-x-2 whitespace-nowrap">
+                    <button data-library="balances" data-name="${id}" class="btn-edit-library-item text-xs bg-yellow-100 text-yellow-800 font-semibold py-1 px-2 rounded-md hover:bg-yellow-200">Modifica</button>
+                    <button data-library="balances" data-name="${id}" class="btn-duplicate-library-item text-xs bg-blue-100 text-blue-800 font-semibold py-1 px-2 rounded-md hover:bg-blue-200">Duplica</button>
+                    <button data-library="balances" data-name="${id}" class="btn-remove-library-item text-xs bg-red-100 text-red-800 font-semibold py-1 px-2 rounded-md hover:bg-red-200">Rimuovi</button>
+                </td>
+            `;
+            balancesTableBody.appendChild(row);
+        }
+    }
 }
 
 function renderLibraryTabs() {
@@ -1457,6 +1487,7 @@ function renderLibraryTabs() {
     });
     document.getElementById('subcontent-vetreria').classList.toggle('hidden', activeSubTab !== 'vetreria');
     document.getElementById('subcontent-pipette').classList.toggle('hidden', activeSubTab !== 'pipette');
+    document.getElementById('subcontent-bilance').classList.toggle('hidden', activeSubTab !== 'bilance');
     document.getElementById('subcontent-metodi').classList.toggle('hidden', activeSubTab !== 'metodi');
     document.getElementById('subcontent-criteri').classList.toggle('hidden', activeSubTab !== 'criteri');
 }
@@ -2999,6 +3030,193 @@ async function actionEditPipette(id) {
             delete appState.libraries.pipettes[id];
         }
         appState.libraries.pipettes[newId] = { calibrationPoints };
+        setDirty();
+        updateLibraryRevision();
+        render();
+    }
+}
+
+// --- AZIONI PER LA LIBRERIA BILANCE ---
+async function actionAddBalance() {
+    const confirmed = await formModal.show({
+        title: 'Aggiungi Nuova Bilancia',
+        bodyHTML: `
+            <div class="space-y-4">
+                <div>
+                    <label for="form-field-id" class="block text-sm font-medium text-gray-700">ID Bilancia</label>
+                    <input type="text" id="form-field-id" class="mt-1 w-full p-2 border border-gray-300 rounded-md" placeholder="Es: Bilancia_Analitica_01">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label for="form-field-min-weight" class="block text-sm font-medium text-gray-700">Pesata Minima (g)</label>
+                        <input type="number" id="form-field-min-weight" step="any" class="mt-1 w-full p-2 border border-gray-300 rounded-md" placeholder="Es: 0.01">
+                    </div>
+                    <div>
+                        <label for="form-field-capacity" class="block text-sm font-medium text-gray-700">Portata (g)</label>
+                        <input type="number" id="form-field-capacity" step="any" class="mt-1 w-full p-2 border border-gray-300 rounded-md" placeholder="Es: 220">
+                    </div>
+                    <div>
+                        <label for="form-field-alpha" class="block text-sm font-medium text-gray-700">Coefficiente &alpha;<sub>gl</sub> (g)</label>
+                        <input type="number" id="form-field-alpha" step="any" class="mt-1 w-full p-2 border border-gray-300 rounded-md" placeholder="Es: 0.0001">
+                    </div>
+                    <div>
+                        <label for="form-field-beta" class="block text-sm font-medium text-gray-700">Coefficiente &beta;<sub>gl</sub> (adimensionale)</label>
+                        <input type="number" id="form-field-beta" step="any" class="mt-1 w-full p-2 border border-gray-300 rounded-md" placeholder="Es: 1e-6">
+                    </div>
+                </div>
+            </div>
+        `,
+        buttons: [
+            { text: 'Annulla', isConfirm: false, class: secondaryBtnClass },
+            { text: 'Salva', isConfirm: true, class: primaryBtnClass }
+        ]
+    });
+
+    if (confirmed) {
+        const modalBody = document.getElementById('form-modal-body');
+        const id = modalBody.querySelector('#form-field-id').value.trim();
+        const minWeight = parseFloat(modalBody.querySelector('#form-field-min-weight').value);
+        const capacity = parseFloat(modalBody.querySelector('#form-field-capacity').value);
+        const alpha = parseFloat(modalBody.querySelector('#form-field-alpha').value);
+        const beta = parseFloat(modalBody.querySelector('#form-field-beta').value);
+
+        if (!id) {
+            alert("L'ID della bilancia è obbligatorio.");
+            return;
+        }
+        if (appState.libraries.balances[id]) {
+            alert("Esiste già una bilancia con questo ID.");
+            return;
+        }
+        if (isNaN(minWeight) || isNaN(capacity) || isNaN(alpha) || isNaN(beta)) {
+            alert("Tutti i campi numerici devono essere validi.");
+            return;
+        }
+
+        appState.libraries.balances[id] = { minWeight, capacity, alpha, beta };
+        setDirty();
+        updateLibraryRevision();
+        render();
+    }
+}
+
+async function actionEditBalance(id) {
+    const item = appState.libraries.balances[id];
+    if (!item) return;
+
+    const confirmed = await formModal.show({
+        title: 'Modifica Bilancia',
+        bodyHTML: `
+            <div class="space-y-4">
+                <div>
+                    <label for="form-field-id" class="block text-sm font-medium text-gray-700">ID Bilancia (non modificabile)</label>
+                    <input type="text" id="form-field-id" class="mt-1 w-full p-2 border bg-gray-100 border-gray-300 rounded-md" value="${id}" readonly>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label for="form-field-min-weight" class="block text-sm font-medium text-gray-700">Pesata Minima (g)</label>
+                        <input type="number" id="form-field-min-weight" step="any" class="mt-1 w-full p-2 border border-gray-300 rounded-md" value="${item.minWeight}">
+                    </div>
+                    <div>
+                        <label for="form-field-capacity" class="block text-sm font-medium text-gray-700">Portata (g)</label>
+                        <input type="number" id="form-field-capacity" step="any" class="mt-1 w-full p-2 border border-gray-300 rounded-md" value="${item.capacity}">
+                    </div>
+                    <div>
+                        <label for="form-field-alpha" class="block text-sm font-medium text-gray-700">Coefficiente &alpha;<sub>gl</sub> (g)</label>
+                        <input type="number" id="form-field-alpha" step="any" class="mt-1 w-full p-2 border border-gray-300 rounded-md" value="${item.alpha}">
+                    </div>
+                    <div>
+                        <label for="form-field-beta" class="block text-sm font-medium text-gray-700">Coefficiente &beta;<sub>gl</sub> (adimensionale)</label>
+                        <input type="number" id="form-field-beta" step="any" class="mt-1 w-full p-2 border border-gray-300 rounded-md" value="${item.beta}">
+                    </div>
+                </div>
+            </div>
+        `,
+        buttons: [
+            { text: 'Annulla', isConfirm: false, class: secondaryBtnClass },
+            { text: 'Salva Modifiche', isConfirm: true, class: primaryBtnClass }
+        ]
+    });
+
+    if (confirmed) {
+        const modalBody = document.getElementById('form-modal-body');
+        const minWeight = parseFloat(modalBody.querySelector('#form-field-min-weight').value);
+        const capacity = parseFloat(modalBody.querySelector('#form-field-capacity').value);
+        const alpha = parseFloat(modalBody.querySelector('#form-field-alpha').value);
+        const beta = parseFloat(modalBody.querySelector('#form-field-beta').value);
+
+        if (isNaN(minWeight) || isNaN(capacity) || isNaN(alpha) || isNaN(beta)) {
+            alert("Tutti i campi numerici devono essere validi.");
+            return;
+        }
+
+        appState.libraries.balances[id] = { minWeight, capacity, alpha, beta };
+        setDirty();
+        updateLibraryRevision();
+        render();
+    }
+}
+
+async function actionRemoveBalance(id) {
+    const confirm = await choiceModal.show({
+        title: 'Conferma Rimozione',
+        bodyContent: `Sei sicuro di voler rimuovere la bilancia "<strong>${id}</strong>"?`,
+        buttons: [
+            { text: 'Annulla', value: false, class: secondaryBtnClass },
+            { text: 'Rimuovi', value: true, class: primaryBtnClass.replace('bg-blue-600', 'bg-red-600').replace('hover:bg-blue-700', 'hover:bg-red-700') }
+        ]
+    });
+
+    if (confirm) {
+        delete appState.libraries.balances[id];
+        setDirty();
+        updateLibraryRevision();
+        render();
+    }
+}
+
+async function actionDuplicateBalance(id) {
+    const item = appState.libraries.balances[id];
+    if (!item) return;
+
+    let newId = id + "_copy";
+    let counter = 1;
+    while (appState.libraries.balances[newId]) {
+        newId = id + `_copy${counter}`;
+        counter++;
+    }
+
+    const confirmed = await formModal.show({
+        title: 'Duplica Bilancia',
+        bodyHTML: `
+            <div class="space-y-4">
+                <p class="text-sm text-gray-600">Inserisci un nuovo ID per la copia della bilancia.</p>
+                <div>
+                    <label for="form-field-new-id" class="block text-sm font-medium text-gray-700">Nuovo ID Bilancia</label>
+                    <input type="text" id="form-field-new-id" class="mt-1 w-full p-2 border border-gray-300 rounded-md" value="${newId}">
+                </div>
+            </div>
+        `,
+        buttons: [
+            { text: 'Annulla', isConfirm: false, class: secondaryBtnClass },
+            { text: 'Duplica', isConfirm: true, class: primaryBtnClass }
+        ]
+    });
+
+    if (confirmed) {
+        const modalBody = document.getElementById('form-modal-body');
+        const finalId = modalBody.querySelector('#form-field-new-id').value.trim();
+
+        if (!finalId) {
+            alert("L'ID non può essere vuoto.");
+            return;
+        }
+        if (appState.libraries.balances[finalId]) {
+            alert("Esiste già una bilancia con questo ID.");
+            return;
+        }
+
+        appState.libraries.balances[finalId] = deepCopy(item);
         setDirty();
         updateLibraryRevision();
         render();
@@ -7321,6 +7539,7 @@ function main() {
 
     document.getElementById('btn-add-glassware').addEventListener('click', actionAddGlassware);
     document.getElementById('btn-add-pipette').addEventListener('click', actionAddPipette);
+    document.getElementById('btn-add-balance').addEventListener('click', actionAddBalance);
 
     const libraryContentContainer = document.getElementById('content-librerie');
     libraryContentContainer.addEventListener('click', e => {
@@ -7333,14 +7552,17 @@ function main() {
         if (button.classList.contains('btn-edit-library-item')) {
             if (library === 'glassware') actionEditGlassware(name);
             else if (library === 'pipettes') actionEditPipette(name);
+            else if (library === 'balances') actionEditBalance(name);
             else if (library === 'methods') actionEditMethod(name); // 'name' qui è l'ID
         } else if (button.classList.contains('btn-remove-library-item')) {
             if (library === 'glassware') actionRemoveGlassware(name);
             else if (library === 'pipettes') actionRemovePipette(name);
+            else if (library === 'balances') actionRemoveBalance(name);
             else if (library === 'methods') actionRemoveMethod(name); // 'name' qui è l'ID
         } else if (button.classList.contains('btn-duplicate-library-item')) {
             if (library === 'glassware') actionDuplicateGlassware(name);
             else if (library === 'pipettes') actionDuplicatePipette(name);
+            else if (library === 'balances') actionDuplicateBalance(name);
             // La duplicazione per i metodi non è implementata in quanto meno critica, si può aggiungere in futuro se necessario.
         }
     });
