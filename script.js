@@ -2882,17 +2882,43 @@ function actionImportLibraries(event) {
         try {
             const loadedLibraries = JSON.parse(e.target.result);
 
-            // Basic validation
+            // Basic validation and Merge Logic
             if (loadedLibraries && loadedLibraries.glassware && loadedLibraries.pipettes) {
-                appState.libraries = loadedLibraries;
+                // Preserva le sezioni mancanti nel file importato (es. bilance o metodi da vecchi export)
+                // fondendole con i dati correnti.
+
+                // Sezioni che vogliamo garantire esistano
+                const ensureSection = (key, defaultVal) => {
+                    if (!loadedLibraries[key]) {
+                        console.warn(`Sezione '${key}' mancante nell'importazione. Mantengo i dati correnti.`);
+                        return appState.libraries[key] || defaultVal;
+                    }
+                    return loadedLibraries[key];
+                };
+
+                const mergedLibraries = {
+                    ...loadedLibraries,
+                    glassware: loadedLibraries.glassware, // Sempre presente (validato sopra)
+                    pipettes: loadedLibraries.pipettes,   // Sempre presente (validato sopra)
+                    balances: ensureSection('balances', deepCopy(DEFAULT_BALANCES_LIBRARY)),
+                    methods: ensureSection('methods', deepCopy(DEFAULT_METHODS_LIBRARY)),
+                    // Mantieni la revisione del file importato se esiste, altrimenti aggiornala
+                    revision: loadedLibraries.revision || new Date().toISOString()
+                };
+
+                appState.libraries = mergedLibraries;
                 setDirty();
-                updateLibraryRevision(); // Persist the new libraries and update revision
+
+                // Aggiorna anche la revisione corrente per riflettere l'operazione di merge
+                updateLibraryRevision();
+
                 render();
                 alert('Librerie importate con successo!');
             } else {
-                throw new Error("Il file JSON non ha la struttura corretta. Deve contenere gli oggetti 'glassware' e 'pipettes'.");
+                throw new Error("Il file JSON non ha la struttura corretta. Deve contenere almeno gli oggetti 'glassware' e 'pipettes'.");
             }
         } catch (error) {
+            console.error(error);
             alert(`Errore nell'importazione: ${error.message}`);
         } finally {
             // Reset the file input so the same file can be loaded again
@@ -3043,6 +3069,7 @@ async function actionEditPipette(id) {
 
 // --- AZIONI PER LA LIBRERIA BILANCE ---
 async function actionAddBalance() {
+    if (!appState.libraries.balances) appState.libraries.balances = {};
     const confirmed = await formModal.show({
         title: 'Aggiungi Nuova Bilancia',
         bodyHTML: `
@@ -3112,6 +3139,7 @@ async function actionAddBalance() {
 }
 
 async function actionEditBalance(id) {
+    if (!appState.libraries.balances) appState.libraries.balances = {};
     const item = appState.libraries.balances[id];
     if (!item) return;
 
@@ -3175,6 +3203,7 @@ async function actionEditBalance(id) {
 }
 
 async function actionRemoveBalance(id) {
+    if (!appState.libraries.balances) return;
     const confirm = await choiceModal.show({
         title: 'Conferma Rimozione',
         bodyContent: `Sei sicuro di voler rimuovere la bilancia "<strong>${id}</strong>"?`,
@@ -3193,6 +3222,7 @@ async function actionRemoveBalance(id) {
 }
 
 async function actionDuplicateBalance(id) {
+    if (!appState.libraries.balances) appState.libraries.balances = {};
     const item = appState.libraries.balances[id];
     if (!item) return;
 
