@@ -1,6 +1,6 @@
 #############################################################
 # GUIDA PER L'UTILIZZATORE - Valutazione delle Prestazioni  #
-# Versione: 1.0.0                                           #
+# Versione: 1.1.0                                           #
 #############################################################
 
 ## INTRODUZIONE
@@ -10,11 +10,12 @@ L'applicazione è strutturata in schede (tab) che seguono un flusso logico di la
 1.  **Frontespizio:** Inserisci le informazioni generali del tuo progetto.
 2.  **Analisi Statistica:** Inserisci i dati grezzi dei tuoi campioni ed esegui i calcoli statistici di base.
 3.  **Incertezza di Pesata:** Una scheda dedicata (in fase di sviluppo) per la gestione dell'incertezza legata alle operazioni di pesata.
-4.  **Incertezza di Preparazione:** Modella i passaggi di preparazione dei campioni (diluizioni, estrazioni, ecc.) per calcolarne l'incertezza.
-5.  **Incertezza di Taratura:** Calcola l'incertezza derivante dal tuo modello di calibrazione (retta o fattore di risposta).
+4.  **Incertezza di Taratura:** Calcola l'incertezza derivante dal tuo modello di calibrazione (retta o fattore di risposta).
+5.  **Incertezza di Preparazione:** Modella i passaggi di preparazione dei campioni (diluizioni, estrazioni, ecc.) per calcolarne l'incertezza.
 6.  **Incertezza Estesa:** Combina tutti i contributi per ottenere l'incertezza estesa finale per ogni campione.
-7.  **Report:** Genera report dettagliati in formato PDF, Excel o Word.
-8.  **Gestione Librerie:** Personalizza le librerie di vetreria, pipette, bilance e metodi analitici.
+7.  **Gestione Librerie:** Personalizza le librerie di vetreria, pipette, bilance e metodi analitici.
+8.  **Report:** Genera report dettagliati in formato PDF, Excel o Word.
+9.  **Verifica Validazione:** Esegui test di validazione predefiniti per verificare la correttezza dei calcoli del software.
 
 ---
 
@@ -57,7 +58,7 @@ In questa scheda puoi calcolare l'incertezza derivante dalla preparazione di sta
 
 - **Incertezza nella preparazione delle soluzioni di taratura:** Qui puoi modellare come hai preparato ogni standard della curva di taratura, partendo da un materiale di riferimento.
 - **Preparazione dei matrix spike:** Questa sezione si attiva solo per i campioni per cui hai inserito un "Valore Atteso" nella scheda precedente. Permette di calcolare l'incertezza associata alla preparazione dello spike.
-  - **Novità:** All'inizio della sezione, troverai una casella di controllo che ti permette di **usare un materiale di riferimento di partenza unico** per tutti i campioni. Selezionando questa opzione, potrai inserire una sola volta i dati del materiale (concentrazione, incertezza, **codice prodotto** e **lotto**), semplificando l'inserimento quando tutti gli spike originano dallo stesso standard madre.
+  - **Opzione Materiale Unico:** All'inizio della sezione, troverai una casella di controllo che ti permette di **usare un materiale di riferimento di partenza unico** per tutti i campioni. Selezionando questa opzione, potrai inserire una sola volta i dati del materiale (concentrazione, incertezza, **codice prodotto** e **lotto**), semplificando l'inserimento quando tutti gli spike originano dallo stesso standard madre.
   - Se non selezioni questa opzione, potrai definire un materiale di partenza diverso per ogni singolo campione, inserendo anche in questo caso il codice prodotto e il lotto specifici.
 - **Trattamenti di campioni e estratti:** Questa potente sezione ti permette di calcolare l'incertezza per una catena di trattamenti (diluizioni, estrazioni, concentrazioni) applicati a un campione.
     1. Clicca su **"+ Aggiungi Campione da Trattare"**.
@@ -81,7 +82,24 @@ Qui calcoli il contributo di incertezza del modello di calibrazione.
 Questa scheda è di sola lettura e rappresenta il punto finale dell'analisi.
 - **Riepilogo:** Mostra una tabella che riassume tutti i contributi di incertezza calcolati nelle sezioni precedenti (ripetibilità, preparazione, taratura, eventuale bias).
 - **Risultati Finali:** Calcola l'incertezza estesa finale (U e U%) combinando tutti i contributi e applicando il fattore di copertura corretto (k), calcolato tramite i gradi di libertà effettivi (formula di Welch-Satterthwaite).
-- **Novità - Calcolo dell'Incertezza Massima Garantita:** In cima alla scheda, è ora presente una casella di controllo **"Mostra Incertezza Massima Garantita"**. Selezionandola, l'applicazione eseguirà un secondo calcolo di incertezza, parallelo a quello sperimentale. Questo calcolo non si basa sui dati misurati (come il CV%), ma utilizza i **criteri massimi di accettabilità** definiti nella libreria dei metodi (U rif.%, U ICV%, CV max%). Il risultato è un'incertezza "garantita" che rappresenta la prestazione massima (cioè, nel caso peggiore) che il metodo può avere rispettando i suoi stessi criteri. È uno strumento potente per la validazione del metodo e per la verifica della conformità.
+- **Calcolo dell'Incertezza Massima Garantita:** In cima alla scheda, è presente una casella di controllo **"Mostra Incertezza Massima Garantita"**. Selezionandola, l'applicazione eseguirà un secondo calcolo di incertezza, parallelo a quello sperimentale. Questo calcolo non si basa sui dati misurati (come il CV%), ma utilizza i **criteri massimi di accettabilità** definiti nella libreria dei metodi (U rif.%, U ICV%, CV max%). Il risultato è un'incertezza "garantita" che rappresenta la prestazione massima (cioè, nel caso peggiore) che il metodo può avere rispettando i suoi stessi criteri.
+
+---
+
+### GESTIONE LIBRERIE
+In questa scheda puoi personalizzare gli strumenti volumetrici e le bilance per farli corrispondere a quelli del tuo laboratorio.
+- **Vetreria:** Aggiungi, modifica o rimuovi matracci, specificando volume e tolleranza.
+- **Pipette:** Aggiungi, modifica o rimuovi pipette, specificando per ognuna i punti di calibrazione (volume e incertezza relativa %).
+- **Bilance (Nuova Scheda):** Aggiungi, modifica o rimuovi bilance. Per ogni bilancia puoi inserire (se disponibili) i seguenti parametri, presi dal certificato di taratura:
+    - **ID Bilancia:** Identificativo univoco (obbligatorio).
+    - **Pesata Minima (g):** La pesata minima operativa.
+    - **Portata (g):** La capacità massima della bilancia.
+    - **Coefficiente alfa gl (g):** Coefficiente di incertezza.
+    - **Coefficiente beta gl (adim.):** Coefficiente di incertezza adimensionale (visualizzato in notazione scientifica).
+- **Metodi:** Aggiungi o modifica i metodi analitici. Per ogni metodo, puoi definire i criteri di incertezza massima garantita (U rif.%, U ICV%, CV max%) che verranno utilizzati nel calcolo dell'incertezza garantita.
+- **Importa/Esporta:** Puoi salvare le tue librerie personalizzate (vetreria, pipette, bilance e metodi) in un unico file `.json` per condividerle o per tenerne un backup.
+
+Le modifiche alle librerie vengono salvate automaticamente nel browser.
 
 ---
 
@@ -110,15 +128,3 @@ Permette di creare un report dettagliato per il progetto attualmente caricato.
 Questa funzionalità unica ti permette di confrontare i risultati di più analisi.
 1.  **Carica Progetti:** Clicca su **"Carica Progetti (.json)"** e seleziona più file di progetto salvati in precedenza. L'applicazione li caricherà in memoria.
 2.  **Configura e Esporta:** Scegli come raggruppare i dati (per campione o per caratteristica) e clicca sul formato di esportazione desiderato. Il report multiprogetto genera tabelle comparative che affiancano i risultati dei diversi progetti, rendendo immediato il confronto delle prestazioni nel tempo o tra diverse condizioni.
-
----
-
-### GESTIONE LIBRERIE
-In questa scheda puoi personalizzare gli strumenti volumetrici e le bilance per farli corrispondere a quelli del tuo laboratorio.
-- **Vetreria:** Aggiungi, modifica o rimuovi matracci, specificando volume e tolleranza.
-- **Pipette:** Aggiungi, modifica o rimuovi pipette, specificando per ognuna i punti di calibrazione (volume e incertezza relativa %).
-- **Bilance:** Aggiungi, modifica o rimuovi bilance, inserendo pesata minima, portata e i coefficienti &alpha; e &beta; per il calcolo dell'incertezza di pesata.
-- **Metodi:** Aggiungi o modifica i metodi analitici. Per ogni metodo, puoi definire i criteri di incertezza massima garantita (U rif.%, U ICV%, CV max%) che verranno utilizzati nel calcolo dell'incertezza garantita.
-- **Importa/Esporta:** Puoi salvare le tue librerie personalizzate (vetreria, pipette, bilance e metodi) in un unico file `.json` per condividerle o per tenerne un backup.
-
-Le modifiche alle librerie vengono salvate automaticamente nel browser.

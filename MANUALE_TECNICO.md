@@ -1,6 +1,6 @@
 ###################################################
 # MANUALE DELLE FORMULE STATISTICHE E DEI CALCOLI #
-# Versione: 1.0.0                                 #
+# Versione: 1.1.0                                 #
 ###################################################
 
 ## INTRODUZIONE
@@ -450,12 +450,14 @@ Queste tabelle contengono i coefficienti `a_i`, `g`, `e`, `f` necessari per il c
 | 25 | -5.704 | 1.876  | 0.2063   |
 | 26 | -5.803 | 1.89   | 0.202    |
 
-#### 6.3 Librerie di Vetreria e Pipette
-Il codice contiene due librerie predefinite:
+#### 6.3 Librerie di Vetreria, Pipette e Bilance
+Il codice contiene tre librerie predefinite:
 - **`DEFAULT_GLASSWARE_LIBRARY`**: Associa a ogni tipo di matraccio il suo volume nominale e la sua tolleranza (incertezza assoluta).
   - Esempio: `"Matraccio 50 mL": { "volume": 50, "uncertainty": 0.08 }`
 - **`DEFAULT_PIPETTE_LIBRARY`**: Associa a ogni modello di pipetta una serie di punti di calibrazione, ognuno con un volume e un'incertezza estesa relativa percentuale (`U_rel_percent`).
   - Esempio: `"043CHR": { "calibrationPoints": [ { "volume": 0.1, "U_rel_percent": 2.1 }, ... ] }`
+- **`DEFAULT_BALANCES_LIBRARY`**: Associa a ogni bilancia i parametri di taratura per il calcolo dell'incertezza di pesata (funzionalità futura).
+  - Parametri: `minWeight` (Pesata minima), `capacity` (Portata), `alpha` (Coefficiente α), `beta` (Coefficiente β).
 
 Queste librerie sono utilizzate per recuperare i valori di incertezza per i calcoli della Sezione 4.
 

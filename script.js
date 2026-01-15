@@ -894,7 +894,7 @@ const multiChoiceModal = {
 // --- INITIAL STATE ---
 function getInitialAppState() {
     return {
-        version: '1.1.0',
+        version: '1.2.0',
         ui: {
             activeTab: 'frontespizio',
             activeLibrarySubTab: 'vetreria', // 'vetreria', 'pipette', 'bilance', 'metodi', 'criteri'
@@ -1461,14 +1461,19 @@ function renderLibraries() {
         balancesTableBody.innerHTML = ''; // Clear existing rows
         for (const id in appState.libraries.balances) {
             const item = appState.libraries.balances[id];
+            const minWeightDisplay = item.minWeight !== null && item.minWeight !== undefined ? item.minWeight : '-';
+            const capacityDisplay = item.capacity !== null && item.capacity !== undefined ? item.capacity : '-';
+            const alphaDisplay = item.alpha !== null && item.alpha !== undefined ? item.alpha : '-';
+            const betaDisplay = item.beta !== null && item.beta !== undefined ? Number(item.beta).toExponential(2) : '-';
+
             const row = document.createElement('tr');
             row.className = 'border-b hover:bg-gray-50';
             row.innerHTML = `
                 <td class="p-3 font-medium">${id}</td>
-                <td class="p-3 font-mono">${item.minWeight}</td>
-                <td class="p-3 font-mono">${item.capacity}</td>
-                <td class="p-3 font-mono">${item.alpha}</td>
-                <td class="p-3 font-mono">${item.beta.toExponential(2)}</td>
+                <td class="p-3 font-mono">${minWeightDisplay}</td>
+                <td class="p-3 font-mono">${capacityDisplay}</td>
+                <td class="p-3 font-mono">${alphaDisplay}</td>
+                <td class="p-3 font-mono">${betaDisplay}</td>
                 <td class="p-3 space-x-2 whitespace-nowrap">
                     <button data-library="balances" data-name="${id}" class="btn-edit-library-item text-xs bg-yellow-100 text-yellow-800 font-semibold py-1 px-2 rounded-md hover:bg-yellow-200">Modifica</button>
                     <button data-library="balances" data-name="${id}" class="btn-duplicate-library-item text-xs bg-blue-100 text-blue-800 font-semibold py-1 px-2 rounded-md hover:bg-blue-200">Duplica</button>
@@ -3075,10 +3080,16 @@ async function actionAddBalance() {
     if (confirmed) {
         const modalBody = document.getElementById('form-modal-body');
         const id = modalBody.querySelector('#form-field-id').value.trim();
-        const minWeight = parseFloat(modalBody.querySelector('#form-field-min-weight').value);
-        const capacity = parseFloat(modalBody.querySelector('#form-field-capacity').value);
-        const alpha = parseFloat(modalBody.querySelector('#form-field-alpha').value);
-        const beta = parseFloat(modalBody.querySelector('#form-field-beta').value);
+
+        const getValue = (selector) => {
+            const val = modalBody.querySelector(selector).value.trim();
+            return val === '' ? null : parseFloat(val);
+        };
+
+        const minWeight = getValue('#form-field-min-weight');
+        const capacity = getValue('#form-field-capacity');
+        const alpha = getValue('#form-field-alpha');
+        const beta = getValue('#form-field-beta');
 
         if (!id) {
             alert("L'ID della bilancia è obbligatorio.");
@@ -3088,8 +3099,8 @@ async function actionAddBalance() {
             alert("Esiste già una bilancia con questo ID.");
             return;
         }
-        if (isNaN(minWeight) || isNaN(capacity) || isNaN(alpha) || isNaN(beta)) {
-            alert("Tutti i campi numerici devono essere validi.");
+        if ((minWeight !== null && isNaN(minWeight)) || (capacity !== null && isNaN(capacity)) || (alpha !== null && isNaN(alpha)) || (beta !== null && isNaN(beta))) {
+            alert("I campi numerici devono contenere valori validi (o essere lasciati vuoti).");
             return;
         }
 
@@ -3115,19 +3126,19 @@ async function actionEditBalance(id) {
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label for="form-field-min-weight" class="block text-sm font-medium text-gray-700">Pesata Minima (g)</label>
-                        <input type="number" id="form-field-min-weight" step="any" class="mt-1 w-full p-2 border border-gray-300 rounded-md" value="${item.minWeight}">
+                        <input type="number" id="form-field-min-weight" step="any" class="mt-1 w-full p-2 border border-gray-300 rounded-md" value="${item.minWeight !== null ? item.minWeight : ''}">
                     </div>
                     <div>
                         <label for="form-field-capacity" class="block text-sm font-medium text-gray-700">Portata (g)</label>
-                        <input type="number" id="form-field-capacity" step="any" class="mt-1 w-full p-2 border border-gray-300 rounded-md" value="${item.capacity}">
+                        <input type="number" id="form-field-capacity" step="any" class="mt-1 w-full p-2 border border-gray-300 rounded-md" value="${item.capacity !== null ? item.capacity : ''}">
                     </div>
                     <div>
                         <label for="form-field-alpha" class="block text-sm font-medium text-gray-700">Coefficiente &alpha;<sub>gl</sub> (g)</label>
-                        <input type="number" id="form-field-alpha" step="any" class="mt-1 w-full p-2 border border-gray-300 rounded-md" value="${item.alpha}">
+                        <input type="number" id="form-field-alpha" step="any" class="mt-1 w-full p-2 border border-gray-300 rounded-md" value="${item.alpha !== null ? item.alpha : ''}">
                     </div>
                     <div>
                         <label for="form-field-beta" class="block text-sm font-medium text-gray-700">Coefficiente &beta;<sub>gl</sub> (adimensionale)</label>
-                        <input type="number" id="form-field-beta" step="any" class="mt-1 w-full p-2 border border-gray-300 rounded-md" value="${item.beta}">
+                        <input type="number" id="form-field-beta" step="any" class="mt-1 w-full p-2 border border-gray-300 rounded-md" value="${item.beta !== null ? item.beta : ''}">
                     </div>
                 </div>
             </div>
@@ -3140,13 +3151,19 @@ async function actionEditBalance(id) {
 
     if (confirmed) {
         const modalBody = document.getElementById('form-modal-body');
-        const minWeight = parseFloat(modalBody.querySelector('#form-field-min-weight').value);
-        const capacity = parseFloat(modalBody.querySelector('#form-field-capacity').value);
-        const alpha = parseFloat(modalBody.querySelector('#form-field-alpha').value);
-        const beta = parseFloat(modalBody.querySelector('#form-field-beta').value);
 
-        if (isNaN(minWeight) || isNaN(capacity) || isNaN(alpha) || isNaN(beta)) {
-            alert("Tutti i campi numerici devono essere validi.");
+        const getValue = (selector) => {
+            const val = modalBody.querySelector(selector).value.trim();
+            return val === '' ? null : parseFloat(val);
+        };
+
+        const minWeight = getValue('#form-field-min-weight');
+        const capacity = getValue('#form-field-capacity');
+        const alpha = getValue('#form-field-alpha');
+        const beta = getValue('#form-field-beta');
+
+        if ((minWeight !== null && isNaN(minWeight)) || (capacity !== null && isNaN(capacity)) || (alpha !== null && isNaN(alpha)) || (beta !== null && isNaN(beta))) {
+            alert("I campi numerici devono contenere valori validi (o essere lasciati vuoti).");
             return;
         }
 
