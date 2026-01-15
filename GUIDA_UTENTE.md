@@ -9,11 +9,12 @@ Benvenuto! Questa guida ti accompagnerà passo dopo passo nell'utilizzo dell'app
 L'applicazione è strutturata in schede (tab) che seguono un flusso logico di lavoro:
 1.  **Frontespizio:** Inserisci le informazioni generali del tuo progetto.
 2.  **Analisi Statistica:** Inserisci i dati grezzi dei tuoi campioni ed esegui i calcoli statistici di base.
-3.  **Incertezza di Preparazione:** Modella i passaggi di preparazione dei campioni (diluizioni, estrazioni, ecc.) per calcolarne l'incertezza.
-4.  **Incertezza di Taratura:** Calcola l'incertezza derivante dal tuo modello di calibrazione (retta o fattore di risposta).
-5.  **Incertezza Estesa:** Combina tutti i contributi per ottenere l'incertezza estesa finale per ogni campione.
-6.  **Report:** Genera report dettagliati in formato PDF, Excel o Word.
-7.  **Gestione Librerie:** Personalizza le librerie di vetreria, pipette e metodi analitici.
+3.  **Incertezza di Pesata:** Una scheda dedicata (in fase di sviluppo) per la gestione dell'incertezza legata alle operazioni di pesata.
+4.  **Incertezza di Preparazione:** Modella i passaggi di preparazione dei campioni (diluizioni, estrazioni, ecc.) per calcolarne l'incertezza.
+5.  **Incertezza di Taratura:** Calcola l'incertezza derivante dal tuo modello di calibrazione (retta o fattore di risposta).
+6.  **Incertezza Estesa:** Combina tutti i contributi per ottenere l'incertezza estesa finale per ogni campione.
+7.  **Report:** Genera report dettagliati in formato PDF, Excel o Word.
+8.  **Gestione Librerie:** Personalizza le librerie di vetreria, pipette, bilance e metodi analitici.
 
 ---
 
@@ -113,10 +114,11 @@ Questa funzionalità unica ti permette di confrontare i risultati di più analis
 ---
 
 ### GESTIONE LIBRERIE
-In questa scheda puoi personalizzare gli strumenti volumetrici per farli corrispondere a quelli del tuo laboratorio.
+In questa scheda puoi personalizzare gli strumenti volumetrici e le bilance per farli corrispondere a quelli del tuo laboratorio.
 - **Vetreria:** Aggiungi, modifica o rimuovi matracci, specificando volume e tolleranza.
 - **Pipette:** Aggiungi, modifica o rimuovi pipette, specificando per ognuna i punti di calibrazione (volume e incertezza relativa %).
+- **Bilance:** Aggiungi, modifica o rimuovi bilance, inserendo pesata minima, portata e i coefficienti &alpha; e &beta; per il calcolo dell'incertezza di pesata.
 - **Metodi:** Aggiungi o modifica i metodi analitici. Per ogni metodo, puoi definire i criteri di incertezza massima garantita (U rif.%, U ICV%, CV max%) che verranno utilizzati nel calcolo dell'incertezza garantita.
-- **Importa/Esporta:** Puoi salvare le tue librerie personalizzate (vetreria, pipette e metodi) in un unico file `.json` per condividerle o per tenerne un backup.
+- **Importa/Esporta:** Puoi salvare le tue librerie personalizzate (vetreria, pipette, bilance e metodi) in un unico file `.json` per condividerle o per tenerne un backup.
 
 Le modifiche alle librerie vengono salvate automaticamente nel browser.
