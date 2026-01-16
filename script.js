@@ -6083,6 +6083,7 @@ function calculateExpandedUncertainty(sampleId, projectState) {
             error: null
         };
 
+    }
     } catch (e) {
         console.error(`Errore in calculateExpandedUncertainty per sampleId ${sampleId}:`, e);
         return { error: e.message };
