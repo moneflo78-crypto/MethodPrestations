@@ -2731,6 +2731,13 @@ function renderResultsOnly() {
                 statRows.push(`<tr><td class="p-2 font-medium">Recupero %</td><td class="p-2 font-mono">${formatPercent(stats.recovery)}</td></tr>`);
             }
 
+            if (sample.mode === 'sst') {
+                const expandedResult = calculateExpandedUncertainty(sample.id, appState);
+                if (expandedResult && expandedResult.finalConcentration !== undefined && expandedResult.finalConcentration !== null) {
+                    statRows.push(`<tr class="bg-blue-50"><td class="p-2 font-bold text-blue-800">Concentrazione SST Calcolata</td><td class="p-2 font-mono font-bold text-blue-800">${format(expandedResult.finalConcentration)} mg/L</td></tr>`);
+                }
+            }
+
             statsHTML = `
                 <div>
                     <h5 class="font-semibold text-gray-700 text-md mb-2">Statistiche Descrittive</h5>
@@ -3790,6 +3797,16 @@ async function processSample(sample) {
                 const repeatability_limit_r = n > 1 && t_value ? t_value * stdDev * Math.sqrt(2) : 0;
                 const nominalValue = (sample.expectedValue !== null && !isNaN(sample.expectedValue) && sample.expectedValue !== '') ? parseFloat(sample.expectedValue) : null;
 
+                let calculatedConcentration = mean;
+                if (sample.mode === 'sst' && sample.glasswareId) {
+                     const glassware = appState.libraries.glassware[sample.glasswareId];
+                     if (glassware) {
+                         const volume_L = glassware.volume / 1000;
+                         // mean is in g. (g * 1000) -> mg. mg / L = mg/L.
+                         calculatedConcentration = (mean * 1000) / volume_L;
+                     }
+                }
+
                 const stats = {
                     n: n,
                     mean: mean,
@@ -3801,7 +3818,7 @@ async function processSample(sample) {
                     repeatability_limit_r: repeatability_limit_r,
                     repeatability_limit_r_percent: (mean !== 0 && n > 1) ? (repeatability_limit_r / Math.abs(mean)) * 100 : 0,
                     nominalValue: nominalValue,
-                    recovery: (nominalValue !== null && nominalValue !== 0) ? (mean / nominalValue) * 100 : null
+                    recovery: (nominalValue !== null && nominalValue !== 0) ? (calculatedConcentration / nominalValue) * 100 : null
                 };
                 appState.results[sample.id].statistics = stats;
 
@@ -5877,16 +5894,98 @@ function calculateExpandedUncertainty(sampleId, projectState) {
 
         const contributions = [];
 
-        // 1. Contributo da Ripetibilità (CV%)
-        if (stats.cv_percent > 0 && stats.n > 1) {
-            contributions.push({
-                name: 'Ripetibilità (CV%)',
-                value: stats.cv_percent / 100,
-                dof: stats.n - 1
-            });
-        }
+        if (sample.mode === 'sst') {
+            // --- SST SPECIFIC UNCERTAINTY LOGIC ---
 
-        // Contributi che non dipendono da un trattamento esplicito
+            // 1. Repeatability (CV%)
+            // Formula: u_r% = SD / Mean * 100 (which is CV%)
+            if (stats.cv_percent > 0 && stats.n > 1) {
+                contributions.push({
+                    name: 'Ripetibilità (u_r%)',
+                    value: stats.cv_percent / 100,
+                    dof: stats.n - 1
+                });
+            }
+
+            // 2. Net Weight Uncertainty (u_Wnet%)
+            // Formula: u_Wnet = sqrt(2) * u_L
+            // u_L = (alpha + beta * R) / 2
+            // R = Mean Net Weight (stats.mean)
+            const balance = projectState.libraries.balances[sample.balanceId];
+            if (!balance) return { error: "Bilancia non selezionata o non trovata in libreria." };
+
+            // Note: R in grams. Alpha in grams. Beta dimensionless.
+            const R = stats.mean;
+            const alpha = balance.alpha !== null ? balance.alpha : 0;
+            const beta = balance.beta !== null ? balance.beta : 0;
+
+            // U_gl = alpha + beta * R
+            const U_gl = alpha + (beta * R);
+            // u_L = U_gl / 2 (from prompt: "calcolando U_gl... diviso per 2")
+            const u_L = U_gl / 2;
+            // u_Wnet = sqrt(2) * u_L
+            const u_Wnet = Math.sqrt(2) * u_L;
+
+            // Relative u_Wnet% = (u_Wnet / R)
+            const u_Wnet_rel = R > 0 ? u_Wnet / R : 0;
+
+            contributions.push({
+                name: 'Peso Netto (u_Wnet%)',
+                value: u_Wnet_rel,
+                dof: Infinity // Type B
+            });
+
+            // 3. Volume Uncertainty (u_V%)
+            // Formula: u_V% = (Tolerance / sqrt(3)) / NominalVolume
+            const glassware = projectState.libraries.glassware[sample.glasswareId];
+            if (!glassware) return { error: "Vetreria non selezionata o non trovata in libreria." };
+
+            const u_V_abs = glassware.uncertainty / Math.sqrt(3);
+            const u_V_rel = u_V_abs / glassware.volume;
+
+            contributions.push({
+                name: 'Volume (u_V%)',
+                value: u_V_rel,
+                dof: Infinity // Type B
+            });
+
+            // Calculate Combined and Expanded
+            const u_c_rel = Math.sqrt(contributions.reduce((sum, c) => sum + Math.pow(c.value, 2), 0));
+            const k = 2; // Fixed k=2 for SST
+            const U_rel_perc = k * u_c_rel * 100;
+
+            // Final Result (SST in mg/L)
+            // Formula: SST = (NetWeight_g * 1000) / Volume_L
+            // Volume_L = glassware.volume / 1000
+            // SST = (R * 1000) / (V_mL / 1000) = R * 10^6 / V_mL
+            const volume_L = glassware.volume / 1000;
+            const SST_mg_L = (R * 1000) / volume_L;
+
+            const U_abs = (U_rel_perc / 100) * SST_mg_L;
+
+            return {
+                U_abs,
+                U_rel_perc,
+                k: k,
+                v_eff: Infinity,
+                contributions,
+                finalConcentration: SST_mg_L, // Special field for SST
+                error: null
+            };
+
+        } else {
+            // --- STANDARD LOGIC ---
+
+            // 1. Contributo da Ripetibilità (CV%)
+            if (stats.cv_percent > 0 && stats.n > 1) {
+                contributions.push({
+                    name: 'Ripetibilità (CV%)',
+                    value: stats.cv_percent / 100,
+                    dof: stats.n - 1
+                });
+            }
+
+            // Contributi che non dipendono da un trattamento esplicito
         // =========================================================
 
         // 2. Contributo da Preparazione Spike (se il test di accuratezza fallisce)
