@@ -153,13 +153,14 @@ function shapiroWilk(data) {
     const n = sorted.length;
     if (n < 3 || n > 26) return { W: NaN, kp: NaN, error: "Calcolo supportato per campioni da 3 a 26 dati." };
     const mean = data.reduce((a, b) => a + b) / n;
-    const S2 = data.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0);
+    const S2 = data.reduce((acc, val) => acc + (val - mean) * (val - mean), 0);
     if (S2 < 1e-19) return { W: 1, kp: Infinity, isNormal: true };
     const a_half = a_coeffs_table[n];
     const a = new Array(n);
     for(let i=0; i < Math.ceil(n/2); i++) { a[i] = -a_half[i]; a[n-1-i] = a_half[i]; }
     if (n % 2 === 1) a[Math.floor(n/2)] = 0;
-    const W = Math.pow(sorted.reduce((sum, val, i) => sum + a[i] * val, 0), 2) / S2;
+    const term = sorted.reduce((sum, val, i) => sum + a[i] * val, 0);
+    const W = (term * term) / S2;
     const W_prime = Math.min(W, 1.0);
     const {g, e, f} = kp_coeffs_table[n];
     const kp = g + e * Math.log((W_prime - f) / (1 - W_prime));
@@ -327,11 +328,17 @@ function calculateRegressionLine(cal_x, cal_y) {
     }
 
     const y_calcolato = cal_x.map(xi => slope * xi + intercept);
-    const sum_sq_err = cal_y.reduce((acc, yi, i) => acc + Math.pow(yi - y_calcolato[i], 2), 0);
+    const sum_sq_err = cal_y.reduce((acc, yi, i) => {
+        const diff = yi - y_calcolato[i];
+        return acc + diff * diff;
+    }, 0);
     const s_yx = Math.sqrt(sum_sq_err / (n - 2));
     const y_medio = ss.mean(cal_y);
     const x_medio = ss.mean(cal_x);
-    const sum_sq_diff_x = cal_x.reduce((acc, xi) => acc + Math.pow(xi - x_medio, 2), 0);
+    const sum_sq_diff_x = cal_x.reduce((acc, xi) => {
+        const diff = xi - x_medio;
+        return acc + diff * diff;
+    }, 0);
 
     if (sum_sq_diff_x < 1e-12) {
          throw new Error("La deviazione dei punti x di taratura è zero (tutti i punti x sono uguali). Impossibile procedere.");
@@ -581,7 +588,8 @@ function calculateUncertaintyForSample(lineParams, y_k, p = 1) {
 
     const term1 = 1 / p;
     const term2 = 1 / n_cal;
-    const term3 = Math.pow(y_k - y_medio_cal, 2) / (Math.pow(b, 2) * sum_sq_diff_x_cal);
+    const diff_y = y_k - y_medio_cal;
+    const term3 = (diff_y * diff_y) / ((b * b) * sum_sq_diff_x_cal);
     const rootTerm = Math.sqrt(term1 + term2 + term3);
     const ux = (s_yx / Math.abs(b)) * rootTerm;
 
@@ -714,7 +722,7 @@ function formatNumberWithRules(value) {
         return n.toFixed(d);
     } else {
         // d < 0, requires terminal zeros.
-        const factor = Math.pow(10, -d); // e.g., d=-1 -> factor=10; d=-2 -> factor=100
+        const factor = 10 ** -d; // e.g., d=-1 -> factor=10; d=-2 -> factor=100
         const rounded = Math.round(n / factor) * factor;
         return String(rounded);
     }
@@ -4867,7 +4875,7 @@ function actionCalculateTreatmentChain(treatmentSampleId) {
                     initialConcentrationForSummary = sourceConc;
                     // U% (k=2) -> u_rel
                     const u_rel_initial = (sourceUnc / 100) / 2 / Math.sqrt(3);
-                    sum_u_rel_sq = Math.pow(u_rel_initial, 2);
+                    sum_u_rel_sq = (u_rel_initial * u_rel_initial);
                 } else if (treatment.source.type === 'spike') {
                     if (treatment.source.spikeSampleId === null) throw new Error("Matrix spike non selezionato.");
                     const spikeData = appState.spikeUncertainty[treatment.source.spikeSampleId];
@@ -4876,7 +4884,7 @@ function actionCalculateTreatmentChain(treatmentSampleId) {
                     initialConcentrationForSummary = currentConcentration;
                     // u_c % -> u_rel
                     const u_rel_initial = spikeData.results.u_comp_rel_perc / 100;
-                    sum_u_rel_sq = Math.pow(u_rel_initial, 2);
+                    sum_u_rel_sq = (u_rel_initial * u_rel_initial);
                 } else {
                     throw new Error("Tipo di sorgente non valido per il primo trattamento.");
                 }
@@ -4901,7 +4909,7 @@ function actionCalculateTreatmentChain(treatmentSampleId) {
                     const contrib = _get_pipette_uncertainty_contribution(w.pipette, withdrawalVolume, appState.libraries);
                     w.pipetteUncertainty_U_perc = contrib.U_perc;
                     w.pipetteUncertaintyRelPerc = contrib.u_rel_perc;
-                    sum_u_abs_sq_withdrawals += Math.pow(contrib.u_abs, 2);
+                    sum_u_abs_sq_withdrawals += (contrib.u_abs * contrib.u_abs);
                 });
                 const u_abs_total_withdrawal = Math.sqrt(sum_u_abs_sq_withdrawals);
 
@@ -4919,21 +4927,21 @@ function actionCalculateTreatmentChain(treatmentSampleId) {
                     const u_abs_Va = solvent_contrib.u_abs;
 
                     const Vf = Vi + Va;
-                    const u_abs_Vf = Math.sqrt(Math.pow(u_abs_Vi, 2) + Math.pow(u_abs_Va, 2));
+                    const u_abs_Vf = Math.sqrt((u_abs_Vi * u_abs_Vi) + (u_abs_Va * u_abs_Va));
 
-                    const u_rel_sq_Vi = Vi > 0 ? Math.pow(u_abs_Vi / Vi, 2) : 0;
-                    const u_rel_sq_Vf = Vf > 0 ? Math.pow(u_abs_Vf / Vf, 2) : 0;
+                    const u_rel_sq_Vi = Vi > 0 ? (u_abs_Vi / Vi * u_abs_Vi / Vi) : 0;
+                    const u_rel_sq_Vf = Vf > 0 ? (u_abs_Vf / Vf * u_abs_Vf / Vf) : 0;
 
                     sum_u_rel_sq += u_rel_sq_Vi + u_rel_sq_Vf;
                     currentConcentration = currentConcentration * (Vi / Vf);
 
                 } else { // bringToVolume
                     if (!treatment.dilutionFlask) throw new Error(`Diluizione: Matraccio non selezionato.`);
-                    const u_rel_sq_total_withdrawal = totalWithdrawalVolume > 0 ? Math.pow(u_abs_total_withdrawal / totalWithdrawalVolume, 2) : 0;
+                    const u_rel_sq_total_withdrawal = totalWithdrawalVolume > 0 ? (u_abs_total_withdrawal / totalWithdrawalVolume * u_abs_total_withdrawal / totalWithdrawalVolume) : 0;
                     const flask = appState.libraries.glassware[treatment.dilutionFlask];
                     const u_rel_flask = (flask.uncertainty / flask.volume / Math.sqrt(3));
                     treatment.flaskUncertaintyRelPerc = u_rel_flask * 100;
-                    const u_rel_sq_flask = Math.pow(u_rel_flask, 2);
+                    const u_rel_sq_flask = (u_rel_flask * u_rel_flask);
                     sum_u_rel_sq += u_rel_sq_total_withdrawal + u_rel_sq_flask;
                     currentConcentration = currentConcentration * (totalWithdrawalVolume / flask.volume);
                 }
@@ -4944,7 +4952,7 @@ function actionCalculateTreatmentChain(treatmentSampleId) {
                 const initialFlask = appState.libraries.glassware[treatment.initialVolumeFlask];
                 const u_rel_initial_flask = (initialFlask.uncertainty / initialFlask.volume / Math.sqrt(3));
                 treatment.initialFlaskUncertaintyRelPerc = u_rel_initial_flask * 100;
-                sum_u_rel_sq += Math.pow(u_rel_initial_flask, 2);
+                sum_u_rel_sq += (u_rel_initial_flask * u_rel_initial_flask);
 
                 let finalVolume = 0;
                 let u_rel_sq_final_volume = 0;
@@ -4959,7 +4967,7 @@ function actionCalculateTreatmentChain(treatmentSampleId) {
                     finalVolume = finalFlask.volume;
                     const u_rel_final_flask = (finalFlask.uncertainty / finalFlask.volume / Math.sqrt(3));
                     treatment.finalFlaskUncertaintyRelPerc = u_rel_final_flask * 100;
-                    u_rel_sq_final_volume = Math.pow(u_rel_final_flask, 2);
+                    u_rel_sq_final_volume = (u_rel_final_flask * u_rel_final_flask);
                 } else { // 'pipetta'
                     if (!treatment.finalVolumeAliquots || treatment.finalVolumeAliquots.length === 0) throw new Error("Estrazione (Pipetta): Aggiungere almeno un'aliquota.");
 
@@ -4975,12 +4983,12 @@ function actionCalculateTreatmentChain(treatmentSampleId) {
                         finalVolume += aliquotVolume;
                         const contrib = _get_pipette_uncertainty_contribution(aliquot.pipette, aliquotVolume, appState.libraries);
                         aliquot.pipetteUncertaintyRelPerc = contrib.u_rel_perc; // Salva l'incertezza per la UI
-                        sum_u_abs_sq_aliquots += Math.pow(contrib.u_abs, 2);
+                        sum_u_abs_sq_aliquots += (contrib.u_abs * contrib.u_abs);
                     });
 
                     if (finalVolume > 0) {
                         const u_abs_total_aliquots = Math.sqrt(sum_u_abs_sq_aliquots);
-                        u_rel_sq_final_volume = Math.pow(u_abs_total_aliquots / finalVolume, 2);
+                        u_rel_sq_final_volume = (u_abs_total_aliquots / finalVolume * u_abs_total_aliquots / finalVolume);
                         treatment.pipetteUncertaintyRelPerc = Math.sqrt(u_rel_sq_final_volume) * 100;
                     }
                 }
@@ -4998,7 +5006,7 @@ function actionCalculateTreatmentChain(treatmentSampleId) {
                 const u_rel_final_flask = (finalFlask.uncertainty / finalFlask.volume / Math.sqrt(3));
                 treatment.initialFlaskUncertaintyRelPerc = u_rel_initial_flask * 100;
                 treatment.finalFlaskUncertaintyRelPerc = u_rel_final_flask * 100;
-                sum_u_rel_sq += Math.pow(u_rel_initial_flask, 2) + Math.pow(u_rel_final_flask, 2);
+                sum_u_rel_sq += (u_rel_initial_flask * u_rel_initial_flask) + (u_rel_final_flask * u_rel_final_flask);
                 currentConcentration = currentConcentration * (initialFlask.volume / finalFlask.volume);
             }
 
@@ -5158,7 +5166,7 @@ function actionCalculateSpikeUncertainty(sampleId) {
                 const contrib = _get_pipette_uncertainty_contribution(w.pipette, w.volume, appState.libraries);
                 w.pipetteUncertainty_U_perc = contrib.U_perc;
                 w.pipetteUncertaintyRelPerc = contrib.u_rel_perc;
-                sum_u_abs_sq_withdrawals += Math.pow(contrib.u_abs, 2);
+                sum_u_abs_sq_withdrawals += (contrib.u_abs * contrib.u_abs);
             }
             const u_abs_total_withdrawal = Math.sqrt(sum_u_abs_sq_withdrawals);
 
@@ -5174,7 +5182,7 @@ function actionCalculateSpikeUncertainty(sampleId) {
                 step.addedSolventPipetteUncertaintyRelPerc = solvent_contrib.u_rel_perc;
                 step.addedSolventPipette_U_perc = solvent_contrib.U_perc;
                 const Vf = Vi + Va;
-                const u_abs_Vf = Math.sqrt(Math.pow(u_abs_Vi, 2) + Math.pow(u_abs_Va, 2));
+                const u_abs_Vf = Math.sqrt((u_abs_Vi * u_abs_Vi) + (u_abs_Va * u_abs_Va));
 
                 const u_rel_Vi = Vi > 0 ? u_abs_Vi / Vi : 0;
                 const u_rel_Vf = Vf > 0 ? u_abs_Vf / Vf : 0;
@@ -5195,12 +5203,12 @@ function actionCalculateSpikeUncertainty(sampleId) {
                 currentConcentration = currentConcentration * (totalWithdrawalVolume / flask.volume);
             }
 
-            const current_total_u_rel_sq = contributions.reduce((sum, c) => sum + Math.pow(c.u_rel, 2), 0);
+            const current_total_u_rel_sq = contributions.reduce((sum, c) => sum + (c.u_rel * c.u_rel), 0);
             step.intermediateConcentration = currentConcentration;
             step.intermediateUncertaintyRelPerc = Math.sqrt(current_total_u_rel_sq) * 100;
         });
 
-        const sum_u_rel_sq = contributions.reduce((sum, c) => sum + Math.pow(c.u_rel, 2), 0);
+        const sum_u_rel_sq = contributions.reduce((sum, c) => sum + (c.u_rel * c.u_rel), 0);
         const final_u_rel = Math.sqrt(sum_u_rel_sq);
         const final_u_abs = final_u_rel * currentConcentration;
         const final_u_rel_perc = final_u_rel * 100;
@@ -5335,7 +5343,7 @@ function actionCalculateCalibrationSolutionUncertainty(pointId) {
 
         if (pointState.initialUncertainty !== null && pointState.initialUncertainty > 0) {
             const u_rel_initial = pointState.initialUncertainty / (200 * Math.sqrt(3));
-            sum_u_rel_sq += Math.pow(u_rel_initial, 2);
+            sum_u_rel_sq += (u_rel_initial * u_rel_initial);
             pointState.initialUncertaintyRelPerc = u_rel_initial * 100;
         }
 
@@ -5358,15 +5366,15 @@ function actionCalculateCalibrationSolutionUncertainty(pointId) {
                 const contrib = _get_pipette_uncertainty_contribution(w.pipette, w.volume, appState.libraries);
                 w.pipetteUncertainty_U_perc = contrib.U_perc;
                 w.pipetteUncertaintyRelPerc = contrib.u_rel_perc;
-                sum_u_abs_sq_withdrawals += Math.pow(contrib.u_abs, 2);
+                sum_u_abs_sq_withdrawals += (contrib.u_abs * contrib.u_abs);
             }
             const u_abs_total_withdrawal = Math.sqrt(sum_u_abs_sq_withdrawals);
-            const u_rel_sq_total_withdrawal = totalWithdrawalVolume > 0 ? Math.pow(u_abs_total_withdrawal / totalWithdrawalVolume, 2) : 0;
+            const u_rel_sq_total_withdrawal = totalWithdrawalVolume > 0 ? (u_abs_total_withdrawal / totalWithdrawalVolume * u_abs_total_withdrawal / totalWithdrawalVolume) : 0;
 
             const flask = appState.libraries.glassware[step.dilutionFlask];
             const u_rel_flask = (flask.uncertainty / flask.volume / Math.sqrt(3));
             step.flaskUncertaintyRelPerc = u_rel_flask * 100;
-            const u_rel_sq_flask = Math.pow(u_rel_flask, 2);
+            const u_rel_sq_flask = (u_rel_flask * u_rel_flask);
 
             sum_u_rel_sq += u_rel_sq_total_withdrawal + u_rel_sq_flask;
             currentConcentration = currentConcentration * (totalWithdrawalVolume / flask.volume);
@@ -5735,7 +5743,7 @@ function calculateGuaranteedPreparationUncertainty(treatmentSample, projectState
     const U_ref_mat_perc = method.u_rif_perc;
     if (U_ref_mat_perc === undefined || U_ref_mat_perc === null) throw new Error(`Criterio 'u_rif_perc' non definito per il metodo ${methodId}.`);
     const u_rel_ref_mat = (U_ref_mat_perc / 100) / 2 / Math.sqrt(3);
-    sum_u_rel_sq += Math.pow(u_rel_ref_mat, 2);
+    sum_u_rel_sq += (u_rel_ref_mat * u_rel_ref_mat);
 
     // 2. Contributi dalla catena di trattamento
     treatmentSample.treatments.forEach((treatment, index) => {
@@ -5751,7 +5759,7 @@ function calculateGuaranteedPreparationUncertainty(treatmentSample, projectState
                 const U_pipette_garantita_perc = findGuaranteedPipetteUncertainty(w.pipette, withdrawalVolume, projectState);
                 const u_rel_pipette = (U_pipette_garantita_perc / 100) / 2 / Math.sqrt(3);
                 const u_abs_pipette = u_rel_pipette * withdrawalVolume;
-                sum_u_abs_sq_withdrawals += Math.pow(u_abs_pipette, 2);
+                sum_u_abs_sq_withdrawals += (u_abs_pipette * u_abs_pipette);
                 totalWithdrawalVolume += withdrawalVolume;
             });
 
@@ -5770,21 +5778,21 @@ function calculateGuaranteedPreparationUncertainty(treatmentSample, projectState
                 const Va = addedSolventVolume;
                 const Vf = Vi + Va;
 
-                const u_abs_Vf = Math.sqrt(Math.pow(u_abs_total_withdrawal, 2) + Math.pow(u_abs_solvent, 2));
+                const u_abs_Vf = Math.sqrt((u_abs_total_withdrawal * u_abs_total_withdrawal) + (u_abs_solvent * u_abs_solvent));
 
-                const u_rel_sq_Vi = Vi > 0 ? Math.pow(u_abs_total_withdrawal / Vi, 2) : 0;
-                const u_rel_sq_Vf = Vf > 0 ? Math.pow(u_abs_Vf / Vf, 2) : 0;
+                const u_rel_sq_Vi = Vi > 0 ? (u_abs_total_withdrawal / Vi * u_abs_total_withdrawal / Vi) : 0;
+                const u_rel_sq_Vf = Vf > 0 ? (u_abs_Vf / Vf * u_abs_Vf / Vf) : 0;
                 sum_u_rel_sq += u_rel_sq_Vi + u_rel_sq_Vf;
 
             } else { // 'bringToVolume'
-                const u_rel_sq_withdrawals = totalWithdrawalVolume > 0 ? sum_u_abs_sq_withdrawals / Math.pow(totalWithdrawalVolume, 2) : 0;
+                const u_rel_sq_withdrawals = totalWithdrawalVolume > 0 ? sum_u_abs_sq_withdrawals / (totalWithdrawalVolume * totalWithdrawalVolume) : 0;
                 sum_u_rel_sq += u_rel_sq_withdrawals;
 
                 if (!treatment.dilutionFlask) throw new Error(`Diluizione (Passaggio ${stepNum}): Matraccio di diluizione non selezionato.`);
                 const flask = projectState.libraries.glassware[treatment.dilutionFlask];
                 if (!flask) throw new Error(`Diluizione (Passaggio ${stepNum}): Matraccio '${treatment.dilutionFlask}' non trovato in libreria.`);
                 const u_rel_flask = (flask.uncertainty / flask.volume) / Math.sqrt(3);
-                sum_u_rel_sq += Math.pow(u_rel_flask, 2);
+                sum_u_rel_sq += (u_rel_flask * u_rel_flask);
             }
 
         } else if (treatment.type === 'estrazione' || treatment.type === 'concentrazione') {
@@ -5792,7 +5800,7 @@ function calculateGuaranteedPreparationUncertainty(treatmentSample, projectState
             const initialFlask = projectState.libraries.glassware[treatment.initialVolumeFlask];
             if (!initialFlask) throw new Error(`${treatment.type.charAt(0).toUpperCase() + treatment.type.slice(1)} (Passaggio ${stepNum}): Matraccio iniziale '${treatment.initialVolumeFlask}' non trovato in libreria.`);
             const u_rel_initial_flask = (initialFlask.uncertainty / initialFlask.volume) / Math.sqrt(3);
-            sum_u_rel_sq += Math.pow(u_rel_initial_flask, 2);
+            sum_u_rel_sq += (u_rel_initial_flask * u_rel_initial_flask);
 
             let u_rel_sq_final_volume = 0;
 
@@ -5801,7 +5809,7 @@ function calculateGuaranteedPreparationUncertainty(treatmentSample, projectState
                 const finalFlask = projectState.libraries.glassware[treatment.finalVolumeFlask];
                 if (!finalFlask) throw new Error(`${treatment.type.charAt(0).toUpperCase() + treatment.type.slice(1)} (Passaggio ${stepNum}): Matraccio finale '${treatment.finalVolumeFlask}' non trovato in libreria.`);
                 const u_rel_final_flask = (finalFlask.uncertainty / finalFlask.volume) / Math.sqrt(3);
-                u_rel_sq_final_volume = Math.pow(u_rel_final_flask, 2);
+                u_rel_sq_final_volume = (u_rel_final_flask * u_rel_final_flask);
             } else if (treatment.type === 'estrazione' && treatment.extractionMethod === 'pipetta') {
                 if (!treatment.finalVolumeAliquots || treatment.finalVolumeAliquots.length === 0) {
                     throw new Error(`Estrazione (Pipetta, Passaggio ${stepNum}): Aggiungere almeno un'aliquota.`);
@@ -5816,12 +5824,12 @@ function calculateGuaranteedPreparationUncertainty(treatmentSample, projectState
                     const U_pipette_garantita_perc = findGuaranteedPipetteUncertainty(aliquot.pipette, aliquotVolume, projectState);
                     const u_rel_pipette = (U_pipette_garantita_perc / 100) / 2 / Math.sqrt(3);
                     const u_abs_pipette = u_rel_pipette * aliquotVolume;
-                    sum_u_abs_sq_aliquots += Math.pow(u_abs_pipette, 2);
+                    sum_u_abs_sq_aliquots += (u_abs_pipette * u_abs_pipette);
                     totalAliquotVolume += aliquotVolume;
                 });
 
                 if (totalAliquotVolume > 0) {
-                    u_rel_sq_final_volume = sum_u_abs_sq_aliquots / Math.pow(totalAliquotVolume, 2);
+                    u_rel_sq_final_volume = sum_u_abs_sq_aliquots / (totalAliquotVolume * totalAliquotVolume);
                 }
             }
             sum_u_rel_sq += u_rel_sq_final_volume;
@@ -5861,7 +5869,7 @@ function calculateGuaranteedExpandedUncertainty(sampleId, projectState) {
             contributions.push({ name: 'Preparazione (Criteri max)', value: u_prep_perc / 100 });
         }
 
-        const u_c_rel = Math.sqrt(contributions.reduce((sum, c) => sum + Math.pow(c.value, 2), 0));
+        const u_c_rel = Math.sqrt(contributions.reduce((sum, c) => sum + (c.value * c.value), 0));
         const k = 2; // Fisso per l'incertezza garantita
         const U_rel_perc = k * u_c_rel * 100;
         const U_abs = (U_rel_perc / 100) * (sample.expectedValue || projectState.results[sampleId]?.statistics?.mean || 0);
@@ -5950,7 +5958,7 @@ function calculateExpandedUncertainty(sampleId, projectState) {
             });
 
             // Calculate Combined and Expanded
-            const u_c_rel = Math.sqrt(contributions.reduce((sum, c) => sum + Math.pow(c.value, 2), 0));
+            const u_c_rel = Math.sqrt(contributions.reduce((sum, c) => sum + (c.value * c.value), 0));
             const k = 2; // Fixed k=2 for SST
             const U_rel_perc = k * u_c_rel * 100;
 
@@ -6058,7 +6066,7 @@ function calculateExpandedUncertainty(sampleId, projectState) {
         }
 
         // Calcolo incertezza combinata
-        const u_c_rel = Math.sqrt(contributions.reduce((sum, c) => sum + Math.pow(c.value, 2), 0));
+        const u_c_rel = Math.sqrt(contributions.reduce((sum, c) => sum + (c.value * c.value), 0));
 
         // Calcolo Gradi di Libertà Effettivi (Welch-Satterthwaite)
         const numerator = Math.pow(u_c_rel, 4);
@@ -6733,7 +6741,7 @@ function executeShapiroWilkValidation(testCase) {
 
     // --- Standard Calculation (full precision) ---
     const mean = data.reduce((a, b) => a + b, 0) / data.length;
-    const S2 = data.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0);
+    const S2 = data.reduce((acc, val) => acc + (val - mean) * (val - mean), 0);
     const a_half = a_coeffs_table[n];
     if (!a_half) throw new Error(`Coefficienti di Shapiro-Wilk non trovati per n=${n}.`);
 
@@ -6744,7 +6752,7 @@ function executeShapiroWilkValidation(testCase) {
     const sorted_data = data.slice().sort((a, b) => a - b);
     const b = sorted_data.reduce((sum, val, i) => sum + a[i] * val, 0);
 
-    const W = Math.pow(b, 2) / S2;
+    const W = (b * b) / S2;
     const { g, e, f } = kp_coeffs_table[n];
     if (!g || !e || !f) throw new Error(`Coefficienti Kp di Shapiro-Wilk non trovati per n=${n}.`);
 
@@ -6834,7 +6842,8 @@ function executeRegressionValidation(testCase) {
     const y_medio_cal = parseFloat(y_medio_unrounded.toFixed(rules.y_medio_cal));
     const term1 = 1 / sample_p;
     const term2 = 1 / n;
-    const term3 = Math.pow(sample_y_k - y_medio_cal, 2) / (Math.pow(calculated.slope_b, 2) * Sxx);
+    const diff_y = sample_y_k - y_medio_cal;
+    const term3 = (diff_y * diff_y) / ((calculated.slope_b * calculated.slope_b) * Sxx);
     const rootTerm = Math.sqrt(term1 + term2 + term3);
     intermediate.ux = (calculated.s_yx / Math.abs(calculated.slope_b)) * rootTerm;
     calculated.ux = parseFloat(intermediate.ux.toFixed(rules.ux));
@@ -8117,7 +8126,7 @@ function main() {
                         initialConcentrationForSummary = sourceConc;
                         // U% (k=2) -> u_rel
                         const u_rel_initial = (sourceUnc / 100) / 2 / Math.sqrt(2);
-                        sum_u_rel_sq = Math.pow(u_rel_initial, 2);
+                        sum_u_rel_sq = (u_rel_initial * u_rel_initial);
                     } else if (treatment.source.type === 'spike') {
                         if (treatment.source.spikeSampleId === null) throw new Error("Matrix spike non selezionato.");
                         const spikeData = appState.spikeUncertainty[treatment.source.spikeSampleId];
@@ -8126,7 +8135,7 @@ function main() {
                         initialConcentrationForSummary = currentConcentration;
                         // u_c % -> u_rel
                         const u_rel_initial = spikeData.results.u_comp_rel_perc / 100;
-                        sum_u_rel_sq = Math.pow(u_rel_initial, 2);
+                        sum_u_rel_sq = (u_rel_initial * u_rel_initial);
                     } else {
                         throw new Error("Tipo di sorgente non valido per il primo trattamento.");
                     }
@@ -8151,7 +8160,7 @@ function main() {
                         const contrib = _get_pipette_uncertainty_contribution(w.pipette, withdrawalVolume, appState.libraries);
                         w.pipetteUncertainty_U_perc = contrib.U_perc;
                         w.pipetteUncertaintyRelPerc = contrib.u_rel_perc;
-                        sum_u_abs_sq_withdrawals += Math.pow(contrib.u_abs, 2);
+                        sum_u_abs_sq_withdrawals += (contrib.u_abs * contrib.u_abs);
                     });
                     const u_abs_total_withdrawal = Math.sqrt(sum_u_abs_sq_withdrawals);
 
@@ -8169,21 +8178,21 @@ function main() {
                         const u_abs_Va = solvent_contrib.u_abs;
 
                         const Vf = Vi + Va;
-                        const u_abs_Vf = Math.sqrt(Math.pow(u_abs_Vi, 2) + Math.pow(u_abs_Va, 2));
+                        const u_abs_Vf = Math.sqrt((u_abs_Vi * u_abs_Vi) + (u_abs_Va * u_abs_Va));
 
-                        const u_rel_sq_Vi = Vi > 0 ? Math.pow(u_abs_Vi / Vi, 2) : 0;
-                        const u_rel_sq_Vf = Vf > 0 ? Math.pow(u_abs_Vf / Vf, 2) : 0;
+                        const u_rel_sq_Vi = Vi > 0 ? (u_abs_Vi / Vi * u_abs_Vi / Vi) : 0;
+                        const u_rel_sq_Vf = Vf > 0 ? (u_abs_Vf / Vf * u_abs_Vf / Vf) : 0;
 
                         sum_u_rel_sq += u_rel_sq_Vi + u_rel_sq_Vf;
                         currentConcentration = currentConcentration * (Vi / Vf);
 
                     } else { // bringToVolume
                         if (!treatment.dilutionFlask) throw new Error(`Diluizione: Matraccio non selezionato.`);
-                        const u_rel_sq_total_withdrawal = totalWithdrawalVolume > 0 ? Math.pow(u_abs_total_withdrawal / totalWithdrawalVolume, 2) : 0;
+                        const u_rel_sq_total_withdrawal = totalWithdrawalVolume > 0 ? (u_abs_total_withdrawal / totalWithdrawalVolume * u_abs_total_withdrawal / totalWithdrawalVolume) : 0;
                         const flask = appState.libraries.glassware[treatment.dilutionFlask];
                         const u_rel_flask = (flask.uncertainty / flask.volume / Math.sqrt(3));
                         treatment.flaskUncertaintyRelPerc = u_rel_flask * 100;
-                        const u_rel_sq_flask = Math.pow(u_rel_flask, 2);
+                        const u_rel_sq_flask = (u_rel_flask * u_rel_flask);
                         sum_u_rel_sq += u_rel_sq_total_withdrawal + u_rel_sq_flask;
                         currentConcentration = currentConcentration * (totalWithdrawalVolume / flask.volume);
                     }
@@ -8194,7 +8203,7 @@ function main() {
                     const initialFlask = appState.libraries.glassware[treatment.initialVolumeFlask];
                     const u_rel_initial_flask = (initialFlask.uncertainty / initialFlask.volume / Math.sqrt(3));
                     treatment.initialFlaskUncertaintyRelPerc = u_rel_initial_flask * 100;
-                    sum_u_rel_sq += Math.pow(u_rel_initial_flask, 2);
+                    sum_u_rel_sq += (u_rel_initial_flask * u_rel_initial_flask);
 
                     let finalVolume = 0;
                     let u_rel_sq_final_volume = 0;
@@ -8209,7 +8218,7 @@ function main() {
                         finalVolume = finalFlask.volume;
                         const u_rel_final_flask = (finalFlask.uncertainty / finalFlask.volume / Math.sqrt(3));
                         treatment.finalFlaskUncertaintyRelPerc = u_rel_final_flask * 100;
-                        u_rel_sq_final_volume = Math.pow(u_rel_final_flask, 2);
+                        u_rel_sq_final_volume = (u_rel_final_flask * u_rel_final_flask);
                     } else { // 'pipetta'
                         if (!treatment.finalVolumeAliquots || treatment.finalVolumeAliquots.length === 0) throw new Error("Estrazione (Pipetta): Aggiungere almeno un'aliquota.");
 
@@ -8225,12 +8234,12 @@ function main() {
                             finalVolume += aliquotVolume;
                             const contrib = _get_pipette_uncertainty_contribution(aliquot.pipette, aliquotVolume, appState.libraries);
                             aliquot.pipetteUncertaintyRelPerc = contrib.u_rel_perc; // Salva l'incertezza per la UI
-                            sum_u_abs_sq_aliquots += Math.pow(contrib.u_abs, 2);
+                            sum_u_abs_sq_aliquots += (contrib.u_abs * contrib.u_abs);
                         });
 
                         if (finalVolume > 0) {
                             const u_abs_total_aliquots = Math.sqrt(sum_u_abs_sq_aliquots);
-                            u_rel_sq_final_volume = Math.pow(u_abs_total_aliquots / finalVolume, 2);
+                            u_rel_sq_final_volume = (u_abs_total_aliquots / finalVolume * u_abs_total_aliquots / finalVolume);
                             treatment.pipetteUncertaintyRelPerc = Math.sqrt(u_rel_sq_final_volume) * 100;
                         }
                     }
@@ -8248,7 +8257,7 @@ function main() {
                     const u_rel_final_flask = (finalFlask.uncertainty / finalFlask.volume / Math.sqrt(3));
                     treatment.initialFlaskUncertaintyRelPerc = u_rel_initial_flask * 100;
                     treatment.finalFlaskUncertaintyRelPerc = u_rel_final_flask * 100;
-                    sum_u_rel_sq += Math.pow(u_rel_initial_flask, 2) + Math.pow(u_rel_final_flask, 2);
+                    sum_u_rel_sq += (u_rel_initial_flask * u_rel_initial_flask) + (u_rel_final_flask * u_rel_final_flask);
                     currentConcentration = currentConcentration * (initialFlask.volume / finalFlask.volume);
                 }
 
