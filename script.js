@@ -7622,7 +7622,6 @@ function main() {
 
     const samplesContainer = document.getElementById('samples-container');
     samplesContainer.addEventListener('click', async (e) => {
-        console.log("samplesContainer clicked!"); // DEBUG
         const removeButton = e.target.closest('.btn-remove-sample');
         if (removeButton) {
             console.log("Remove button was clicked!"); // DEBUG
