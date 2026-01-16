@@ -1423,50 +1423,50 @@ function renderCalibrationSolutionUncertainty() {
 function renderLibraries() {
     // Render Glassware Table
     const glasswareTableBody = document.getElementById('glassware-library-table');
-    if (!glasswareTableBody) return;
-    glasswareTableBody.innerHTML = ''; // Clear existing rows
-    for (const name in appState.libraries.glassware) {
-        const item = appState.libraries.glassware[name];
-        const row = document.createElement('tr');
-        row.className = 'border-b hover:bg-gray-50';
-        row.innerHTML = `
-            <td class="p-3">${name}</td>
-            <td class="p-3 font-mono">${item.volume}</td>
-            <td class="p-3 font-mono">${item.uncertainty}</td>
-            <td class="p-3 space-x-2 whitespace-nowrap">
-                <button data-library="glassware" data-name="${name}" class="btn-edit-library-item text-xs bg-yellow-100 text-yellow-800 font-semibold py-1 px-2 rounded-md hover:bg-yellow-200">Modifica</button>
-                <button data-library="glassware" data-name="${name}" class="btn-duplicate-library-item text-xs bg-blue-100 text-blue-800 font-semibold py-1 px-2 rounded-md hover:bg-blue-200">Duplica</button>
-                <button data-library="glassware" data-name="${name}" class="btn-remove-library-item text-xs bg-red-100 text-red-800 font-semibold py-1 px-2 rounded-md hover:bg-red-200">Rimuovi</button>
-            </td>
-        `;
-        glasswareTableBody.appendChild(row);
+    if (glasswareTableBody) {
+        let glasswareHtml = '';
+        for (const name in appState.libraries.glassware) {
+            const item = appState.libraries.glassware[name];
+            glasswareHtml += `
+            <tr class="border-b hover:bg-gray-50">
+                <td class="p-3">${name}</td>
+                <td class="p-3 font-mono">${item.volume}</td>
+                <td class="p-3 font-mono">${item.uncertainty}</td>
+                <td class="p-3 space-x-2 whitespace-nowrap">
+                    <button data-library="glassware" data-name="${name}" class="btn-edit-library-item text-xs bg-yellow-100 text-yellow-800 font-semibold py-1 px-2 rounded-md hover:bg-yellow-200">Modifica</button>
+                    <button data-library="glassware" data-name="${name}" class="btn-duplicate-library-item text-xs bg-blue-100 text-blue-800 font-semibold py-1 px-2 rounded-md hover:bg-blue-200">Duplica</button>
+                    <button data-library="glassware" data-name="${name}" class="btn-remove-library-item text-xs bg-red-100 text-red-800 font-semibold py-1 px-2 rounded-md hover:bg-red-200">Rimuovi</button>
+                </td>
+            </tr>`;
+        }
+        glasswareTableBody.innerHTML = glasswareHtml;
     }
 
     // Render Pipette Table
     const pipetteTableBody = document.getElementById('pipette-library-table');
-    if (!pipetteTableBody) return;
-    pipetteTableBody.innerHTML = ''; // Clear existing rows
-    for (const id in appState.libraries.pipettes) {
-        const item = appState.libraries.pipettes[id];
-        const pointsSummary = item.calibrationPoints.map(p => `${p.volume}mL (${p.U_rel_percent}%)`).join(', ');
-        const row = document.createElement('tr');
-        row.className = 'border-b hover:bg-gray-50';
-        row.innerHTML = `
-            <td class="p-3">${id}</td>
-            <td class="p-3 text-xs font-mono">${pointsSummary}</td>
-            <td class="p-3 space-x-2 whitespace-nowrap">
-                <button data-library="pipettes" data-name="${id}" class="btn-edit-library-item text-xs bg-yellow-100 text-yellow-800 font-semibold py-1 px-2 rounded-md hover:bg-yellow-200">Modifica</button>
-                <button data-library="pipettes" data-name="${id}" class="btn-duplicate-library-item text-xs bg-blue-100 text-blue-800 font-semibold py-1 px-2 rounded-md hover:bg-blue-200">Duplica</button>
-                <button data-library="pipettes" data-name="${id}" class="btn-remove-library-item text-xs bg-red-100 text-red-800 font-semibold py-1 px-2 rounded-md hover:bg-red-200">Rimuovi</button>
-            </td>
-        `;
-        pipetteTableBody.appendChild(row);
+    if (pipetteTableBody) {
+        let pipetteHtml = '';
+        for (const id in appState.libraries.pipettes) {
+            const item = appState.libraries.pipettes[id];
+            const pointsSummary = item.calibrationPoints.map(p => `${p.volume}mL (${p.U_rel_percent}%)`).join(', ');
+            pipetteHtml += `
+            <tr class="border-b hover:bg-gray-50">
+                <td class="p-3">${id}</td>
+                <td class="p-3 text-xs font-mono">${pointsSummary}</td>
+                <td class="p-3 space-x-2 whitespace-nowrap">
+                    <button data-library="pipettes" data-name="${id}" class="btn-edit-library-item text-xs bg-yellow-100 text-yellow-800 font-semibold py-1 px-2 rounded-md hover:bg-yellow-200">Modifica</button>
+                    <button data-library="pipettes" data-name="${id}" class="btn-duplicate-library-item text-xs bg-blue-100 text-blue-800 font-semibold py-1 px-2 rounded-md hover:bg-blue-200">Duplica</button>
+                    <button data-library="pipettes" data-name="${id}" class="btn-remove-library-item text-xs bg-red-100 text-red-800 font-semibold py-1 px-2 rounded-md hover:bg-red-200">Rimuovi</button>
+                </td>
+            </tr>`;
+        }
+        pipetteTableBody.innerHTML = pipetteHtml;
     }
 
     // Render Balances Table
     const balancesTableBody = document.getElementById('balances-library-table');
     if (balancesTableBody) {
-        balancesTableBody.innerHTML = ''; // Clear existing rows
+        let balancesHtml = '';
         for (const id in appState.libraries.balances) {
             const item = appState.libraries.balances[id];
             const minWeightDisplay = item.minWeight !== null && item.minWeight !== undefined ? item.minWeight : '-';
@@ -1474,9 +1474,8 @@ function renderLibraries() {
             const alphaDisplay = item.alpha !== null && item.alpha !== undefined ? item.alpha : '-';
             const betaDisplay = item.beta !== null && item.beta !== undefined ? Number(item.beta).toExponential(2) : '-';
 
-            const row = document.createElement('tr');
-            row.className = 'border-b hover:bg-gray-50';
-            row.innerHTML = `
+            balancesHtml += `
+            <tr class="border-b hover:bg-gray-50">
                 <td class="p-3 font-medium">${id}</td>
                 <td class="p-3 font-mono">${minWeightDisplay}</td>
                 <td class="p-3 font-mono">${capacityDisplay}</td>
@@ -1487,9 +1486,9 @@ function renderLibraries() {
                     <button data-library="balances" data-name="${id}" class="btn-duplicate-library-item text-xs bg-blue-100 text-blue-800 font-semibold py-1 px-2 rounded-md hover:bg-blue-200">Duplica</button>
                     <button data-library="balances" data-name="${id}" class="btn-remove-library-item text-xs bg-red-100 text-red-800 font-semibold py-1 px-2 rounded-md hover:bg-red-200">Rimuovi</button>
                 </td>
-            `;
-            balancesTableBody.appendChild(row);
+            </tr>`;
         }
+        balancesTableBody.innerHTML = balancesHtml;
     }
 }
 
