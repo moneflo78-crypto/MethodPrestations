@@ -6137,9 +6137,6 @@ function calculateExpandedUncertainty(sampleId, projectState) {
             const volume_L = glassware.volume / 1000;
             const R = (stats.mean * volume_L) / 1000;
 
-            const balance = projectState.libraries.balances[sample.balanceId];
-            if (!balance) return { error: "Bilancia non selezionata o non trovata in libreria." };
-
             // Note: R in grams. Alpha in grams. Beta dimensionless.
             const alpha = balance.alpha !== null ? balance.alpha : 0;
             const beta = balance.beta !== null ? balance.beta : 0;
