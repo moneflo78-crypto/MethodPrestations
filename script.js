@@ -5730,7 +5730,6 @@ function calcola_criteri_matracci_max(glasswareLibrary) {
 
 function calculateGuaranteedPreparationUncertainty(treatmentSample, projectState) {
     // DIAGNOSTIC LOGGING
-    console.log("DEBUG: Checking guaranteed preparation uncertainty for treatment chain:", JSON.stringify(treatmentSample, null, 2));
 
     const methodId = projectState.project.method;
     const method = projectState.libraries.methods[methodId];
@@ -7618,7 +7617,6 @@ function main() {
 
     // Attach the robust error-handling event listener for the calculate button
     document.getElementById('calculate-btn').addEventListener('click', () => {
-        console.log("Calculate button clicked!"); // SUPER DEBUG
         actionCalculateAll().catch(err => {
             console.error("Caught error from actionCalculateAll promise:", err);
             const resultsContainer = document.getElementById('results-container');
@@ -7633,9 +7631,7 @@ function main() {
     samplesContainer.addEventListener('click', async (e) => {
         const removeButton = e.target.closest('.btn-remove-sample');
         if (removeButton) {
-            console.log("Remove button was clicked!"); // DEBUG
             const sampleId = parseInt(removeButton.dataset.sampleId, 10);
-            console.log("Sample ID:", sampleId); // DEBUG
             const sample = appState.samples.find(s => s.id === sampleId);
             const sampleName = sample ? sample.name : `Campione ${sampleId}`;
 
