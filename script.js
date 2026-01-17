@@ -615,7 +615,15 @@ const DEFAULT_GLASSWARE_LIBRARY = {
     "Matraccio 500 mL": { "volume": 500, "uncertainty": 0.25 },
     "Matraccio 1000 mL": { "volume": 1000, "uncertainty": 0.6 },
     "Matraccio 2000 mL": { "volume": 2000, "uncertainty": 0.6 },
-    "Matraccio 5000 mL": { "volume": 5000, "uncertainty": 1.2 }
+    "Matraccio 5000 mL": { "volume": 5000, "uncertainty": 1.2 },
+    "Cilindro 10 mL (ISO 4788 A)": { "volume": 10, "uncertainty": 0.10 },
+    "Cilindro 25 mL (ISO 4788 A)": { "volume": 25, "uncertainty": 0.25 },
+    "Cilindro 50 mL (ISO 4788 A)": { "volume": 50, "uncertainty": 0.50 },
+    "Cilindro 100 mL (ISO 4788 A)": { "volume": 100, "uncertainty": 0.50 },
+    "Cilindro 250 mL (ISO 4788 A)": { "volume": 250, "uncertainty": 1.00 },
+    "Cilindro 500 mL (ISO 4788 A)": { "volume": 500, "uncertainty": 2.50 },
+    "Cilindro 1000 mL (ISO 4788 A)": { "volume": 1000, "uncertainty": 5.00 },
+    "Cilindro 2000 mL (ISO 4788 A)": { "volume": 2000, "uncertainty": 10.00 }
 };
 const DEFAULT_METHODS_LIBRARY = {
     "metodo_pH": { "name": "pH", "u_rif_perc": 0.5, "u_icv_perc": 2.0, "cv_perc": 1.0 },
@@ -902,7 +910,7 @@ const multiChoiceModal = {
 // --- INITIAL STATE ---
 function getInitialAppState() {
     return {
-        version: '1.2.0',
+        version: '1.3.0',
         ui: {
             activeTab: 'frontespizio',
             activeLibrarySubTab: 'vetreria', // 'vetreria', 'pipette', 'bilance', 'metodi', 'criteri'
@@ -2785,24 +2793,103 @@ function renderSamplesAndResults() {
     appState.samples.forEach(sample => {
         const card = document.createElement('div');
         card.className = 'sample-card bg-white p-6 rounded-lg shadow-md border border-gray-200 mb-4';
+
+        // --- Logic for SST Data Table ---
+        let dataInputSection = '';
+        if (sample.mode === 'sst') {
+            const sstRows = (sample.sstData || []).map((row, index) => `
+                <tr class="border-b">
+                    <td class="p-2 text-center text-sm font-mono text-gray-600">${index + 1}</td>
+                    <td class="p-2"><input type="number" data-sample-id="${sample.id}" data-row-id="${row.id}" data-field="m1" class="sst-input w-full p-1 border border-gray-300 rounded text-sm text-right" value="${row.m1 !== null ? row.m1 : ''}" placeholder="M1 (g)"></td>
+                    <td class="p-2"><input type="number" data-sample-id="${sample.id}" data-row-id="${row.id}" data-field="m0" class="sst-input w-full p-1 border border-gray-300 rounded text-sm text-right" value="${row.m0 !== null ? row.m0 : ''}" placeholder="M0 (g)"></td>
+                    <td class="p-2 text-center"><button data-sample-id="${sample.id}" data-row-id="${row.id}" class="btn-remove-sst-row text-red-500 hover:text-red-700 font-bold">&times;</button></td>
+                </tr>
+            `).join('');
+
+            dataInputSection = `
+                <div class="mb-2">
+                    <table class="w-full text-sm border-collapse">
+                        <thead>
+                            <tr class="bg-gray-100 text-gray-600">
+                                <th class="p-2 border-b">#</th>
+                                <th class="p-2 border-b text-right">Peso Lordo (M<sub>1</sub>) [g]</th>
+                                <th class="p-2 border-b text-right">Tara (M<sub>0</sub>) [g]</th>
+                                <th class="p-2 border-b"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${sstRows}
+                        </tbody>
+                    </table>
+                    <button data-sample-id="${sample.id}" class="btn-add-sst-row mt-2 text-xs bg-blue-50 text-blue-700 font-semibold py-1 px-3 rounded border border-blue-200 hover:bg-blue-100">+ Aggiungi Riga</button>
+                    <p class="text-xs text-gray-500 mt-2 italic">Inserisci i pesi lordo e tara per ogni replica.</p>
+                </div>
+            `;
+        } else {
+            // Standard text area
+            dataInputSection = `<textarea data-sample-id="${sample.id}" data-field="rawData" rows="4" class="data-input w-full p-2 border border-gray-300 rounded-md font-mono text-sm" placeholder="Inserisci un dato per riga...">${sample.rawData || ''}</textarea>`;
+        }
+
+        const balanceOptions = Object.keys(appState.libraries.balances).map(key => `<option value="${key}" ${sample.balanceId === key ? 'selected' : ''}>${key}</option>`).join('');
+        const glasswareOptions = Object.keys(appState.libraries.glassware).map(key => `<option value="${key}" ${sample.glasswareId === key ? 'selected' : ''}>${key}</option>`).join('');
+
         card.innerHTML = `
-            <div class="flex justify-between items-start">
-                <h3 class="text-xl font-semibold text-gray-800 mb-4">Campione ${sample.id}</h3>
+            <div class="flex justify-between items-start border-b pb-4 mb-4">
+                <div>
+                     <h3 class="text-xl font-semibold text-gray-800">Campione ${sample.id}</h3>
+                     <div class="mt-2">
+                        <label class="text-xs font-medium text-gray-500 uppercase tracking-wide">Modalità Analisi</label>
+                        <select data-sample-id="${sample.id}" data-field="mode" class="mode-select mt-1 block w-48 p-1 border border-gray-300 rounded text-sm font-semibold text-gray-700 bg-gray-50">
+                            <option value="standard" ${sample.mode !== 'sst' ? 'selected' : ''}>Standard</option>
+                            <option value="sst" ${sample.mode === 'sst' ? 'selected' : ''}>Solidi Sospesi (SST)</option>
+                        </select>
+                     </div>
+                </div>
                 <button data-sample-id="${sample.id}" class="btn-remove-sample text-red-500 hover:text-red-700 font-bold text-xl px-2" title="Rimuovi campione">&times;</button>
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div class="md:col-span-2"><label class="block text-sm font-medium text-gray-700 mb-1">Dati</label><textarea data-sample-id="${sample.id}" data-field="rawData" rows="4" class="data-input w-full p-2 border border-gray-300 rounded-md">${sample.rawData || ''}</textarea></div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Nome</label>
-                    <input data-sample-id="${sample.id}" data-field="name" type="text" class="w-full p-2 border border-gray-300 rounded-md" value="${sample.name || ''}">
-                    <label class="block text-sm font-medium text-gray-700 mt-2 mb-1">Valore Atteso</label>
-                    <div class="flex items-center space-x-2">
-                        <input data-sample-id="${sample.id}" data-field="expectedValue" type="number" class="w-full p-2 border border-gray-300 rounded-md" value="${sample.expectedValue || ''}">
-                        <select data-sample-id="${sample.id}" data-field="unit" class="unit-select w-auto p-2 border border-gray-300 rounded-md bg-gray-50 text-sm">
-                            <option value="mg/L" ${sample.unit === 'mg/L' ? 'selected' : ''}>mg/L</option>
-                            <option value="µg/L" ${sample.unit === 'µg/L' ? 'selected' : ''}>µg/L</option>
-                        </select>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Dati Grezzi</label>
+                    ${dataInputSection}
+                </div>
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Nome Campione</label>
+                        <input data-sample-id="${sample.id}" data-field="name" type="text" class="w-full p-2 border border-gray-300 rounded-md" value="${sample.name || ''}">
                     </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Valore Atteso ${sample.mode === 'sst' ? '(mg/L)' : ''}</label>
+                        <div class="flex items-center space-x-2">
+                            <input data-sample-id="${sample.id}" data-field="expectedValue" type="number" class="w-full p-2 border border-gray-300 rounded-md" value="${sample.expectedValue !== null ? sample.expectedValue : ''}">
+                            <select data-sample-id="${sample.id}" data-field="unit" class="unit-select w-24 p-2 border border-gray-300 rounded-md bg-gray-50 text-sm" ${sample.mode === 'sst' ? 'disabled' : ''}>
+                                <option value="mg/L" ${sample.unit === 'mg/L' ? 'selected' : ''}>mg/L</option>
+                                <option value="µg/L" ${sample.unit === 'µg/L' ? 'selected' : ''}>µg/L</option>
+                            </select>
+                        </div>
+                         ${sample.mode === 'sst' ? '<p class="text-xs text-gray-500 mt-1">Per SST, l\'unità è fissa a mg/L.</p>' : ''}
+                    </div>
+
+                    ${sample.mode === 'sst' ? `
+                    <div class="pt-4 border-t border-gray-200">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Parametri SST</label>
+                        <div class="space-y-2">
+                            <div>
+                                <label class="block text-xs text-gray-500">Bilancia</label>
+                                <select data-sample-id="${sample.id}" data-field="balanceId" class="w-full p-2 border border-gray-300 rounded-md text-sm">
+                                    ${balanceOptions}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500">Vetreria (Cilindro/Matraccio)</label>
+                                <select data-sample-id="${sample.id}" data-field="glasswareId" class="w-full p-2 border border-gray-300 rounded-md text-sm">
+                                    ${glasswareOptions}
+                                </select>
+                            </div>
+                        </div>
+                    </div>` : ''}
                 </div>
             </div>`;
         container.appendChild(card);
@@ -3552,22 +3639,93 @@ async function actionAddPipette() {
 
 function actionAddSample() {
     const newId = appState.samples.length > 0 ? Math.max(...appState.samples.map(s => s.id)) + 1 : 1;
-    appState.samples.push({ id: newId, name: `Campione ${newId}`, rawData: '', expectedValue: null, unit: 'µg/L' });
+    // Default to a balance from library if available
+    const defaultBalanceId = Object.keys(appState.libraries.balances)[0] || null;
+    // Default to a glassware from library if available
+    const defaultGlasswareId = Object.keys(appState.libraries.glassware)[0] || null;
+
+    appState.samples.push({
+        id: newId,
+        name: `Campione ${newId}`,
+        mode: 'standard', // 'standard' or 'sst'
+        rawData: '',
+        sstData: [], // Array of { id, m1, m0 }
+        expectedValue: null,
+        unit: 'µg/L',
+        balanceId: defaultBalanceId,
+        glasswareId: defaultGlasswareId
+    });
     setDirty();
     render();
 }
+
 function actionRemoveSample(sampleId) {
     appState.samples = appState.samples.filter(s => s.id !== sampleId);
+    // Remove associated results
     delete appState.results[sampleId];
+    // Remove associated spike uncertainty data
+    delete appState.spikeUncertainty[sampleId];
+    // Remove associated treatment data
+    appState.treatments = appState.treatments.filter(ts => ts.sampleId !== sampleId);
+
     setDirty();
     render();
 }
+
 function actionUpdateSample(sampleId, field, value) {
     const sample = appState.samples.find(s => s.id === sampleId);
     if (sample) {
-        if (field === 'expectedValue') sample[field] = value === '' ? null : parseFloat(value);
-        else sample[field] = value;
+        // Convert numeric fields
+        if (field === 'expectedValue') {
+            sample[field] = value === '' ? null : parseFloat(value);
+        } else if (field === 'mode') {
+            sample.mode = value;
+            if (value === 'sst') {
+                sample.unit = 'mg/L'; // Force unit to mg/L for SST
+                if (!sample.sstData || sample.sstData.length === 0) {
+                    // Initialize with 3 rows for convenience if empty
+                    sample.sstData = [
+                        { id: Date.now(), m1: null, m0: null },
+                        { id: Date.now() + 1, m1: null, m0: null },
+                        { id: Date.now() + 2, m1: null, m0: null }
+                    ];
+                }
+            }
+        } else {
+            sample[field] = value;
+        }
         setDirty();
+        // If changing mode, re-render to show/hide the table
+        if (field === 'mode') render();
+    }
+}
+
+function actionAddSSTRow(sampleId) {
+    const sample = appState.samples.find(s => s.id === sampleId);
+    if (sample && sample.mode === 'sst') {
+        sample.sstData.push({ id: Date.now(), m1: null, m0: null });
+        setDirty();
+        render();
+    }
+}
+
+function actionRemoveSSTRow(sampleId, rowId) {
+    const sample = appState.samples.find(s => s.id === sampleId);
+    if (sample && sample.mode === 'sst') {
+        sample.sstData = sample.sstData.filter(row => row.id != rowId);
+        setDirty();
+        render();
+    }
+}
+
+function actionUpdateSSTRow(sampleId, rowId, field, value) {
+    const sample = appState.samples.find(s => s.id === sampleId);
+    if (sample && sample.mode === 'sst') {
+        const row = sample.sstData.find(r => r.id == rowId);
+        if (row) {
+            row[field] = value === '' ? null : parseFloat(value);
+            setDirty();
+        }
     }
 }
 
@@ -3635,17 +3793,46 @@ async function processSample(sample) {
 
         function addLog(type, message) {
             appState.results[sample.id].log.push({ type, message });
-            // Rendering is now handled by a single call in actionCalculateAll
         }
 
         addLog('info', 'Inizio analisi...');
 
         let data;
-        if (sample.rawData.includes('.')) {
-            data = sample.rawData.split(/[\s,]+/).filter(d => d.trim() !== '').map(Number).filter(n => !isNaN(n));
+
+        if (sample.mode === 'sst') {
+            // For SST, calculate Net Weights first
+            const netWeights = sample.sstData
+                .filter(row => row.m1 !== null && row.m0 !== null && !isNaN(row.m1) && !isNaN(row.m0))
+                .map(row => row.m1 - row.m0);
+
+            if (netWeights.length === 0) {
+                 addLog('error', 'Nessun dato valido inserito per SST.');
+                 appState.results[sample.id].error = 'Nessun dato valido inserito.';
+                 return;
+            }
+
+            // Then convert to Concentration (mg/L)
+            // Concentration = (NetWeight_g * 1000) / Volume_L
+            const glassware = appState.libraries.glassware[sample.glasswareId];
+            if (!glassware) {
+                addLog('error', 'Vetreria non selezionata per SST. Impossibile calcolare la concentrazione.');
+                appState.results[sample.id].error = 'Selezionare la vetreria.';
+                return;
+            }
+            const volume_L = glassware.volume / 1000;
+
+            data = netWeights.map(w => (w * 1000) / volume_L);
+            addLog('info', `SST: Convertiti ${data.length} pesi netti in concentrazione (mg/L) usando volume ${glassware.volume} mL.`);
+
         } else {
-            const standardizedData = sample.rawData.replace(/,/g, '.');
-            data = standardizedData.split(/\s+/).filter(d => d.trim() !== '').map(Number).filter(n => !isNaN(n));
+            // Standard parsing
+            const raw = sample.rawData || "";
+            if (raw.includes('.')) {
+                data = raw.split(/[\s,]+/).filter(d => d.trim() !== '').map(Number).filter(n => !isNaN(n));
+            } else {
+                const standardizedData = raw.replace(/,/g, '.');
+                data = standardizedData.split(/\s+/).filter(d => d.trim() !== '').map(Number).filter(n => !isNaN(n));
+            }
         }
 
         appState.results[sample.id].originalData = [...data];
@@ -3804,15 +3991,8 @@ async function processSample(sample) {
                 const repeatability_limit_r = n > 1 && t_value ? t_value * stdDev * Math.sqrt(2) : 0;
                 const nominalValue = (sample.expectedValue !== null && !isNaN(sample.expectedValue) && sample.expectedValue !== '') ? parseFloat(sample.expectedValue) : null;
 
-                let calculatedConcentration = mean;
-                if (sample.mode === 'sst' && sample.glasswareId) {
-                     const glassware = appState.libraries.glassware[sample.glasswareId];
-                     if (glassware) {
-                         const volume_L = glassware.volume / 1000;
-                         // mean is in g. (g * 1000) -> mg. mg / L = mg/L.
-                         calculatedConcentration = (mean * 1000) / volume_L;
-                     }
-                }
+                // For SST, 'mean' is already Concentration (mg/L). For Standard, it's the raw value.
+                const calculatedConcentration = mean;
 
                 const stats = {
                     n: n,
@@ -4494,6 +4674,20 @@ async function handleFileLoad(event) {
                     });
                 });
             }
+
+            // Retrocompatibilità per campioni SST (aggiunta campi mancanti)
+            appState.samples.forEach(sample => {
+                if (!sample.hasOwnProperty('mode')) sample.mode = 'standard';
+                if (!sample.hasOwnProperty('sstData')) sample.sstData = [];
+                // Assicura che i dati SST abbiano la struttura corretta se vuoti o parziali
+                if (sample.mode === 'sst' && (!sample.sstData || sample.sstData.length === 0)) {
+                     sample.sstData = [
+                        { id: Date.now(), m1: null, m0: null },
+                        { id: Date.now() + 1, m1: null, m0: null },
+                        { id: Date.now() + 2, m1: null, m0: null }
+                    ];
+                }
+            });
 
             // Compatibility checks
             if (!appState.reportSettings) appState.reportSettings = getInitialAppState().reportSettings;
@@ -5920,29 +6114,7 @@ function calculateExpandedUncertainty(sampleId, projectState) {
             const balance = projectState.libraries.balances[sample.balanceId];
             if (!balance) return { error: "Bilancia non selezionata o non trovata in libreria." };
 
-            // Note: R in grams. Alpha in grams. Beta dimensionless.
-            const R = stats.mean;
-            const alpha = balance.alpha !== null ? balance.alpha : 0;
-            const beta = balance.beta !== null ? balance.beta : 0;
-
-            // U_gl = alpha + beta * R
-            const U_gl = alpha + (beta * R);
-            // u_L = U_gl / 2 (from prompt: "calcolando U_gl... diviso per 2")
-            const u_L = U_gl / 2;
-            // u_Wnet = sqrt(2) * u_L
-            const u_Wnet = Math.sqrt(2) * u_L;
-
-            // Relative u_Wnet% = (u_Wnet / R)
-            const u_Wnet_rel = R > 0 ? u_Wnet / R : 0;
-
-            contributions.push({
-                name: 'Peso Netto (u_Wnet%)',
-                value: u_Wnet_rel,
-                dof: Infinity // Type B
-            });
-
-            // 3. Volume Uncertainty (u_V%)
-            // Formula: u_V% = (Tolerance / sqrt(3)) / NominalVolume
+            // 3. Volume Uncertainty (u_V%) - Needed first to back-calculate Weight
             const glassware = projectState.libraries.glassware[sample.glasswareId];
             if (!glassware) return { error: "Vetreria non selezionata o non trovata in libreria." };
 
@@ -5955,19 +6127,47 @@ function calculateExpandedUncertainty(sampleId, projectState) {
                 dof: Infinity // Type B
             });
 
+            // 2. Net Weight Uncertainty (u_Wnet%)
+            // Formula: u_Wnet = sqrt(2) * u_L
+            // u_L = (alpha + beta * R) / 2
+
+            // stats.mean is Concentration (mg/L). We need Mean Net Weight (R) in grams.
+            // Concentration = (R * 1000) / Volume_L
+            // R = (Concentration * Volume_L) / 1000
+            const volume_L = glassware.volume / 1000;
+            const R = (stats.mean * volume_L) / 1000;
+
+            const balance = projectState.libraries.balances[sample.balanceId];
+            if (!balance) return { error: "Bilancia non selezionata o non trovata in libreria." };
+
+            // Note: R in grams. Alpha in grams. Beta dimensionless.
+            const alpha = balance.alpha !== null ? balance.alpha : 0;
+            const beta = balance.beta !== null ? balance.beta : 0;
+
+            // U_gl = alpha + beta * R
+            const U_gl = alpha + (beta * R);
+            // u_L = U_gl / 2 (from prompt: "calcolando U_gl... diviso per 2")
+            const u_L = U_gl / 2;
+            // u_Wnet = sqrt(2) * u_L
+            const u_Wnet = Math.sqrt(2) * u_L;
+
+            // Relative u_Wnet% = (u_Wnet / R)
+            const u_Wnet_rel = (R > 1e-9) ? u_Wnet / R : 0;
+
+            contributions.push({
+                name: 'Peso Netto (u_Wnet%)',
+                value: u_Wnet_rel,
+                dof: Infinity // Type B
+            });
+
             // Calculate Combined and Expanded
             const u_c_rel = Math.sqrt(contributions.reduce((sum, c) => sum + (c.value * c.value), 0));
             const k = 2; // Fixed k=2 for SST
             const U_rel_perc = k * u_c_rel * 100;
 
-            // Final Result (SST in mg/L)
-            // Formula: SST = (NetWeight_g * 1000) / Volume_L
-            // Volume_L = glassware.volume / 1000
-            // SST = (R * 1000) / (V_mL / 1000) = R * 10^6 / V_mL
-            const volume_L = glassware.volume / 1000;
-            const SST_mg_L = (R * 1000) / volume_L;
-
-            const U_abs = (U_rel_perc / 100) * SST_mg_L;
+            // Final Result
+            // stats.mean is already SST concentration (mg/L)
+            const U_abs = (U_rel_perc / 100) * stats.mean;
 
             return {
                 U_abs,
@@ -5975,7 +6175,7 @@ function calculateExpandedUncertainty(sampleId, projectState) {
                 k: k,
                 v_eff: Infinity,
                 contributions,
-                finalConcentration: SST_mg_L, // Special field for SST
+                finalConcentration: stats.mean, // stats.mean is now mg/L
                 error: null
             };
 
@@ -7630,6 +7830,9 @@ function main() {
     const samplesContainer = document.getElementById('samples-container');
     samplesContainer.addEventListener('click', async (e) => {
         const removeButton = e.target.closest('.btn-remove-sample');
+        const addSSTRowBtn = e.target.closest('.btn-add-sst-row');
+        const removeSSTRowBtn = e.target.closest('.btn-remove-sst-row');
+
         if (removeButton) {
             const sampleId = parseInt(removeButton.dataset.sampleId, 10);
             const sample = appState.samples.find(s => s.id === sampleId);
@@ -7647,10 +7850,33 @@ function main() {
             if (confirmDelete) {
                 actionRemoveSample(sampleId);
             }
+        } else if (addSSTRowBtn) {
+            actionAddSSTRow(parseInt(addSSTRowBtn.dataset.sampleId, 10));
+        } else if (removeSSTRowBtn) {
+            actionRemoveSSTRow(parseInt(removeSSTRowBtn.dataset.sampleId, 10), parseInt(removeSSTRowBtn.dataset.rowId, 10));
         }
     });
-    samplesContainer.addEventListener('input', e => { if (e.target.dataset.sampleId && !e.target.matches('.unit-select')) actionUpdateSample(parseInt(e.target.dataset.sampleId, 10), e.target.dataset.field, e.target.value); });
-    samplesContainer.addEventListener('change', e => { if (e.target.matches('.unit-select')) actionUpdateSample(parseInt(e.target.dataset.sampleId, 10), e.target.dataset.field, e.target.value); });
+
+    samplesContainer.addEventListener('input', e => {
+        if (!e.target.dataset.sampleId) return;
+        const sampleId = parseInt(e.target.dataset.sampleId, 10);
+
+        if (e.target.classList.contains('sst-input')) {
+            const rowId = parseInt(e.target.dataset.rowId, 10);
+            actionUpdateSSTRow(sampleId, rowId, e.target.dataset.field, e.target.value);
+        } else if (!e.target.matches('.unit-select')) {
+            actionUpdateSample(sampleId, e.target.dataset.field, e.target.value);
+        }
+    });
+
+    samplesContainer.addEventListener('change', e => {
+        if (!e.target.dataset.sampleId) return;
+        const sampleId = parseInt(e.target.dataset.sampleId, 10);
+
+        if (e.target.matches('.unit-select') || e.target.matches('.mode-select') || e.target.tagName === 'SELECT') {
+            actionUpdateSample(sampleId, e.target.dataset.field, e.target.value);
+        }
+    });
 
     document.querySelector('nav[aria-label="Tabs"]').addEventListener('click', e => { if (e.target.closest('button.tab-btn')) actionSwitchTab(e.target.closest('button.tab-btn').dataset.tabName); });
 

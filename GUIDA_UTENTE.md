@@ -1,36 +1,24 @@
-#############################################################
-# GUIDA PER L'UTILIZZATORE - Valutazione delle Prestazioni  #
-# Versione: 1.1.0                                           #
-#############################################################
+# GUIDA UTENTE
 
-## INTRODUZIONE
-Benvenuto! Questa guida ti accompagnerà passo dopo passo nell'utilizzo dell'applicazione "Valutazione delle prestazioni del metodo applicato". Imparerai a inserire i tuoi dati, eseguire le analisi, calcolare l'incertezza e generare report completi e personalizzati.
-
-L'applicazione è strutturata in schede (tab) che seguono un flusso logico di lavoro:
-1.  **Frontespizio:** Inserisci le informazioni generali del tuo progetto.
-2.  **Analisi Statistica:** Inserisci i dati grezzi dei tuoi campioni ed esegui i calcoli statistici di base.
-3.  **Incertezza di Pesata:** Una scheda dedicata (in fase di sviluppo) per la gestione dell'incertezza legata alle operazioni di pesata.
-4.  **Incertezza di Taratura:** Calcola l'incertezza derivante dal tuo modello di calibrazione (retta o fattore di risposta).
-5.  **Incertezza di Preparazione:** Modella i passaggi di preparazione dei campioni (diluizioni, estrazioni, ecc.) per calcolarne l'incertezza.
-6.  **Incertezza Estesa:** Combina tutti i contributi per ottenere l'incertezza estesa finale per ogni campione.
-7.  **Gestione Librerie:** Personalizza le librerie di vetreria, pipette, bilance e metodi analitici.
-8.  **Report:** Genera report dettagliati in formato PDF, Excel o Word.
-9.  **Verifica Validazione:** Esegui test di validazione predefiniti per verificare la correttezza dei calcoli del software.
+Benvenuto in **UncCalib Web**. Questa applicazione ti guida passo dopo passo nel calcolo dell'incertezza estesa dei tuoi metodi analitici. Non è richiesta alcuna installazione: apri la pagina nel tuo browser e inizia a lavorare.
 
 ---
 
-### IL MENU FILE: GESTIRE I TUOI PROGETTI
+### IL CONCETTO CHIAVE
+Il software è progettato per essere **dinamico e flessibile**. Non esiste un unico modo per calcolare l'incertezza: tutto dipende da come hai condotto l'esperimento.
+- Hai usato uno standard certificato?
+- Hai fatto diluizioni o estrazioni?
+- Hai usato una curva di taratura?
 
-Nell'angolo in alto a destra, trovi il menu **File**, che è il centro di controllo per i tuoi progetti.
+Rispondendo a queste domande nelle varie schede, il software costruirà automaticamente il "bilancio di incertezza" corretto per il tuo caso specifico.
 
-- **Nuovo:** Crea un progetto vuoto. Se hai delle modifiche non salvate, ti verrà chiesto di confermare per evitare di perdere il lavoro.
-- **Apri...:** Carica un progetto precedentemente salvato dal tuo computer. I progetti sono salvati in formato `.json`.
-- **Salva:** Se il progetto ha già un nome, lo salva sovrascrivendo la versione precedente. Se è un nuovo progetto, si comporterà come "Salva con nome...".
-- **Salva con nome...:** Ti permette di salvare il progetto attuale in un nuovo file `.json`, scegliendo nome e posizione.
-- **Duplica:** Crea una copia esatta del progetto attuale e ti chiede di salvarla con un nuovo nome. Utile per creare variazioni di un'analisi senza partire da zero.
-- **Apri Recente:** Mostra un sottomenu con gli ultimi 5 progetti aperti, per un accesso rapido.
+---
 
-**Importante:** L'applicazione ti avvisa della presenza di modifiche non salvate tramite un indicatore di stato sotto il titolo (es. "progetto.json (modificato)").
+### GESTIONE DEI DATI E SALVATAGGIO
+- **Tutto locale:** I tuoi dati non lasciano mai il tuo computer. Vengono elaborati direttamente dal tuo browser per la massima sicurezza e privacy.
+- **Salvataggio Progetto:** Usa il pulsante **"File" -> "Salva Progetto (.json)"** per scaricare un file con tutto il tuo lavoro. Potrai ricaricarlo in qualsiasi momento usando **"Carica Dati"** o trascinandolo nella finestra (drag & drop).
+
+**Nota importante sul versionamento:** Quando carichi un vecchio progetto, il software aggiorna automaticamente i dati al formato più recente, preservando tutte le tue informazioni. Se salvi il progetto dopo averlo caricato, verrà creato un nuovo file con l'indicazione "(modificato)" nel nome. Se usi "Salva con nome", puoi scegliere tu il titolo (es. "progetto.json (modificato)").
 
 ---
 
@@ -46,11 +34,17 @@ In questa prima scheda, inserisci le informazioni che identificano la tua analis
 #### 2. Analisi Statistica
 Questa è la scheda dove inserire i dati grezzi.
 1.  **Aggiungi Campioni:** Clicca su **"Aggiungi Campione"** per creare una nuova scheda per ogni campione o livello di concentrazione che vuoi analizzare.
-2.  **Inserisci i Dati:** In ogni scheda campione, inserisci:
+2.  **Configurazione Campione:**
     - **Nome:** Un nome univoco per il campione (es. "CRM 10 ppb", "Spike Livello Basso").
-    - **Dati:** Incolla o digita i risultati delle tue misure replicate. I numeri possono essere separati da spazi, virgole o "a capo".
-    - **Valore Atteso (Opzionale):** Se stai analizzando un materiale di riferimento certificato (CRM) o uno spike, inserisci qui il suo valore nominale. Questo è **fondamentale** per calcolare il recupero e per attivare la sezione di calcolo dell'incertezza dello spike.
-    - **Unità:** Seleziona l'unità di misura corretta.
+    - **Modalità Analisi:** Scegli tra:
+        - **Standard:** Per analisi chimiche classiche dove si dispone direttamente della concentrazione o del segnale.
+        - **Solidi Sospesi (SST):** Una modalità specifica per la gravimetria differenziale. In questa modalità, dovrai inserire il **Peso Lordo ($M_1$)** e la **Tara ($M_0$)** per ogni replica in una tabella dedicata. Dovrai inoltre selezionare la **Bilancia** e la **Vetreria** (solitamente un cilindro) utilizzate.
+    - **Dati:**
+        - In modalità **Standard**, incolla o digita i risultati delle tue misure replicate nel campo di testo (numeri separati da spazi o a capo).
+        - In modalità **SST**, usa la tabella per inserire le coppie di pesi ($M_1$, $M_0$) per ogni replica. Puoi aggiungere o rimuovere righe secondo necessità.
+    - **Valore Atteso (Opzionale):** Se stai analizzando un materiale di riferimento certificato (CRM) o uno spike, inserisci qui il suo valore nominale. Questo è **fondamentale** per calcolare il recupero.
+        - *Nota per SST:* Il valore atteso deve essere espresso in **mg/L**.
+    - **Unità:** Seleziona l'unità di misura corretta. (In modalità SST è fissa a mg/L).
 3.  **Calcola:** Una volta inseriti tutti i dati, clicca sul pulsante verde **"Calcola"**. L'applicazione eseguirà l'analisi statistica di base, i test di normalità e la ricerca di outlier. I risultati appariranno nella sezione "Report Finale" in fondo alla pagina.
 
 #### 3. Incertezza di Preparazione
@@ -81,21 +75,22 @@ Qui calcoli il contributo di incertezza del modello di calibrazione.
 #### 5. Incertezza Estesa
 Questa scheda è di sola lettura e rappresenta il punto finale dell'analisi.
 - **Riepilogo:** Mostra una tabella che riassume tutti i contributi di incertezza calcolati nelle sezioni precedenti (ripetibilità, preparazione, taratura, eventuale bias).
-- **Risultati Finali:** Calcola l'incertezza estesa finale (U e U%) combinando tutti i contributi e applicando il fattore di copertura corretto (k), calcolato tramite i gradi di libertà effettivi (formula di Welch-Satterthwaite).
+  - Per i campioni **SST**, i contributi mostrati saranno specifici: Ripetibilità ($u_r$), Peso Netto ($u_{Wnet}$) e Volume ($u_V$).
+- **Risultati Finali:** Calcola l'incertezza estesa finale (U e U%) combinando tutti i contributi e applicando il fattore di copertura corretto (k).
 - **Calcolo dell'Incertezza Massima Garantita:** In cima alla scheda, è presente una casella di controllo **"Mostra Incertezza Massima Garantita"**. Selezionandola, l'applicazione eseguirà un secondo calcolo di incertezza, parallelo a quello sperimentale. Questo calcolo non si basa sui dati misurati (come il CV%), ma utilizza i **criteri massimi di accettabilità** definiti nella libreria dei metodi (U rif.%, U ICV%, CV max%). Il risultato è un'incertezza "garantita" che rappresenta la prestazione massima (cioè, nel caso peggiore) che il metodo può avere rispettando i suoi stessi criteri.
 
 ---
 
 ### GESTIONE LIBRERIE
 In questa scheda puoi personalizzare gli strumenti volumetrici e le bilance per farli corrispondere a quelli del tuo laboratorio.
-- **Vetreria:** Aggiungi, modifica o rimuovi matracci, specificando volume e tolleranza.
+- **Vetreria:** Aggiungi, modifica o rimuovi matracci e cilindri, specificando volume e tolleranza.
 - **Pipette:** Aggiungi, modifica o rimuovi pipette, specificando per ognuna i punti di calibrazione (volume e incertezza relativa %).
 - **Bilance (Nuova Scheda):** Aggiungi, modifica o rimuovi bilance. Per ogni bilancia puoi inserire (se disponibili) i seguenti parametri, presi dal certificato di taratura:
     - **ID Bilancia:** Identificativo univoco (obbligatorio).
     - **Pesata Minima (g):** La pesata minima operativa.
     - **Portata (g):** La capacità massima della bilancia.
-    - **Coefficiente alfa gl (g):** Coefficiente di incertezza.
-    - **Coefficiente beta gl (adim.):** Coefficiente di incertezza adimensionale (visualizzato in notazione scientifica).
+    - **Coefficiente alfa gl (g):** Coefficiente di incertezza (linearità/bias).
+    - **Coefficiente beta gl (adim.):** Coefficiente di incertezza proporzionale.
 - **Metodi:** Aggiungi o modifica i metodi analitici. Per ogni metodo, puoi definire i criteri di incertezza massima garantita (U rif.%, U ICV%, CV max%) che verranno utilizzati nel calcolo dell'incertezza garantita.
 - **Importa/Esporta:** Puoi salvare le tue librerie personalizzate (vetreria, pipette, bilance e metodi) in un unico file `.json` per condividerle o per tenerne un backup.
 
