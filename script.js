@@ -2797,14 +2797,20 @@ function renderSamplesAndResults() {
         // --- Logic for SST Data Table ---
         let dataInputSection = '';
         if (sample.mode === 'sst') {
-            const sstRows = (sample.sstData || []).map((row, index) => `
+            const sstRows = (sample.sstData || []).map((row, index) => {
+                const netWeight = (row.m1 !== null && row.m0 !== null && row.m1 !== '' && row.m0 !== '')
+                    ? (parseFloat(row.m1) - parseFloat(row.m0)).toFixed(4)
+                    : '-';
+
+                return `
                 <tr class="border-b">
                     <td class="p-2 text-center text-sm font-mono text-gray-600">${index + 1}</td>
                     <td class="p-2"><input type="number" data-sample-id="${sample.id}" data-row-id="${row.id}" data-field="m1" class="sst-input w-full p-1 border border-gray-300 rounded text-sm text-right" value="${row.m1 !== null ? row.m1 : ''}" placeholder="M1 (g)"></td>
                     <td class="p-2"><input type="number" data-sample-id="${sample.id}" data-row-id="${row.id}" data-field="m0" class="sst-input w-full p-1 border border-gray-300 rounded text-sm text-right" value="${row.m0 !== null ? row.m0 : ''}" placeholder="M0 (g)"></td>
+                    <td class="p-2 text-right font-mono text-sm">${netWeight}</td>
                     <td class="p-2 text-center"><button data-sample-id="${sample.id}" data-row-id="${row.id}" class="btn-remove-sst-row text-red-500 hover:text-red-700 font-bold">&times;</button></td>
                 </tr>
-            `).join('');
+            `}).join('');
 
             dataInputSection = `
                 <div class="mb-2">
@@ -2814,6 +2820,7 @@ function renderSamplesAndResults() {
                                 <th class="p-2 border-b">#</th>
                                 <th class="p-2 border-b text-right">Peso Lordo (M<sub>1</sub>) [g]</th>
                                 <th class="p-2 border-b text-right">Tara (M<sub>0</sub>) [g]</th>
+                                <th class="p-2 border-b text-right">Peso Netto [g]</th>
                                 <th class="p-2 border-b"></th>
                             </tr>
                         </thead>
@@ -3060,6 +3067,14 @@ function actionLoadLibraries() {
                 if (!loadedLibraries.methods) {
                     loadedLibraries.methods = deepCopy(DEFAULT_METHODS_LIBRARY);
                 }
+
+                // Merge missing default items (e.g. Class A Cylinders)
+                for (const key in DEFAULT_GLASSWARE_LIBRARY) {
+                    if (!loadedLibraries.glassware[key]) {
+                        loadedLibraries.glassware[key] = deepCopy(DEFAULT_GLASSWARE_LIBRARY[key]);
+                    }
+                }
+
                 appState.libraries = loadedLibraries;
                 console.log('Libraries loaded from localStorage.');
             }
@@ -3725,6 +3740,7 @@ function actionUpdateSSTRow(sampleId, rowId, field, value) {
         if (row) {
             row[field] = value === '' ? null : parseFloat(value);
             setDirty();
+            render();
         }
     }
 }
