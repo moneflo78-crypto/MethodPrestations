@@ -7875,8 +7875,8 @@ function main() {
         const sampleId = parseInt(e.target.dataset.sampleId, 10);
 
         if (e.target.classList.contains('sst-input')) {
-            const rowId = parseInt(e.target.dataset.rowId, 10);
-            actionUpdateSSTRow(sampleId, rowId, e.target.dataset.field, e.target.value);
+            // Do not update state on every input for SST rows to prevent focus loss due to re-rendering.
+            // State update is handled in 'change' listener.
         } else if (!e.target.matches('.unit-select')) {
             actionUpdateSample(sampleId, e.target.dataset.field, e.target.value);
         }
@@ -7886,7 +7886,10 @@ function main() {
         if (!e.target.dataset.sampleId) return;
         const sampleId = parseInt(e.target.dataset.sampleId, 10);
 
-        if (e.target.matches('.unit-select') || e.target.matches('.mode-select') || e.target.tagName === 'SELECT') {
+        if (e.target.classList.contains('sst-input')) {
+            const rowId = parseInt(e.target.dataset.rowId, 10);
+            actionUpdateSSTRow(sampleId, rowId, e.target.dataset.field, e.target.value);
+        } else if (e.target.matches('.unit-select') || e.target.matches('.mode-select') || e.target.tagName === 'SELECT') {
             actionUpdateSample(sampleId, e.target.dataset.field, e.target.value);
         }
     });
