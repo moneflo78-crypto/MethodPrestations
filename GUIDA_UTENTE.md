@@ -31,7 +31,7 @@ In questa prima scheda, inserisci le informazioni che identificano la tua analis
 - **Metodo:** Seleziona il metodo analitico dal menu a tendina. Questa lista è popolata dalla **Libreria Metodi** (vedi sezione "Gestione Librerie"), che ti permette di pre-configurare i criteri di incertezza massima per ogni metodo.
 - **Componente di Interesse:** L'analita che stai misurando (es. "Benzene", "Glifosato").
 
-#### 2. Analisi Statistica
+#### 2. Analisi dei Campioni
 Questa è la scheda dove inserire i dati grezzi.
 1.  **Aggiungi Campioni:** Clicca su **"Aggiungi Campione"** per creare una nuova scheda per ogni campione o livello di concentrazione che vuoi analizzare.
 2.  **Configurazione Campione:**
@@ -82,19 +82,31 @@ Questa scheda è di sola lettura e rappresenta il punto finale dell'analisi.
 ---
 
 ### GESTIONE LIBRERIE
-In questa scheda puoi personalizzare gli strumenti volumetrici e le bilance per farli corrispondere a quelli del tuo laboratorio.
+In questa scheda puoi personalizzare gli strumenti volumetrici e le bilance per farli corrispondere a quelli del tuo laboratorio. La gestione è organizzata in quattro sotto-schede:
+
 - **Vetreria:** Aggiungi, modifica o rimuovi matracci e cilindri, specificando volume e tolleranza.
 - **Pipette:** Aggiungi, modifica o rimuovi pipette, specificando per ognuna i punti di calibrazione (volume e incertezza relativa %).
-- **Bilance (Nuova Scheda):** Aggiungi, modifica o rimuovi bilance. Per ogni bilancia puoi inserire (se disponibili) i seguenti parametri, presi dal certificato di taratura:
+- **Bilance:** Aggiungi, modifica o rimuovi bilance. Per ogni bilancia puoi inserire (se disponibili) i seguenti parametri, presi dal certificato di taratura:
     - **ID Bilancia:** Identificativo univoco (obbligatorio).
     - **Pesata Minima (g):** La pesata minima operativa.
     - **Portata (g):** La capacità massima della bilancia.
     - **Coefficiente alfa gl (g):** Coefficiente di incertezza (linearità/bias).
     - **Coefficiente beta gl (adim.):** Coefficiente di incertezza proporzionale.
-- **Metodi:** Aggiungi o modifica i metodi analitici. Per ogni metodo, puoi definire i criteri di incertezza massima garantita (U rif.%, U ICV%, CV max%) che verranno utilizzati nel calcolo dell'incertezza garantita.
+- **Metodi e Criteri:** Aggiungi o modifica i metodi analitici. Per ogni metodo, puoi definire i criteri di incertezza massima garantita (U rif.%, U ICV%, CV max%) che verranno utilizzati nel calcolo dell'incertezza garantita.
 - **Importa/Esporta:** Puoi salvare le tue librerie personalizzate (vetreria, pipette, bilance e metodi) in un unico file `.json` per condividerle o per tenerne un backup.
 
 Le modifiche alle librerie vengono salvate automaticamente nel browser.
+
+---
+
+### VERIFICA VALIDAZIONE
+Questa nuova scheda è dedicata alla garanzia della qualità del software stesso.
+Permette di eseguire una serie di **casi di test standardizzati** (tratti da guide ufficiali come Eurachem e Unichim) per verificare che gli algoritmi di calcolo dell'applicazione funzionino correttamente.
+
+1.  **Seleziona Test:** Scegli un caso di test dal menu a tendina (es. "Eurachem A1: Retta di Taratura").
+2.  **Leggi Descrizione:** Verrà mostrata una descrizione del test e dei dati di input utilizzati.
+3.  **Esegui:** Clicca su "Esegui Test di Verifica".
+4.  **Risultati:** Il sistema calcolerà i risultati e li confronterà con i valori attesi dalla letteratura, evidenziando in verde (PASS) o rosso (FAIL) la conformità.
 
 ---
 

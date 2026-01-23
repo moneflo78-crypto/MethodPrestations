@@ -18,6 +18,7 @@ Questo documento descrive in dettaglio le formule matematiche e le procedure uti
     *   4.2 Contributo da Diluizione
     *   4.3 Contributo da Estrazione
     *   4.4 Contributo da Concentrazione
+    *   *Nota sull'esclusione della Ripetibilità*
 5.  **Incertezza Estesa Finale**
     *   5.1 Combinazione dei Contributi (Welch-Satterthwaite)
     *   5.2 Gradi di Libertà Effettivi e Fattore di Copertura
@@ -30,6 +31,7 @@ Questo documento descrive in dettaglio le formule matematiche e le procedure uti
 7.  **Tabelle di Riferimento**
 8.  **Calcolo dell'Incertezza Massima Garantita**
 9.  **Regole di Arrotondamento e Presentazione dei Risultati**
+10. **Validazione del Software**
 
 ---
 
@@ -116,6 +118,8 @@ Questa sezione calcola l'incertezza composta relativa ($u_{c, rel}$) di tutti i 
 Per ogni operazione (moltiplicazione/divisione), le incertezze relative si sommano in quadratura:
 $$ u_{c, rel} = \sqrt{\sum u_{rel, i}^2} $$
 
+**Nota Importante:** In questa fase viene calcolata solo l'incertezza derivante dalla strumentazione volumetrica e dalla preparazione dello standard/spike. Il contributo di ripetibilità del campione (CV%) **NON** è incluso in questo calcolo, ma viene aggiunto separatamente nel calcolo dell'incertezza estesa finale (vedi Sezione 5) per evitare doppi conteggi.
+
 #### 4.1 Contributo da Soluzioni Standard
 Se si parte da uno standard certificato:
 $$ u_{rel}(std) = \frac{U_{certificato}}{k_{cert} \cdot C_{nominale}} $$
@@ -145,9 +149,12 @@ Combina tutti i contributi precedenti per ottenere il risultato finale.
 
 #### 5.1 Combinazione dei Contributi
 $$ u_c(y) = y \cdot \sqrt{u_{rel}(Ripetibilità)^2 + u_{rel}(Taratura)^2 + u_{rel}(Preparazione)^2 + \dots} $$
-- **Ripetibilità:** $u_{rel} = \frac{s}{\bar{x}}$ (dal campione).
+
+I contributi tipici sono:
+- **Ripetibilità:** $u_{rel} = \frac{s}{\bar{x}}$ (CV% calcolato direttamente sui campioni).
 - **Taratura:** Dal calcolo della retta o RF.
 - **Preparazione:** Dal calcolo dei passaggi di diluizione/estrazione.
+- **Bias (Opzionale):** Se il test di accuratezza sul Matrix Spike fallisce, l'incertezza associata alla preparazione dello spike viene aggiunta come contributo di Bias.
 
 #### 5.2 Gradi di Libertà Effettivi ($\nu_{eff}$)
 Calcolati con la formula di Welch-Satterthwaite per gestire contributi con diversi gradi di affidabilità (es. ripetibilità con $n-1$ gradi, tolleranze vetreria con $\infty$ gradi).
@@ -170,23 +177,24 @@ L'incertezza composta relativa percentuale associata a SST ($u_{SST}\%$) è data
 $$ u_{SST}\% = \sqrt{u_r\%^2 + u_{Wnet}\%^2 + u_V\%^2} $$
 
 Dove:
-- $u_r\%$: Ripetibilità sulla misura globale.
+- $u_r\%$: Ripetibilità sulla misura globale (CV% delle concentrazioni misurate).
 - $u_{Wnet}\%$: Incertezza relativa sul peso netto.
 - $u_V\%$: Incertezza relativa sul volume prelevato.
 
 #### 6.2 Contributo Peso Netto ($u_{Wnet}\%$)
-Il peso netto $\bar{W}_{net}$ è la media delle differenze tra Peso Lordo ($M_1$) e Tara ($M_0$) delle $n$ repliche.
+Il peso netto medio $R$ (in grammi) viene retro-calcolato dalla concentrazione media ($\bar{x}_{conc}$) e dal volume utilizzato ($V_L$):
+$$ R = (\bar{x}_{conc} \cdot V_L) / 1000 $$
 
-L'incertezza standard della bilancia ($u_L$) è derivata dai parametri $\alpha$ (linearità/bias costante) e $\beta$ (errore proporzionale) della bilancia:
-$$ U_{gl} = \alpha + \beta \cdot \bar{W}_{net} $$
+L'incertezza standard della bilancia ($u_L$) è derivata dai parametri $\alpha$ (linearità/bias costante) e $\beta$ (errore proporzionale) della bilancia, memorizzati nella libreria:
+$$ U_{gl} = \alpha + \beta \cdot R $$
 $$ u_L = \frac{U_{gl}}{2} $$
 (Si assume un fattore di copertura $k=2$ per i dati della bilancia).
 
-Poiché il peso netto è una differenza di due pesate indipendenti ($M_1$ e $M_0$), l'incertezza si propaga:
-$$ u_{Wnet} = \sqrt{u_L^2 + u_L^2} = \sqrt{2} \cdot u_L $$
+Poiché il peso netto è una differenza di due pesate indipendenti ($M_1$ e $M_0$), l'incertezza si propaga con un fattore $\sqrt{2}$:
+$$ u_{Wnet} = \sqrt{2} \cdot u_L $$
 
 L'incertezza relativa è quindi:
-$$ u_{Wnet}\% = \frac{u_{Wnet}}{\bar{W}_{net}} \cdot 100 $$
+$$ u_{Wnet}\% = \frac{u_{Wnet}}{R} \cdot 100 $$
 
 #### 6.3 Contributo Volume ($u_V\%$)
 Dipende dalla classe del cilindro o matraccio utilizzato per la misurazione del campione.
@@ -196,14 +204,8 @@ $$ u_V = \frac{\text{Tolleranza}}{\sqrt{3}} $$
 $$ u_V\% = \frac{u_V}{V_{nominale}} \cdot 100 $$
 
 #### 6.4 Ripetibilità ($u_r\%$)
-È il coefficiente di variazione (CV%) calcolato sulle $n$ determinazioni di peso netto:
-$$ u_r\% = \frac{s_{Wnet}}{\bar{W}_{net}} \cdot 100 $$
-
-Il risultato finale in concentrazione è:
-$$ C_{SST} (mg/L) = \frac{\bar{W}_{net} \cdot 1000}{V_{nominale} / 1000} $$
-E l'incertezza estesa assoluta:
-$$ U_{SST} = \frac{U_{SST}\%}{100} \cdot C_{SST} $$
-(Con $k=2$, poiché i gradi di libertà sono dominati dai contributi di tipo B o sono sufficientemente alti).
+È il coefficiente di variazione (CV%) calcolato sulle $n$ determinazioni (concentrazioni):
+$$ u_r\% = CV\% $$
 
 ---
 
@@ -389,3 +391,34 @@ L'applicazione utilizza l'arrotondamento standard "round half to even" o "round 
 #### 9.4 Gestione dei Valori Speciali
 - I valori non numerici, `null` o `undefined` vengono visualizzati come **"N/A"**.
 - Il valore `0` viene sempre visualizzato come **"0"**.
+
+---------------------------------------------------
+
+### SEZIONE 10: VALIDAZIONE DEL SOFTWARE
+
+La funzionalità "Verifica Validazione" permette di eseguire una serie di casi di test standardizzati per verificare l'accuratezza degli algoritmi di calcolo implementati nel software. I risultati calcolati dall'applicazione vengono confrontati con i valori attesi pubblicati in guide ufficiali.
+
+I criteri di accettabilità per il superamento del test sono:
+- **Conformità numerica:** La differenza relativa percentuale tra il valore calcolato e il valore atteso deve essere inferiore o uguale all'1% ($\le 1\%$), salvo diversa specificazione nel singolo test.
+- **Conformità logica:** I risultati booleani (es. "è outlier", "è normale") devono corrispondere esattamente.
+
+#### Casi di Test Implementati
+
+1.  **Eurachem Guide (2nd ed. 2014) - Esempio A1: Retta di Taratura**
+    - **Obiettivo:** Verificare il calcolo dei parametri della regressione lineare (pendenza $b$, intercetta $a$, deviazione standard residua $s_{yx}$) e dell'incertezza standard ($u(x)$) associata a un campione incognito.
+    - **Dati:** Serie di calibrazione a 6 punti (0-100 mg/L) e un campione incognito.
+
+2.  **Unichim 179/1 (Ed. 2011) - Esempio 1: Statistiche Descrittive**
+    - **Obiettivo:** Verificare il calcolo di Media, Deviazione Standard e Limite di Ripetibilità ($r$).
+
+3.  **Unichim 179/1 (Ed. 2011) - Esempio 1: Test di Normalità Shapiro-Wilk**
+    - **Obiettivo:** Verificare il calcolo della statistica $W$ e del parametro normalizzato $kp$.
+
+4.  **Unichim 179/1 (Ed. 2011) - Esempio 1: Test di Grubbs**
+    - **Obiettivo:** Verificare l'identificazione di un singolo outlier in una distribuzione normale.
+
+5.  **Unichim 179/1 (Ed. 2011) - Esempio 1: Test di Dixon**
+    - **Obiettivo:** Verificare l'identificazione di outlier in piccoli campioni ($n \le 25$) utilizzando il rapporto tra intervalli (Q-test).
+
+6.  **Unichim 179/1 (Ed. 2011) - Esempio 1: Test di Huber**
+    - **Obiettivo:** Verificare il calcolo di statistiche robuste (Mediana, MAD) e l'identificazione di outlier in distribuzioni non normali.
