@@ -119,8 +119,84 @@ const VALIDATION_TEST_CASES = [
             std_dev: 0.029,
             repeatability_limit: 0.093
         }
+    },
+    {
+        id: 'synthetic_response_factor',
+        name: "Test Sintetico: Incertezza da Fattore di Risposta",
+        description: "Verifica il calcolo dell'incertezza di taratura utilizzando il metodo del Fattore di Risposta. Il test controlla se l'applicazione seleziona correttamente il valore maggiore tra l'incertezza derivata dal criterio di accettabilità e quella derivata dal criterio ICV.",
+        type: 'response-factor',
+        inputs: {
+            acceptabilityCriterion: 5.0, // 5%
+            max_rsd_icv: 15.0, // 15% (Should override)
+            xk: 50.0
+        },
+        expectedResults: {
+            utaratura_perc: 2.887, // 5 / sqrt(3)
+            u_final_rel_perc: 8.660, // 15 / sqrt(3) (ICV wins)
+            u_final_abs: 4.33
+        }
+    },
+    {
+        id: 'synthetic_sst',
+        name: "Test Sintetico: Incertezza SST (Solidi Sospesi Totali)",
+        description: "Verifica la logica di calcolo specifica per l'analisi SST, che combina l'incertezza del peso netto (derivata dai parametri della bilancia alpha/beta), l'incertezza del volume (vetreria) e la ripetibilità. Il test simula una pesata e un volume noti per verificare il back-calculation del peso netto e l'aggregazione corretta.",
+        type: 'sst-analysis',
+        inputs: {
+            stats_mean: 500, // mg/L
+            stats_cv_percent: 2.5,
+            glassware_vol: 1000, // mL
+            glassware_unc: 0.6, // mL
+            balance_alpha: 0.0001, // g
+            balance_beta: 2e-6 // dimensionless
+        },
+        expectedResults: {
+            u_V_rel: 0.0003464,
+            u_Wnet_rel: 0.0001428,
+            u_c_rel: 0.02500, // sqrt(u_V^2 + u_Wnet^2 + u_r^2) approx u_r
+            U_rel_perc: 5.00,
+            U_abs: 25.00
+        }
+    },
+    {
+        id: 'synthetic_treatment_dilution',
+        name: "Test Sintetico: Catena di Trattamento (Diluizione)",
+        description: "Verifica la propagazione dell'incertezza attraverso un passaggio di diluizione (Pipetta -> Matraccio). Il test calcola l'incertezza composta relativa combinando i contributi della pipetta e del matraccio.",
+        type: 'treatment-dilution',
+        inputs: {
+            initial_conc: 1000,
+            pipette_vol: 10,
+            pipette_u_rel_perc: 0.25, // Mocked U value from library
+            flask_vol: 100,
+            flask_u: 0.1 // mL (Absolute)
+        },
+        expectedResults: {
+            final_conc: 100,
+            u_pipette_rel: 0.00125, // 0.25% / 2 (k=2 assumed in lib usually) -> wait, lib usually gives U_rel% (k=2). Code uses _get_pipette... which returns U% and u_abs.
+            // Let's assume U_rel% from input is Expanded. u_rel = 0.25/2 = 0.125% = 0.00125
+            u_flask_rel: 0.000577, // (0.1 / sqrt(3)) / 100
+            final_u_rel_perc: 0.1376 // sqrt(0.00125^2 + 0.000577^2) * 100
+        }
+    },
+    {
+        id: 'synthetic_expanded_uncertainty',
+        name: "Test Sintetico: Incertezza Estesa (Aggregazione)",
+        description: "Verifica l'algoritmo di aggregazione finale dell'incertezza (Root Sum Square) e il calcolo dei gradi di libertà effettivi (Welch-Satterthwaite) per determinare il fattore di copertura k.",
+        type: 'expanded-uncertainty',
+        inputs: {
+            u_repeatability_perc: 5.0, // u_rel%
+            dof_rep: 9,
+            u_bias_perc: 2.0, // u_rel%
+            dof_bias: Infinity,
+            u_cal_perc: 1.5, // u_rel%
+            dof_cal: 4
+        },
+        expectedResults: {
+            u_c_rel: 0.05590, // sqrt(0.05^2 + 0.02^2 + 0.015^2)
+            v_eff: 13, // See calculation in plan
+            k: 2.160, // T value for v=13
+            U_rel_perc: 12.07 // 2.160 * 5.590
+        }
     }
-    // Futuri casi di test possono essere aggiunti qui
 ];
 
 
@@ -6866,6 +6942,14 @@ function actionRunValidationTest() {
             results = executeDixonValidation(testCase);
         } else if (testCase.type === 'descriptive-stats') {
             results = executeDescriptiveStatsValidation(testCase);
+        } else if (testCase.type === 'response-factor') {
+            results = executeResponseFactorValidation(testCase);
+        } else if (testCase.type === 'sst-analysis') {
+            results = executeSSTValidation(testCase);
+        } else if (testCase.type === 'treatment-dilution') {
+            results = executeTreatmentValidation(testCase);
+        } else if (testCase.type === 'expanded-uncertainty') {
+            results = executeExtendedUncertaintyValidation(testCase);
         } else {
             results = { error: `Tipo di test '${testCase.type}' non supportato.` };
         }
@@ -7080,6 +7164,331 @@ function executeRegressionValidation(testCase) {
         testId: testCase.id,
         testName: testCase.name,
         calculatedResults: calculated,
+        comparison: comparison,
+        allPassed: allTestsPassed,
+        error: null
+    };
+}
+
+function executeResponseFactorValidation(testCase) {
+    const { acceptabilityCriterion, max_rsd_icv, xk } = testCase.inputs;
+    const { expectedResults } = testCase;
+
+    // Backup global state
+    const backupState = deepCopy(appState.rfCalibration);
+    const backupCalState = deepCopy(appState.calibration); // For max_rsd_icv
+
+    let allTestsPassed = true;
+    const comparison = {};
+
+    try {
+        // Setup State
+        appState.rfCalibration.acceptabilityCriterion = acceptabilityCriterion;
+        appState.rfCalibration.manualSample.xk = xk;
+        appState.calibration.max_rsd_icv = max_rsd_icv;
+
+        // Execute Action
+        actionCalculateResponseFactor();
+        const results = appState.rfCalibration.results;
+
+        if (results.error) throw new Error(results.error);
+
+        // Verify utaratura_perc
+        const calc_utaratura = results.utaratura_perc;
+        const exp_utaratura = expectedResults.utaratura_perc;
+        const pass_utaratura = Math.abs(calc_utaratura - exp_utaratura) < 0.001; // Tolerance
+        if (!pass_utaratura) allTestsPassed = false;
+        comparison['u_taratura (%)'] = {
+            calculated: calc_utaratura.toFixed(4),
+            expected: exp_utaratura.toFixed(4),
+            pass: pass_utaratura,
+            difference: calc_utaratura - exp_utaratura
+        };
+
+        // Verify Final Uncertainty for the sample
+        // We expect one sample "Campione Manuale"
+        const sampleRes = results.samples.find(s => s.sampleName === "Campione Manuale");
+        if (!sampleRes) throw new Error("Risultato campione manuale non trovato.");
+
+        const calc_ufinal_rel = sampleRes.ux_rel_perc;
+        const exp_ufinal_rel = expectedResults.u_final_rel_perc;
+        const pass_ufinal_rel = Math.abs(calc_ufinal_rel - exp_ufinal_rel) < 0.001;
+        if (!pass_ufinal_rel) allTestsPassed = false;
+        comparison['u_finale (%)'] = {
+            calculated: calc_ufinal_rel.toFixed(4),
+            expected: exp_ufinal_rel.toFixed(4),
+            pass: pass_ufinal_rel,
+            difference: calc_ufinal_rel - exp_ufinal_rel
+        };
+
+        const calc_ufinal_abs = sampleRes.ux;
+        const exp_ufinal_abs = expectedResults.u_final_abs;
+        const pass_ufinal_abs = Math.abs(calc_ufinal_abs - exp_ufinal_abs) < 0.01;
+        if (!pass_ufinal_abs) allTestsPassed = false;
+        comparison['u_finale (assoluta)'] = {
+            calculated: calc_ufinal_abs.toFixed(4),
+            expected: exp_ufinal_abs.toFixed(4),
+            pass: pass_ufinal_abs,
+            difference: calc_ufinal_abs - exp_ufinal_abs
+        };
+
+    } catch (e) {
+        return { error: e.message };
+    } finally {
+        // Restore State
+        appState.rfCalibration = backupState;
+        appState.calibration = backupCalState;
+    }
+
+    return {
+        testId: testCase.id,
+        testName: testCase.name,
+        inputs: testCase.inputs,
+        comparison: comparison,
+        allPassed: allTestsPassed,
+        error: null
+    };
+}
+
+function executeSSTValidation(testCase) {
+    const { stats_mean, stats_cv_percent, glassware_vol, glassware_unc, balance_alpha, balance_beta } = testCase.inputs;
+    const { expectedResults } = testCase;
+
+    const mockSampleId = 999;
+    const mockGlasswareId = "MockFlask";
+    const mockBalanceId = "MockBalance";
+
+    const mockProjectState = {
+        samples: [{
+            id: mockSampleId,
+            mode: 'sst',
+            glasswareId: mockGlasswareId,
+            balanceId: mockBalanceId,
+            name: "SST Test Sample"
+        }],
+        results: {
+            [mockSampleId]: {
+                statistics: {
+                    mean: stats_mean,
+                    cv_percent: stats_cv_percent,
+                    n: 10 // Arbitrary n > 1
+                }
+            }
+        },
+        libraries: {
+            glassware: { [mockGlasswareId]: { volume: glassware_vol, uncertainty: glassware_unc } },
+            balances: { [mockBalanceId]: { alpha: balance_alpha, beta: balance_beta } }
+        }
+    };
+
+    const result = calculateExpandedUncertainty(mockSampleId, mockProjectState);
+    if (result.error) return { error: result.error };
+
+    const comparison = {};
+    let allTestsPassed = true;
+
+    // Check Contributions
+    // 1. Volume
+    const volContrib = result.contributions.find(c => c.name.includes('Volume'));
+    const calc_u_vol = volContrib ? volContrib.value : 0;
+    const exp_u_vol = expectedResults.u_V_rel;
+    const pass_vol = Math.abs(calc_u_vol - exp_u_vol) < 1e-7;
+    if (!pass_vol) allTestsPassed = false;
+    comparison['u_Volume (rel)'] = { calculated: calc_u_vol.toExponential(4), expected: exp_u_vol.toExponential(4), pass: pass_vol, difference: calc_u_vol - exp_u_vol };
+
+    // 2. Net Weight
+    const weightContrib = result.contributions.find(c => c.name.includes('Peso Netto'));
+    const calc_u_wnet = weightContrib ? weightContrib.value : 0;
+    const exp_u_wnet = expectedResults.u_Wnet_rel;
+    const pass_wnet = Math.abs(calc_u_wnet - exp_u_wnet) < 1e-7;
+    if (!pass_wnet) allTestsPassed = false;
+    comparison['u_PesoNetto (rel)'] = { calculated: calc_u_wnet.toExponential(4), expected: exp_u_wnet.toExponential(4), pass: pass_wnet, difference: calc_u_wnet - exp_u_wnet };
+
+    // 3. Combined & Expanded
+    const calc_U_rel = result.U_rel_perc;
+    const exp_U_rel = expectedResults.U_rel_perc;
+    const pass_U_rel = Math.abs(calc_U_rel - exp_U_rel) < 0.01;
+    if (!pass_U_rel) allTestsPassed = false;
+    comparison['U Estesa (%)'] = { calculated: calc_U_rel.toFixed(4), expected: exp_U_rel.toFixed(4), pass: pass_U_rel, difference: calc_U_rel - exp_U_rel };
+
+    const calc_U_abs = result.U_abs;
+    const exp_U_abs = expectedResults.U_abs;
+    const pass_U_abs = Math.abs(calc_U_abs - exp_U_abs) < 0.01;
+    if (!pass_U_abs) allTestsPassed = false;
+    comparison['U Estesa (Assoluta)'] = { calculated: calc_U_abs.toFixed(4), expected: exp_U_abs.toFixed(4), pass: pass_U_abs, difference: calc_U_abs - exp_U_abs };
+
+    return {
+        testId: testCase.id,
+        testName: testCase.name,
+        inputs: testCase.inputs,
+        comparison: comparison,
+        allPassed: allTestsPassed,
+        error: null
+    };
+}
+
+function executeTreatmentValidation(testCase) {
+    const { initial_conc, pipette_vol, pipette_u_rel_perc, flask_vol, flask_u } = testCase.inputs;
+    const { expectedResults } = testCase;
+
+    // We need to inject a temporary pipette into the library to match the test case input exactly
+    // because standard libraries might change or not have the exact value we want for the synthetic test.
+    const mockPipetteId = "MockPipette";
+    const mockFlaskId = "MockFlask";
+    const mockSampleId = 888;
+    const mockTreatmentSampleId = "mock-ts-1";
+
+    // Backup State
+    const backupTreatments = deepCopy(appState.treatments);
+    const backupLibraries = deepCopy(appState.libraries);
+
+    // Setup Mock Library
+    // Note: The code logic calculates u_abs for pipette from the library item.
+    // If input is U_rel% (k=2) = 0.25%, then u_rel% = 0.125%.
+    // u_abs = 0.00125 * 10 = 0.0125 mL.
+    // We construct the library item so that _get_pipette_uncertainty_contribution returns this.
+    // The function interpolates or picks points. Let's make it exact.
+    appState.libraries.pipettes[mockPipetteId] = {
+        calibrationPoints: [{ volume: pipette_vol, U_rel_percent: pipette_u_rel_perc }]
+    };
+    appState.libraries.glassware[mockFlaskId] = { volume: flask_vol, uncertainty: flask_u };
+
+    let allTestsPassed = true;
+    const comparison = {};
+
+    try {
+        // Setup Mock Treatment
+        appState.treatments = [{
+            id: mockTreatmentSampleId,
+            sampleId: mockSampleId,
+            treatments: [{
+                id: "mock-t-1",
+                type: 'diluizione',
+                source: {
+                    type: 'manual',
+                    manualConcentration: initial_conc,
+                    manualUncertainty: 0 // Assume exact for simplicity or match test case design
+                },
+                dilutionType: 'bringToVolume',
+                dilutionFlask: mockFlaskId,
+                withdrawals: [{ id: "mock-w-1", pipette: mockPipetteId, volume: pipette_vol }],
+                results: null
+            }]
+        }];
+
+        // Execute
+        actionCalculateTreatmentChain(mockTreatmentSampleId);
+        const res = appState.treatments[0].results;
+
+        // Verify
+        const calc_conc = res.finalConcentration;
+        const exp_conc = expectedResults.final_conc;
+        const pass_conc = Math.abs(calc_conc - exp_conc) < 0.001;
+        if(!pass_conc) allTestsPassed = false;
+        comparison['Concentrazione Finale'] = { calculated: calc_conc.toFixed(4), expected: exp_conc.toFixed(4), pass: pass_conc, difference: calc_conc - exp_conc };
+
+        // For uncertainty, we check the intermediate results in the treatment object if accessible, or the final U
+        // The test expects final_u_rel_perc
+        const calc_u_rel = res.u_comp_rel_perc; // This is actually u_c_rel % (k=1)
+        const exp_u_rel = expectedResults.final_u_rel_perc; // k=1
+        const pass_u_rel = Math.abs(calc_u_rel - exp_u_rel) < 0.001;
+        if(!pass_u_rel) allTestsPassed = false;
+        comparison['u_combinata relativa (%)'] = { calculated: calc_u_rel.toFixed(4), expected: exp_u_rel.toFixed(4), pass: pass_u_rel, difference: calc_u_rel - exp_u_rel };
+
+    } catch (e) {
+        return { error: e.message };
+    } finally {
+        // Restore
+        appState.treatments = backupTreatments;
+        appState.libraries = backupLibraries;
+    }
+
+    return {
+        testId: testCase.id,
+        testName: testCase.name,
+        inputs: testCase.inputs,
+        comparison: comparison,
+        allPassed: allTestsPassed,
+        error: null
+    };
+}
+
+function executeExtendedUncertaintyValidation(testCase) {
+    const { u_repeatability_perc, dof_rep, u_bias_perc, dof_bias, u_cal_perc, dof_cal } = testCase.inputs;
+    const { expectedResults } = testCase;
+
+    // Construct a mock project state that feeds `calculateExpandedUncertainty` exactly what it needs
+    // to reproduce these contributions.
+    const mockSampleId = 777;
+    const mockSampleName = "ExpUncTest";
+
+    // 1. Repeatability comes from stats.cv_percent
+    const mockStats = { mean: 100, cv_percent: u_repeatability_perc, n: dof_rep + 1 };
+
+    // 2. Bias comes from Spike results if !isAccurate.
+    // We need to craft spikeUncertainty[sampleId].results
+    const mockSpikeResults = {
+        accuracyCheck: { isAccurate: false },
+        u_comp_rel_perc: u_bias_perc // Logic divides by 100, so we pass the percentage directly (2.0)
+    };
+
+    // 3. Calibration comes from calibration.results.samples
+    // We need a sample result with source 'Taratura (Retta)' or similar
+    const mockCalResults = {
+        line: { n_cal: dof_cal + 2 }, // dof = n - 2
+        samples: [{
+            sampleName: mockSampleName,
+            ux_rel_perc: u_cal_perc, // 1.5
+            source: 'Taratura (Retta)'
+        }]
+    };
+
+    const mockProjectState = {
+        samples: [{ id: mockSampleId, name: mockSampleName, mode: 'standard' }],
+        results: { [mockSampleId]: { statistics: mockStats } },
+        spikeUncertainty: { [mockSampleId]: { results: mockSpikeResults } },
+        calibration: { results: mockCalResults },
+        rfCalibration: { results: null },
+        treatments: [],
+        libraries: { balances: {}, glassware: {} }
+    };
+
+    const result = calculateExpandedUncertainty(mockSampleId, mockProjectState);
+    if (result.error) return { error: result.error };
+
+    const comparison = {};
+    let allTestsPassed = true;
+
+    // Verify v_eff
+    const calc_veff = result.v_eff;
+    const exp_veff = expectedResults.v_eff;
+    // v_eff is integer? The logic calculates it as float but let's see.
+    // Usually one floors it for T-value lookup, but the function returns the raw calculation?
+    // Checking code: `const v_eff = ...` It is float. `getStudentTValue` floors it.
+    // The test case expects 13.
+    // Let's check if floor(calc) == exp
+    const pass_veff = Math.floor(calc_veff) === exp_veff;
+    if (!pass_veff) allTestsPassed = false;
+    comparison['Gradi di Libertà (v_eff)'] = { calculated: Math.floor(calc_veff).toString(), expected: exp_veff.toString(), pass: pass_veff, difference: Math.floor(calc_veff) - exp_veff };
+
+    // Verify k
+    const calc_k = result.k;
+    const exp_k = expectedResults.k;
+    const pass_k = Math.abs(calc_k - exp_k) < 0.001;
+    if (!pass_k) allTestsPassed = false;
+    comparison['Fattore di Copertura (k)'] = { calculated: calc_k.toFixed(3), expected: exp_k.toFixed(3), pass: pass_k, difference: calc_k - exp_k };
+
+    // Verify U%
+    const calc_U = result.U_rel_perc;
+    const exp_U = expectedResults.U_rel_perc;
+    const pass_U = Math.abs(calc_U - exp_U) < 0.01;
+    if (!pass_U) allTestsPassed = false;
+    comparison['Incertezza Estesa (%)'] = { calculated: calc_U.toFixed(2), expected: exp_U.toFixed(2), pass: pass_U, difference: calc_U - exp_U };
+
+    return {
+        testId: testCase.id,
+        testName: testCase.name,
+        inputs: testCase.inputs,
         comparison: comparison,
         allPassed: allTestsPassed,
         error: null
