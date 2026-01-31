@@ -6340,7 +6340,7 @@ function gatherMultiProjectReportData({ grouping }) {
 
             projectState.samples.forEach(sample => {
                 const result = projectState.results[sample.id];
-                const estesaResult = result ? calculateExpandedUncertainty(sample.id, projectState) : null; // FIX: Pass the correct projectState
+                const estesaResult = result ? calculateExpandedUncertainty(sample.id, projectState) : null;
 
                 const content = [
                     { key: 'Nome campione', value: sample.name },
