@@ -399,8 +399,9 @@ L'applicazione utilizza l'arrotondamento standard "round half to even" o "round 
 La funzionalità "Verifica Validazione" permette di eseguire una serie di casi di test standardizzati per verificare l'accuratezza degli algoritmi di calcolo implementati nel software. I risultati calcolati dall'applicazione vengono confrontati con i valori attesi pubblicati in guide ufficiali.
 
 I criteri di accettabilità per il superamento del test sono:
-- **Conformità numerica:** La differenza relativa percentuale tra il valore calcolato e il valore atteso deve essere inferiore o uguale all'1% ($\le 1\%$), salvo diversa specificazione nel singolo test.
-- **Conformità logica:** I risultati booleani (es. "è outlier", "è normale") devono corrispondere esattamente.
+- **Conformità numerica:** La differenza relativa percentuale tra il valore calcolato ($V_{calc}$) e il valore atteso ($V_{att}$) viene calcolata come $\frac{|V_{calc} - V_{att}|}{V_{att}} \cdot 100$. Il test è superato se tale differenza è $\le 1\%$, salvo diversa specificazione (es. per calcoli con arrotondamenti intermedi specifici).
+- **Conformità logica:** I risultati qualitativi o booleani (es. "il test di Shapiro-Wilk indica normalità", "il valore X è un outlier") devono corrispondere esattamente all'atteso.
+- **Verifica Passaggi Intermedi:** Per calcoli complessi (es. Regressione), il sistema verifica non solo il risultato finale ma anche i parametri intermedi (es. pendenza, intercetta) per garantire la correttezza dell'intero algoritmo.
 
 #### Casi di Test Implementati
 
@@ -422,3 +423,15 @@ I criteri di accettabilità per il superamento del test sono:
 
 6.  **Unichim 179/1 (Ed. 2011) - Esempio 1: Test di Huber**
     - **Obiettivo:** Verificare il calcolo di statistiche robuste (Mediana, MAD) e l'identificazione di outlier in distribuzioni non normali.
+
+7.  **Test Sintetico: Incertezza da Fattore di Risposta**
+    - **Obiettivo:** Verificare il calcolo dell'incertezza di taratura utilizzando il metodo del Fattore di Risposta (RF). Controlla la selezione del massimo tra il contributo di taratura (criterio accettabilità) e il contributo ICV (controllo taratura).
+
+8.  **Test Sintetico: Incertezza SST (Solidi Sospesi Totali)**
+    - **Obiettivo:** Verificare la logica specifica per l'analisi SST, che include il retro-calcolo del peso netto dalla concentrazione, l'applicazione dei coefficienti di bilancia ($\alpha, \beta$) e la combinazione con incertezza di volume e ripetibilità.
+
+9.  **Test Sintetico: Catena di Trattamento (Diluizione)**
+    - **Obiettivo:** Verificare la propagazione dell'incertezza attraverso una catena di trattamento (es. diluizione: Pipetta + Matraccio). Controlla il calcolo dell'incertezza relativa composta ($u_{rel} = \sqrt{u_{pip}^2 + u_{flask}^2}$).
+
+10. **Test Sintetico: Incertezza Estesa (Aggregazione)**
+    - **Obiettivo:** Verificare l'algoritmo finale di aggregazione (Root Sum Square) dei contributi (Ripetibilità, Bias, Taratura) e il calcolo dei gradi di libertà effettivi ($\nu_{eff}$) e del fattore di copertura $k$.
