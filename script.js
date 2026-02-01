@@ -498,12 +498,39 @@ function executeDixonValidation(testCase) {
         difference: NaN
     };
 
+    const calculationSteps = [
+        {
+            step: "Ordinamento Dati",
+            formula: "-",
+            value: sortedData.join(", "),
+            notes: "Dati ordinati in modo crescente"
+        },
+        {
+            step: "Statistica Q",
+            formula: "Formula dipendente da n",
+            value: q_calculated.toFixed(4),
+            notes: `Calcolato per \\(x_{sospetto}=${suspect_value}\\) con \\(n=${n}\\)`
+        },
+        {
+            step: "Valore Critico Q (5%)",
+            formula: "-",
+            value: criticalValue.toString(),
+            notes: `Per \\(n=${n}\\)`
+        },
+        {
+            step: "Confronto",
+            formula: "$$Q_{calc} > Q_{crit}$$",
+            value: isOutlier ? "Outlier" : "Non outlier"
+        }
+    ];
+
      return {
         testId: testCase.id,
         testName: testCase.name,
         inputs: { data: data },
         comparison: comparison,
         allPassed: allTestsPassed,
+        calculationSteps: calculationSteps,
         passCondition: `Il test è superato se Q calcolato ha una differenza relativa <= 1% rispetto all'atteso, Q critico è corretto e il risultato del test (È Outlier) è corretto.`,
         error: null
     };
@@ -561,12 +588,37 @@ function executeDescriptiveStatsValidation(testCase) {
         difference: calculatedRepeatability - expectedRepeatability
     };
 
+    const calculationSteps = [
+        {
+            step: "Media",
+            formula: "$$\\bar{x} = \\frac{\\sum x_i}{n}$$",
+            value: calculatedMean.toFixed(5)
+        },
+        {
+            step: "Deviazione Standard (s)",
+            formula: "$$s = \\sqrt{\\frac{\\sum (x_i - \\bar{x})^2}{n-1}}$$",
+            value: calculatedStdDev.toFixed(5)
+        },
+        {
+            step: "t di Student",
+            formula: "$$t_{95\\%, n-1}$$",
+            value: tValue.toFixed(3),
+            notes: `Per \\(n-1=${n-1}\\) g.d.l.`
+        },
+        {
+            step: "Limite di Ripetibilità (r)",
+            formula: "$$r = t \\cdot s \\cdot \\sqrt{2}$$",
+            value: calculatedRepeatability.toFixed(5)
+        }
+    ];
+
     return {
         testId: testCase.id,
         testName: testCase.name,
         inputs: { data: data },
         comparison: comparison,
         allPassed: allTestsPassed,
+        calculationSteps: calculationSteps,
         passCondition: `Il test è superato se tutti i parametri calcolati hanno una differenza relativa <= 1% rispetto al valore atteso.`,
         error: null
     };
@@ -643,12 +695,43 @@ function executeGrubbsValidation(testCase) {
         difference: NaN
     };
 
+    const calculationSteps = [
+        {
+            step: "Calcolo Media",
+            formula: "$$\\bar{x} = \\frac{\\sum x_i}{n}$$",
+            value: calculatedMean.toFixed(6)
+        },
+        {
+            step: "Calcolo Deviazione Standard",
+            formula: "$$s = \\sqrt{\\frac{\\sum (x_i - \\bar{x})^2}{n-1}}$$",
+            value: calculatedStdDev.toFixed(6)
+        },
+        {
+            step: "Statistica G",
+            formula: "$$G = \\frac{|x_{sospetto} - \\bar{x}|}{s}$$",
+            value: calculatedG.toFixed(6),
+            notes: `Per \\(x_{sospetto}=${suspect_value}\\)`
+        },
+        {
+            step: "Valore Critico G (5%)",
+            formula: "-",
+            value: criticalG.toString(),
+            notes: `Per \\(n=${n}\\)`
+        },
+        {
+            step: "Confronto",
+            formula: "$$G_{calc} > G_{crit}$$",
+            value: isOutlier ? "Outlier" : "Non outlier"
+        }
+    ];
+
     return {
         testId: testCase.id,
         testName: testCase.name,
         inputs: { data: data },
         comparison: comparison,
         allPassed: allTestsPassed,
+        calculationSteps: calculationSteps,
         passCondition: `Il test è superato se i valori numerici hanno una differenza relativa <= 1% rispetto all'atteso e il risultato del test (È Outlier) è corretto.`,
         error: null
     };
@@ -1283,13 +1366,81 @@ function renderValidationUI() {
             const passConditionMessage = results.passCondition ||
                 "Il test è considerato superato se la differenza relativa tra il valore calcolato e quello atteso è inferiore o uguale a 1%.";
 
+            let stepsHTML = '';
+            if (results.calculationSteps && results.calculationSteps.length > 0) {
+                const stepsRows = results.calculationSteps.map((step, index) => {
+                    return `
+                        <tr class="border-b hover:bg-gray-50">
+                            <td class="p-3 text-sm font-medium text-gray-700">${step.step}</td>
+                            <td class="p-3 text-sm text-gray-600 font-mono">${step.formula || '-'}</td>
+                            <td class="p-3 text-sm text-right font-mono">${step.value}</td>
+                            <td class="p-3 text-xs text-gray-500 italic">${step.notes || ''}</td>
+                        </tr>
+                    `;
+                }).join('');
+
+                stepsHTML = `
+                    <div class="mt-6">
+                        <details class="bg-white border rounded-lg shadow-sm group">
+                            <summary class="list-none flex flex-wrap items-center cursor-pointer focus-visible:outline-none focus-visible:ring focus-visible:ring-indigo-500 rounded group-open:rounded-b-none group-open:z-[1] relative">
+                                <h3 class="flex flex-1 p-4 font-semibold text-gray-700">Dettagli dei Calcoli</h3>
+                                <div class="flex w-10 items-center justify-center">
+                                    <div class="border-8 border-transparent border-l-gray-600 ml-2 group-open:rotate-90 transition-transform origin-left"></div>
+                                </div>
+                            </summary>
+                            <div class="p-4 border-t overflow-x-auto">
+                                <table class="w-full text-sm text-left">
+                                    <thead class="bg-gray-100 text-gray-600 font-medium border-b">
+                                        <tr>
+                                            <th class="p-3">Passaggio</th>
+                                            <th class="p-3">Formula</th>
+                                            <th class="p-3 text-right">Valore Calcolato</th>
+                                            <th class="p-3">Note</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-gray-100">
+                                        ${stepsRows}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </details>
+                    </div>
+                `;
+            }
+
+            // Enhanced Input Display
+            if (results.inputs) {
+                let formattedInputs = '';
+                for (const [key, value] of Object.entries(results.inputs)) {
+                    let displayValue = value;
+                    if (Array.isArray(value)) {
+                        displayValue = `[${value.join(', ')}]`;
+                    } else if (typeof value === 'object' && value !== null) {
+                        displayValue = JSON.stringify(value);
+                    }
+                    formattedInputs += `<div class="flex justify-between py-1 border-b border-gray-100 last:border-0"><span class="font-medium text-gray-600">${key}:</span> <span class="font-mono text-gray-800 break-all ml-4 text-right">${displayValue}</span></div>`;
+                }
+
+                inputDataHTML = `
+                    <div class="mb-6 p-4 border rounded-lg bg-blue-50 border-blue-200">
+                        <h4 class="font-bold text-blue-800 mb-3 flex items-center">
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            Dati di Input
+                        </h4>
+                        <div class="text-sm">
+                            ${formattedInputs}
+                        </div>
+                    </div>
+                `;
+            }
+
 
             content = `
                 ${inputDataHTML}
                 <div class="p-4 rounded-lg border ${results.allPassed ? 'border-green-300 bg-green-50' : 'border-red-300 bg-red-50'}">
                      <h3 class="text-xl font-bold mb-4 text-gray-800">Risultati del Test: <span class="px-3 py-1 text-lg rounded-full ${overallStatusClass}">${overallStatusText}</span></h3>
                       <p class="text-sm text-gray-600 mb-4">${passConditionMessage}</p>
-                     <div class="overflow-x-auto border rounded-lg">
+                     <div class="overflow-x-auto border rounded-lg bg-white">
                         <table class="w-full text-sm">
                             <thead class="bg-gray-200">
                                 <tr>
@@ -1300,16 +1451,22 @@ function renderValidationUI() {
                                     <th class="p-3 text-center">Stato</th>
                                 </tr>
                             </thead>
-                            <tbody class="bg-white">
+                            <tbody class="divide-y divide-gray-200">
                                 ${rowsHTML}
                             </tbody>
                         </table>
                      </div>
                 </div>
+                ${stepsHTML}
             `;
         }
         resultsContainer.innerHTML = content;
         resultsContainer.classList.remove('hidden');
+
+        // Trigger MathJax rendering
+        if (window.MathJax && window.MathJax.typesetPromise) {
+            window.MathJax.typesetPromise([resultsContainer]).catch((err) => console.log('MathJax error:', err));
+        }
     } else {
         resultsContainer.innerHTML = '';
         resultsContainer.classList.add('hidden');
@@ -7000,6 +7157,7 @@ function executeHuberMadValidation(testCase) {
     };
 
     // 3. Verifica i dati anomali
+    const outlierChecks = [];
     values_to_check.forEach(value => {
         // Usa i valori calcolati di mediana e MAD per il test di anomalia
         const huberStatistic = Math.abs(value - calculatedMedian) / calculatedMad;
@@ -7016,7 +7174,36 @@ function executeHuberMadValidation(testCase) {
             pass: pass,
             difference: huberStatistic - threshold
         };
+        outlierChecks.push(`Valore ${value}: $|${value} - ${calculatedMedian.toFixed(4)}| / ${calculatedMad.toFixed(4)} = ${huberStatistic.toFixed(3)}$ (${pass ? 'Anomalo' : 'Non anomalo'})`);
     });
+
+    const calculationSteps = [
+        {
+            step: "Ordinamento Dati",
+            formula: "-",
+            value: data.slice().sort((a,b)=>a-b).join(", ")
+        },
+        {
+            step: "Calcolo Mediana",
+            formula: "$$\\text{Mediana}(X)$$",
+            value: calculatedMedian.toFixed(4)
+        },
+        {
+            step: "Calcolo Scarti Assoluti dalla Mediana",
+            formula: "$$|x_i - \\text{Mediana}|$$",
+            value: deviations.map(d=>d.toFixed(4)).join(", ")
+        },
+        {
+            step: "Calcolo MAD",
+            formula: "$$\\text{Mediana}(|x_i - \\text{Mediana}|)$$",
+            value: calculatedMad.toFixed(4)
+        },
+        {
+            step: "Verifica Anomalie",
+            formula: "$$\\frac{|x_i - \\text{Mediana}|}{\\text{MAD}} > 4.5$$",
+            value: outlierChecks.join("<br>")
+        }
+    ];
 
     return {
         testId: testCase.id,
@@ -7024,6 +7211,7 @@ function executeHuberMadValidation(testCase) {
         inputs: { data: data },
         comparison: comparison,
         allPassed: allTestsPassed,
+        calculationSteps: calculationSteps,
         passCondition: `Il test è superato se la Mediana e la MAD calcolate hanno una differenza relativa <= 1% rispetto all'atteso, e se i valori di test per le anomalie sono > ${threshold}.`,
         error: null
     };
@@ -7078,12 +7266,45 @@ function executeShapiroWilkValidation(testCase) {
         };
     }
 
+    // --- Calculation Trace ---
+    const calculationSteps = [
+        {
+            step: "Media e Deviazione Quadratica (S²)",
+            formula: "$$S^2 = \\sum (x_i - \\bar{x})^2$$",
+            value: `\\(\\bar{x}=${mean.toFixed(4)}, S^2=${S2.toFixed(4)}\\)`
+        },
+        {
+            step: "Ordinamento Dati",
+            formula: "-",
+            value: sorted_data.join(", "),
+            notes: "Dati ordinati in modo crescente"
+        },
+        {
+            step: "Calcolo parametro b",
+            formula: "$$b = \\sum_{i=1}^{k} a_{n-i+1} (x_{n-i+1} - x_i)$$",
+            value: b.toFixed(4),
+            notes: `Utilizzando i coefficienti \\(a_i\\) per \\(n=${n}\\)`
+        },
+        {
+            step: "Statistica W",
+            formula: "$$W = \\frac{b^2}{S^2}$$",
+            value: W.toFixed(4)
+        },
+        {
+            step: "Trasformazione Normalizzata (kp)",
+            formula: "$$k_p = g + e \\cdot \\ln\\left(\\frac{W - f}{1 - W}\\right)$$",
+            value: kp.toFixed(4),
+            notes: `Coefficienti per \\(n=${n}: g=${kp_coeffs_table[n].g}, e=${kp_coeffs_table[n].e}, f=${kp_coeffs_table[n].f}\\)`
+        }
+    ];
+
     return {
         testId: testCase.id,
         testName: testCase.name,
         inputs: { data: data },
         comparison: comparison,
         allPassed: allTestsPassed,
+        calculationSteps: calculationSteps,
         error: null
     };
 }
@@ -7160,12 +7381,58 @@ function executeRegressionValidation(testCase) {
         };
     }
 
+    // --- Calculation Trace ---
+    const calculationSteps = [
+        {
+            step: "Sommatorie",
+            formula: "$$\\sum x, \\sum y, \\sum x^2, \\sum y^2, \\sum xy$$",
+            value: `\\(\\sum x=${sum_x.toFixed(4)}, \\sum y=${sum_y.toFixed(4)}, \\sum xy=${sum_xy.toFixed(4)}, \\dots\\)`
+        },
+        {
+            step: "Somme dei quadrati degli scarti (Sxx, Syy, Sxy)",
+            formula: "$$S_{xx} = \\sum x^2 - \\frac{(\\sum x)^2}{n}, \\dots$$",
+            value: `\\(S_{xx}=${Sxx}, S_{yy}=${Syy}, S_{xy}=${Sxy}\\)`,
+            notes: "Arrotondati secondo le regole specificate."
+        },
+        {
+            step: "Pendenza (b)",
+            formula: "$$b = \\frac{S_{xy}}{S_{xx}}$$",
+            value: calculated.slope_b,
+            notes: "Utilizza valori arrotondati di Sxy e Sxx."
+        },
+        {
+            step: "Intercetta (a)",
+            formula: "$$a = \\bar{y} - b \\cdot \\bar{x}$$",
+            value: calculated.intercept_a,
+            notes: `\\(\\bar{y}=${y_medio_unrounded.toFixed(4)}, \\bar{x}=${x_medio.toFixed(4)}\\)`
+        },
+        {
+            step: "Deviazione standard residua (s_yx)",
+            formula: "$$s_{yx} = \\sqrt{\\frac{S_{yy} - (S_{xy}^2 / S_{xx})}{n-2}}$$",
+            value: calculated.s_yx
+        },
+        {
+            step: "Concentrazione calcolata (x_k)",
+            formula: "$$x_k = \\frac{y_k - a}{b}$$",
+            value: calculated.x_k,
+            notes: `Per \\(y_k=${sample_y_k}\\)`
+        },
+        {
+            step: "Incertezza standard (u(x_k))",
+            formula: "$$u(x_k) = \\frac{s_{yx}}{b} \\sqrt{\\frac{1}{p} + \\frac{1}{n} + \\frac{(y_k - \\bar{y})^2}{b^2 S_{xx}}}$$",
+            value: calculated.ux,
+            notes: `Con \\(p=${sample_p}, n=${n}, \\bar{y}=${y_medio_cal}\\)`
+        }
+    ];
+
     return {
         testId: testCase.id,
         testName: testCase.name,
+        inputs: testCase.inputs,
         calculatedResults: calculated,
         comparison: comparison,
         allPassed: allTestsPassed,
+        calculationSteps: calculationSteps,
         error: null
     };
 }
@@ -7240,12 +7507,28 @@ function executeResponseFactorValidation(testCase) {
         appState.calibration = backupCalState;
     }
 
+    const calculationSteps = [
+        {
+            step: "Incertezza Taratura (%)",
+            formula: "$$u_{tar}\\% = \\frac{Criterio_{accettabilità}}{\\sqrt{3}}$$",
+            value: `${(expectedResults.utaratura_perc).toFixed(4)} %`,
+            notes: `Criterio = ${acceptabilityCriterion}%`
+        },
+        {
+            step: "Confronto con ICV",
+            formula: "$$\\max(u_{tar}\\%, u_{ICV}\\%)$$",
+            value: `${expectedResults.u_final_rel_perc.toFixed(4)} %`,
+            notes: `u_ICV derivato da RSD_ICV = ${max_rsd_icv}%`
+        }
+    ];
+
     return {
         testId: testCase.id,
         testName: testCase.name,
         inputs: testCase.inputs,
         comparison: comparison,
         allPassed: allTestsPassed,
+        calculationSteps: calculationSteps,
         error: null
     };
 }
@@ -7317,12 +7600,38 @@ function executeSSTValidation(testCase) {
     if (!pass_U_abs) allTestsPassed = false;
     comparison['U Estesa (Assoluta)'] = { calculated: calc_U_abs.toFixed(4), expected: exp_U_abs.toFixed(4), pass: pass_U_abs, difference: calc_U_abs - exp_U_abs };
 
+    const calculationSteps = [
+        {
+            step: "Incertezza Volume",
+            formula: "$$u_V = \\frac{Tolleranza}{\\sqrt{3}}$$",
+            value: result.contributions.find(c => c.name.includes('Volume'))?.value.toExponential(4) || "N/A"
+        },
+        {
+            step: "Incertezza Peso Netto",
+            formula: "$$u_{Wnet} = \\sqrt{u(W_{gross})^2 + u(W_{tare})^2}$$",
+            value: result.contributions.find(c => c.name.includes('Peso Netto'))?.value.toExponential(4) || "N/A",
+            notes: "Basata su alpha e beta della bilancia"
+        },
+        {
+            step: "Incertezza Ripetibilità",
+            formula: "$$u_r = CV\\%$$",
+            value: (stats_cv_percent / 100).toExponential(4),
+            notes: "Dal CV% sperimentale"
+        },
+        {
+            step: "Incertezza Combinata Relativa",
+            formula: "$$u_c(rel) = \\sqrt{u_V^2 + u_{Wnet}^2 + u_r^2}$$",
+            value: (calc_U_rel / 2).toFixed(5) // Approximately, assuming k=2
+        }
+    ];
+
     return {
         testId: testCase.id,
         testName: testCase.name,
         inputs: testCase.inputs,
         comparison: comparison,
         allPassed: allTestsPassed,
+        calculationSteps: calculationSteps,
         error: null
     };
 }
@@ -7403,12 +7712,32 @@ function executeTreatmentValidation(testCase) {
         appState.libraries = backupLibraries;
     }
 
+    const calculationSteps = [
+        {
+            step: "Incertezza Pipetta (u_abs)",
+            formula: "$$u_{pipetta} = u_{cal} + u_{temp} + \\dots$$",
+            value: (expectedResults.u_pipette_rel * pipette_vol).toFixed(6),
+            notes: "Valore assoluto derivato da U_rel% e volume"
+        },
+        {
+            step: "Incertezza Matraccio (u_rel)",
+            formula: "$$\\frac{u_{flask}}{Vol} = \\frac{Tol / \\sqrt{3}}{Vol}$$",
+            value: expectedResults.u_flask_rel.toFixed(6)
+        },
+        {
+            step: "Propagazione Errori (Diluizione)",
+            formula: "$$u_{dil}(rel) = \\sqrt{u_{pip}^2(rel) + u_{flask}^2(rel)}$$",
+            value: (expectedResults.final_u_rel_perc / 100).toFixed(6)
+        }
+    ];
+
     return {
         testId: testCase.id,
         testName: testCase.name,
         inputs: testCase.inputs,
         comparison: comparison,
         allPassed: allTestsPassed,
+        calculationSteps: calculationSteps,
         error: null
     };
 }
@@ -7485,12 +7814,36 @@ function executeExtendedUncertaintyValidation(testCase) {
     if (!pass_U) allTestsPassed = false;
     comparison['Incertezza Estesa (%)'] = { calculated: calc_U.toFixed(2), expected: exp_U.toFixed(2), pass: pass_U, difference: calc_U - exp_U };
 
+    const calculationSteps = [
+        {
+            step: "Incertezza Composta (u_c)",
+            formula: "$$u_c = \\sqrt{u_{rep}^2 + u_{bias}^2 + u_{cal}^2}$$",
+            value: expectedResults.u_c_rel.toFixed(5)
+        },
+        {
+            step: "Gradi di Libertà Effettivi (Welch-Satterthwaite)",
+            formula: "$$\\nu_{eff} = \\frac{u_c^4}{\\sum \\frac{u_i^4}{\\nu_i}}$$",
+            value: calc_veff.toFixed(2)
+        },
+        {
+            step: "Fattore di Copertura (k)",
+            formula: "$$t_{95\\%}(\\nu_{eff})$$",
+            value: calc_k.toFixed(3)
+        },
+        {
+            step: "Incertezza Estesa (U)",
+            formula: "$$U = k \\cdot u_c$$",
+            value: calc_U.toFixed(2) + " %"
+        }
+    ];
+
     return {
         testId: testCase.id,
         testName: testCase.name,
         inputs: testCase.inputs,
         comparison: comparison,
         allPassed: allTestsPassed,
+        calculationSteps: calculationSteps,
         error: null
     };
 }
