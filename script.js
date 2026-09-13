@@ -837,7 +837,12 @@ const primaryBtnClass = "bg-blue-600 text-white font-semibold py-2 px-4 rounded-
 const secondaryBtnClass = "bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300";
 
 // --- UTILITY & CONSTANTS ---
-function deepCopy(obj) { return JSON.parse(JSON.stringify(obj)); }
+function deepCopy(obj) {
+    if (typeof structuredClone === 'function') {
+        return structuredClone(obj);
+    }
+    return JSON.parse(JSON.stringify(obj));
+}
 
 /**
  * Formats a number for display, safely handling null or undefined values.
