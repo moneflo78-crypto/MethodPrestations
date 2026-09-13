@@ -8286,19 +8286,27 @@ function setupReportEventListeners() {
     const reportContainer = document.getElementById('content-report-progetto');
     if (!reportContainer) return;
 
-    const allItemCheckboxes = reportContainer.querySelectorAll('.report-item-checkbox:not(:disabled)');
+    const allItemCheckboxes = Array.from(reportContainer.querySelectorAll('.report-item-checkbox:not(:disabled)'));
     const allSectionCheckboxes = reportContainer.querySelectorAll('.report-section-checkbox');
     const masterCheckbox = document.getElementById('report-select-all-complete');
 
+    // Pre-group item checkboxes by section for performance
+    const itemsBySection = {};
+    allItemCheckboxes.forEach(cb => {
+        const section = cb.dataset.section;
+        if (!itemsBySection[section]) itemsBySection[section] = [];
+        itemsBySection[section].push(cb);
+    });
+
     const updateMasterCheckboxes = () => {
-        const allChecked = Array.from(allItemCheckboxes).every(cb => cb.checked);
+        const allChecked = allItemCheckboxes.every(cb => cb.checked);
         masterCheckbox.checked = allChecked;
 
         allSectionCheckboxes.forEach(sectionCb => {
             const section = sectionCb.dataset.section;
-            const allSectionItems = reportContainer.querySelectorAll(`.report-item-checkbox[data-section="${section}"]:not(:disabled)`);
+            const allSectionItems = itemsBySection[section] || [];
             if (allSectionItems.length > 0) {
-                const allSectionChecked = Array.from(allSectionItems).every(cb => cb.checked);
+                const allSectionChecked = allSectionItems.every(cb => cb.checked);
                 sectionCb.checked = allSectionChecked;
             }
         });
@@ -8331,7 +8339,7 @@ function setupReportEventListeners() {
                 }
             } else if (target.classList.contains('report-section-checkbox')) {
                 const section = target.dataset.section;
-                reportContainer.querySelectorAll(`.report-item-checkbox[data-section="${section}"]:not(:disabled)`).forEach(cb => {
+                (itemsBySection[section] || []).forEach(cb => {
                     cb.checked = isChecked;
                 });
                  for (const item in appState.reportSettings.selections[section]) {
