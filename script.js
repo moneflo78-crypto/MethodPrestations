@@ -4623,10 +4623,14 @@ function actionCalculateRegression() {
         const tasks = [];
         const selectedSampleIds = Array.from(document.querySelectorAll('input[name="calibration_sample_reg"]:checked')).map(cb => cb.value);
 
+        // Optimization: use Maps for O(1) lookups during iteration
+        const samplesMap = new Map(appState.samples.map(s => [s.id, s]));
+        const treatmentsMap = new Map(appState.treatments.map(t => [t.id, t]));
+
         selectedSampleIds.forEach(id => {
             if (id.startsWith('spike-')) {
                 const sampleId = parseInt(id.replace('spike-', ''), 10);
-                const sample = appState.samples.find(s => s.id === sampleId);
+                const sample = samplesMap.get(sampleId);
                 const spikeResults = appState.spikeUncertainty[sampleId]?.results;
                 if (sample && spikeResults) {
                     tasks.push({
@@ -4636,9 +4640,9 @@ function actionCalculateRegression() {
                     });
                 }
             } else {
-                const treatmentSample = appState.treatments.find(ts => ts.id === id);
+                const treatmentSample = treatmentsMap.get(id);
                 if (treatmentSample && treatmentSample.results) {
-                    const originalSample = appState.samples.find(s => s.id === treatmentSample.sampleId);
+                    const originalSample = samplesMap.get(treatmentSample.sampleId);
                     tasks.push({
                         name: originalSample ? originalSample.name : `Campione trattato ${id}`,
                         xk: treatmentSample.results.finalConcentration,
@@ -4717,10 +4721,14 @@ function actionCalculateResponseFactor() {
         const tasks = [];
         const selectedSampleIds = Array.from(document.querySelectorAll('input[name="calibration_sample_rf"]:checked')).map(cb => cb.value);
 
+        // Optimization: use Maps for O(1) lookups during iteration
+        const samplesMap = new Map(appState.samples.map(s => [s.id, s]));
+        const treatmentsMap = new Map(appState.treatments.map(t => [t.id, t]));
+
         selectedSampleIds.forEach(id => {
              if (id.startsWith('spike-')) {
                 const sampleId = parseInt(id.replace('spike-', ''), 10);
-                const sample = appState.samples.find(s => s.id === sampleId);
+                const sample = samplesMap.get(sampleId);
                 const spikeResults = appState.spikeUncertainty[sampleId]?.results;
                 if (sample && spikeResults) {
                     tasks.push({
@@ -4729,9 +4737,9 @@ function actionCalculateResponseFactor() {
                     });
                 }
             } else {
-                const treatmentSample = appState.treatments.find(ts => ts.id === id);
+                const treatmentSample = treatmentsMap.get(id);
                 if (treatmentSample && treatmentSample.results) {
-                    const originalSample = appState.samples.find(s => s.id === treatmentSample.sampleId);
+                    const originalSample = samplesMap.get(treatmentSample.sampleId);
                     tasks.push({
                         name: originalSample ? originalSample.name : `Campione trattato ${id}`,
                         xk: treatmentSample.results.finalConcentration
