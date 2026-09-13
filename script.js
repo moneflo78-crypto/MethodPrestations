@@ -5202,7 +5202,6 @@ function _get_pipette_uncertainty_contribution(pipetteId, volume, libraries) {
             throw new Error(`Logica incertezza pipetta fallita per volume ${volume}. Non è stato trovato un punto esatto o un intervallo valido.`);
         }
     }
-    // --- FIX END ---
 
     // u_rel = (U_rel_perc / 100) / (k=2 * sqrt(3)) -> This is incorrect. It should be U/(k=2) for normal distribution, or U/sqrt(3) for rectangular.
     // The original formula seems to combine both, which is non-standard.
