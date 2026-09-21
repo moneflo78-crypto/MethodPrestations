@@ -1261,10 +1261,8 @@ function renderMethods() {
     const tableBody = document.getElementById('methods-library-table');
     if (!tableBody) return;
 
-    let html = '';
-    for (const id in appState.libraries.methods) {
-        const item = appState.libraries.methods[id];
-        html += `
+    tableBody.innerHTML = Object.entries(appState.libraries.methods)
+        .map(([id, item]) => `
         <tr class="border-b hover:bg-gray-50">
             <td class="p-3 font-mono">${id}</td>
             <td class="p-3">${item.name}</td>
@@ -1275,9 +1273,8 @@ function renderMethods() {
                 <button data-library="methods" data-name="${id}" class="btn-edit-library-item text-xs bg-yellow-100 text-yellow-800 font-semibold py-1 px-2 rounded-md hover:bg-yellow-200">Modifica</button>
                 <button data-library="methods" data-name="${id}" class="btn-remove-library-item text-xs bg-red-100 text-red-800 font-semibold py-1 px-2 rounded-md hover:bg-red-200">Rimuovi</button>
             </td>
-        </tr>`;
-    }
-    tableBody.innerHTML = html;
+        </tr>`)
+        .join('');
 }
 
 
@@ -1667,10 +1664,8 @@ function renderLibraries() {
     // Render Glassware Table
     const glasswareTableBody = document.getElementById('glassware-library-table');
     if (glasswareTableBody) {
-        let glasswareHtml = '';
-        for (const name in appState.libraries.glassware) {
-            const item = appState.libraries.glassware[name];
-            glasswareHtml += `
+        glasswareTableBody.innerHTML = Object.entries(appState.libraries.glassware)
+            .map(([name, item]) => `
             <tr class="border-b hover:bg-gray-50">
                 <td class="p-3">${name}</td>
                 <td class="p-3 font-mono">${item.volume}</td>
@@ -1680,19 +1675,17 @@ function renderLibraries() {
                     <button data-library="glassware" data-name="${name}" class="btn-duplicate-library-item text-xs bg-blue-100 text-blue-800 font-semibold py-1 px-2 rounded-md hover:bg-blue-200">Duplica</button>
                     <button data-library="glassware" data-name="${name}" class="btn-remove-library-item text-xs bg-red-100 text-red-800 font-semibold py-1 px-2 rounded-md hover:bg-red-200">Rimuovi</button>
                 </td>
-            </tr>`;
-        }
-        glasswareTableBody.innerHTML = glasswareHtml;
+            </tr>`)
+            .join('');
     }
 
     // Render Pipette Table
     const pipetteTableBody = document.getElementById('pipette-library-table');
     if (pipetteTableBody) {
-        let pipetteHtml = '';
-        for (const id in appState.libraries.pipettes) {
-            const item = appState.libraries.pipettes[id];
-            const pointsSummary = item.calibrationPoints.map(p => `${p.volume}mL (${p.U_rel_percent}%)`).join(', ');
-            pipetteHtml += `
+        pipetteTableBody.innerHTML = Object.entries(appState.libraries.pipettes)
+            .map(([id, item]) => {
+                const pointsSummary = item.calibrationPoints.map(p => `${p.volume}mL (${p.U_rel_percent}%)`).join(', ');
+                return `
             <tr class="border-b hover:bg-gray-50">
                 <td class="p-3">${id}</td>
                 <td class="p-3 text-xs font-mono">${pointsSummary}</td>
@@ -1702,22 +1695,21 @@ function renderLibraries() {
                     <button data-library="pipettes" data-name="${id}" class="btn-remove-library-item text-xs bg-red-100 text-red-800 font-semibold py-1 px-2 rounded-md hover:bg-red-200">Rimuovi</button>
                 </td>
             </tr>`;
-        }
-        pipetteTableBody.innerHTML = pipetteHtml;
+            })
+            .join('');
     }
 
     // Render Balances Table
     const balancesTableBody = document.getElementById('balances-library-table');
     if (balancesTableBody) {
-        let balancesHtml = '';
-        for (const id in appState.libraries.balances) {
-            const item = appState.libraries.balances[id];
-            const minWeightDisplay = item.minWeight !== null && item.minWeight !== undefined ? item.minWeight : '-';
-            const capacityDisplay = item.capacity !== null && item.capacity !== undefined ? item.capacity : '-';
-            const alphaDisplay = item.alpha !== null && item.alpha !== undefined ? item.alpha : '-';
-            const betaDisplay = item.beta !== null && item.beta !== undefined ? Number(item.beta).toExponential(2) : '-';
+        balancesTableBody.innerHTML = Object.entries(appState.libraries.balances)
+            .map(([id, item]) => {
+                const minWeightDisplay = item.minWeight !== null && item.minWeight !== undefined ? item.minWeight : '-';
+                const capacityDisplay = item.capacity !== null && item.capacity !== undefined ? item.capacity : '-';
+                const alphaDisplay = item.alpha !== null && item.alpha !== undefined ? item.alpha : '-';
+                const betaDisplay = item.beta !== null && item.beta !== undefined ? Number(item.beta).toExponential(2) : '-';
 
-            balancesHtml += `
+                return `
             <tr class="border-b hover:bg-gray-50">
                 <td class="p-3 font-medium">${id}</td>
                 <td class="p-3 font-mono">${minWeightDisplay}</td>
@@ -1730,8 +1722,8 @@ function renderLibraries() {
                     <button data-library="balances" data-name="${id}" class="btn-remove-library-item text-xs bg-red-100 text-red-800 font-semibold py-1 px-2 rounded-md hover:bg-red-200">Rimuovi</button>
                 </td>
             </tr>`;
-        }
-        balancesTableBody.innerHTML = balancesHtml;
+            })
+            .join('');
     }
 }
 
