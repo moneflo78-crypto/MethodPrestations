@@ -1779,10 +1779,16 @@ function renderTreatments() {
 
     const usedSampleIds = new Set(appState.treatments.map(ts => ts.sampleId).filter(id => id !== null));
     const availableSamples = appState.samples.filter(s => !usedSampleIds.has(s.id));
+
+    const sampleMap = new Map();
+    for (let i = 0; i < appState.samples.length; i++) {
+        sampleMap.set(appState.samples[i].id, appState.samples[i]);
+    }
+
     const matrixSpikes = Object.keys(appState.spikeUncertainty)
         .filter(sampleId => appState.spikeUncertainty[sampleId].results)
         .map(sampleId => {
-            const sample = appState.samples.find(s => s.id == sampleId);
+            const sample = sampleMap.get(parseInt(sampleId)) || sampleMap.get(sampleId);
             return {
                 id: sampleId,
                 name: sample ? sample.name : `Campione ${sampleId}`,
@@ -1792,10 +1798,12 @@ function renderTreatments() {
         });
 
     let content = '';
+    const baseSampleOptionsHTML = availableSamples.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+
     appState.treatments.forEach(treatmentSample => {
-        let sampleOptionsHTML = availableSamples.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+        let sampleOptionsHTML = baseSampleOptionsHTML;
         if (treatmentSample.sampleId) {
-            const currentSample = appState.samples.find(s => s.id === treatmentSample.sampleId);
+            const currentSample = sampleMap.get(treatmentSample.sampleId);
             if (currentSample) {
                 sampleOptionsHTML += `<option value="${currentSample.id}" selected>${currentSample.name}</option>`;
             }
