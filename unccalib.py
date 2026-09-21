@@ -37,25 +37,20 @@ def calcola_incertezza_minimi_quadrati(x: list[float], y: list[float]) -> list[d
     x_medio = np.mean(x_np)
     sum_sq_diff_x = np.sum((x_np - x_medio)**2)
 
-    risultati = []
+    # Passo 5: Calcolo dell'incertezza per ogni punto di taratura (Vettorizzato)
+    # Formula: ux = (s_yx / b) * sqrt(1 + 1/n + ((y_medio - y_calcolato_i)^2) / (b^2 * sum((x-x_medio)^2)))
+    termine_radice = np.sqrt(1 + (1/n) + ((y_medio - y_calcolato)**2) / (b**2 * sum_sq_diff_x))
+    ux = (s_yx / abs(b)) * termine_radice
 
-    # Passo 5: Calcolo dell'incertezza per ogni punto di taratura
-    for i in range(n):
-        xi = x_np[i]
-        y_calcolato_i = y_calcolato[i]
+    # Calcolo dell'incertezza relativa percentuale (Vettorizzato)
+    # Evita divisione per zero usando np.where
+    ux_rel_perc = np.where(x_np != 0, (ux / x_np) * 100, 0.0)
 
-        # Formula: ux = (s_yx / b) * sqrt(1 + 1/n + ((y_medio - y_calcolato_i)^2) / (b^2 * sum((x-x_medio)^2)))
-        termine_radice = np.sqrt(1 + (1/n) + ((y_medio - y_calcolato_i)**2) / (b**2 * sum_sq_diff_x))
-        ux = (s_yx / abs(b)) * termine_radice
-
-        # Calcolo dell'incertezza relativa percentuale
-        ux_rel_perc = (ux / xi) * 100 if xi != 0 else 0
-
-        risultati.append({
-            'x': xi,
-            'ux': ux,
-            'ux_rel_perc': ux_rel_perc
-        })
+    # Costruzione della lista dei risultati
+    risultati = [
+        {'x': float(xi), 'ux': float(u), 'ux_rel_perc': float(urp)}
+        for xi, u, urp in zip(x_np, ux, ux_rel_perc)
+    ]
 
     return risultati
 
